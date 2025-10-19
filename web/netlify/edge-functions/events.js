@@ -85,9 +85,9 @@ export default async (request, context) => {
 
   return new Response(stream, {
     headers: {
-      'content-type': 'text/event-stream',
-      'cache-control': 'no-cache',
-      'connection': 'keep-alive',
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      // Removido 'connection': 'keep-alive' por incompatibilidade com HTTP/2
     },
   });
 };
