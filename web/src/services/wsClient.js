@@ -9,6 +9,17 @@ export function createWsClient(onMessage) {
         try { onMessage?.({ type: 'status', connected: true }); } catch {}
         console.log('[SSE] Conectado ao stream');
       };
+      // Ouvir eventos nomeados do SSE
+      es.addEventListener('status', (ev) => {
+        try { onMessage?.(JSON.parse(ev.data)); } catch { onMessage?.(ev.data); }
+      });
+      es.addEventListener('double_result', (ev) => {
+        try { onMessage?.(JSON.parse(ev.data)); } catch { onMessage?.(ev.data); }
+      });
+      es.addEventListener('bets_popularity', (ev) => {
+        try { onMessage?.(JSON.parse(ev.data)); } catch { onMessage?.(ev.data); }
+      });
+      // Fallback genérico para eventos sem nome
       es.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data);
