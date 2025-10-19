@@ -10,7 +10,7 @@ export default function PatternsPanel({ patterns }) {
           {patterns.map((p, i) => (
             <li key={i} style={{ marginBottom: 8 }}>
               <span style={{ fontWeight: 'bold' }}>{p.description}</span>
-              <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>(risk: {p.risk})</span>
+              <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>(risco: {p.risk})</span>
             </li>
           ))}
         </ul>

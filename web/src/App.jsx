@@ -10,32 +10,36 @@ import PatternsPanel from './components/PatternsPanel';
 function App() {
 
   const [serverStatus, setServerStatus] = useState({});
-  const [events, setEvents] = useState([]);
   const [results, setResults] = useState([]);
   const wsRef = useRef(null);
-  const MAX_EVENTS = 50;
   const MAX_RESULTS = 100;
 
   useEffect(() => {
     wsRef.current = createWsClient((data) => {
-      setEvents((prev) => [data, ...prev].slice(0, MAX_EVENTS));
       if (data?.type === 'status') {
         setServerStatus((prev) => ({ ...prev, wsConnected: Boolean(data?.connected) }));
       }
       if (data?.type === 'double_result') {
         const parsed = parseDoublePayload(data?.data ?? data);
         if (parsed) {
-          setResults((prev) => [...prev, parsed].slice(-MAX_RESULTS));
+          setResults((prev) => {
+            const last = prev[prev.length - 1];
+            const duplicateById = parsed.round_id && prev.some(r => r.round_id === parsed.round_id);
+            const sameRound = last && last.round_id && parsed.round_id && last.round_id === parsed.round_id;
+            const sameRaw = last && last.raw && parsed.raw && JSON.stringify(last.raw) === JSON.stringify(parsed.raw);
+            const sameNumTimeClose = last && last.number === parsed.number && Math.abs((parsed.timestamp || 0) - (last.timestamp || 0)) < 2000;
+            if (duplicateById || sameRound || sameRaw || sameNumTimeClose) return prev;
+            return [...prev, parsed].slice(-MAX_RESULTS);
+          });
         }
       }
     });
     // Autoconecta ao bridge PlayNaBets no carregamento
     (async () => {
       try {
-        const res = await connectWsBridge();
-        setEvents((prev) => [{ type: 'autoConnect', data: res }, ...prev].slice(0, MAX_EVENTS));
-      } catch (e) {
-        setEvents((prev) => [{ type: 'autoConnectError', error: String(e) }, ...prev].slice(0, MAX_EVENTS));
+        await connectWsBridge();
+      } catch {
+        // silencioso
       }
     })();
 
@@ -50,8 +54,7 @@ function App() {
   }, []);
 
   const handleConnectWs = async () => {
-    const res = await connectWsBridge();
-    setEvents((prev) => [{ type: 'connect', data: res }, ...prev].slice(0, MAX_EVENTS));
+    await connectWsBridge();
   };
 
   const connected = Boolean(serverStatus?.wsConnected);
@@ -69,15 +72,15 @@ function App() {
 
   return (
     <div className="App" style={{ padding: 24 }}>
-      <h1>Analise double Play na Bet</h1>
-      <p>Servidor: {connected ? 'WS conectado' : 'WS desconectado'} | Token: {hasToken ? 'OK' : 'Não'}</p>
+      <h1>Análise do Double (Play na Bet)</h1>
+      <p>Servidor: {connected ? 'WS conectado' : 'WS desconectado'}{hasToken ? ' | Token: Ativo' : ''}</p>
 
-      <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
+      <div style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
 
 
         <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
           <h2>Conexão em tempo real</h2>
-          <p>Conexão automática ao PlayNaBets.</p>
+          <p>Conexão automática ao Play na Bet.</p>
           <p>Status: {connected ? 'Conectado' : 'Desconectado'} <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', marginLeft: 8, background: connected ? '#2ecc71' : '#e74c3c' }} /></p>
           <button onClick={handleConnectWs}>Reconectar WS</button>
         </div>
