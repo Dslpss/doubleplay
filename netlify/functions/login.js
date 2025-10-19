@@ -6,7 +6,7 @@ exports.handler = async function (event) {
   }
   try {
     const { email, password } = JSON.parse(event.body || '{}');
-    const body = JSON.stringify({ email, password });
+    const body = JSON.stringify({ email: email || process.env.PLAYNABETS_USER, password: password || process.env.PLAYNABETS_PASS });
     const res = await fetch(LOGIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
