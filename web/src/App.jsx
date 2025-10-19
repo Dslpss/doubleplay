@@ -20,6 +20,15 @@ function App() {
   const [activeSignal, setActiveSignal] = useState(null);
   const [signalHistory, setSignalHistory] = useState([]);
   const [historyLimit, setHistoryLimit] = useState(5);
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 430px)');
+    const update = () => setIsNarrow(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     wsRef.current = createWsClient((data) => {
@@ -192,22 +201,28 @@ function App() {
 
   return (
     <div className="App" style={{ padding: 24 }}>
-      <h1>Análise do Double (Play na Bet)</h1>
+      <h1 style={{ fontSize: isNarrow ? 24 : undefined }}>Análise do Double (Play na Bet)</h1>
       <p>Servidor: {connected ? 'WS conectado' : 'WS desconectado'}{hasToken ? ' | Token: Ativo' : ''}</p>
 
-      <div style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
+      <div className="panels" style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
         <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
           <h2>Conexão em tempo real</h2>
           <p>Conexão automática ao Play na Bet.</p>
           <p>Status: {connected ? 'Conectado' : 'Desconectado'} <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', marginLeft: 8, background: connected ? '#2ecc71' : '#e74c3c' }} /></p>
-          <button onClick={handleConnectWs}>Reconectar WS</button>
+          <button onClick={handleConnectWs} style={{ width: isNarrow ? '100%' : undefined }}>Reconectar WS</button>
+          <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', flexDirection: isNarrow ? 'column' : 'row', width: isNarrow ? '100%' : undefined }}>
+            <span style={{ opacity: 0.8 }}>Não tem conta?</span>
+            <a href="https://playnabets.com/cadastro?refId=NjMzMTRyZWZJZA==" target="_blank" rel="noopener noreferrer" style={{ width: isNarrow ? '100%' : undefined }}>
+              <button style={{ width: isNarrow ? '100%' : undefined }}>Cadastre-se na Play na Bets</button>
+            </a>
+          </div>
         </div>
 
         <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
            <h2>Auto aposta (sinal)</h2>
            <p>Estado: {autoBetEnabled ? 'Ativa' : 'Desativada'}</p>
-           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button onClick={() => setAutoBetEnabled(v => !v)}>{autoBetEnabled ? 'Desativar sinais' : 'Ativar sinais'}</button>
+           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => setAutoBetEnabled(v => !v)} style={{ width: isNarrow ? '100%' : undefined }}>{autoBetEnabled ? 'Desativar sinais' : 'Ativar sinais'}</button>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ opacity: 0.8 }}>Mostrar</span>
                 <select value={historyLimit} onChange={(e) => setHistoryLimit(Number(e.target.value))}>
@@ -264,9 +279,9 @@ function App() {
             <p>Nenhum resultado ainda.</p>
           ) : (
             resultRows.map((row, ridx) => (
-              <div key={ridx} style={{ display: 'flex', gap: 8, flexWrap: 'nowrap' }}>
+              <div key={ridx} style={{ display: 'flex', gap: 8, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 6, justifyContent: 'center' }}>
                 {row.map((r, idx) => (
-                  <ResultChip key={`${ridx}-${idx}`} number={r.number} color={r.color} />
+                  <ResultChip key={`${ridx}-${idx}`} number={r.number} color={r.color} compact={isNarrow} />
                 ))}
               </div>
             ))

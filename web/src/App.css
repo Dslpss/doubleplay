@@ -5,6 +5,43 @@
   text-align: center;
 }
 
+/* Painéis principais: responsivo */
+.panels {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+  justify-content: center;
+  align-items: stretch;
+}
+.panels > div {
+  flex: 1 1 0;
+}
+
+@media (max-width: 768px) {
+  #root {
+    padding: 1rem;
+  }
+  /* Limita e centraliza todo o conteúdo em mobile */
+  .App {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 12px !important; /* sobrepõe padding inline do App */
+  }
+  .panels {
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+    align-items: center; /* centraliza itens na coluna */
+  }
+  .panels > div {
+    width: 100%;
+    max-width: 420px; /* largura confortável em mobile (20:9) */
+    margin: 0 auto; /* centraliza o card */
+    box-sizing: border-box;
+  }
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;
