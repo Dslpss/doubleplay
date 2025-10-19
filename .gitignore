@@ -1,0 +1,47 @@
+# Monorepo Node + Vite (server + web)
+
+# Dependências
+node_modules/
+.pnp
+.pnp.js
+
+# Builds e artefatos
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Netlify (CLI/local)
+.netlify/
+
+# Cache do Vite
+.vite/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE/Editor
+.vscode/
+.idea/
+.history/
+
+# Temporários
+*.swp
+*.swo
+*.tmp
+*.bak

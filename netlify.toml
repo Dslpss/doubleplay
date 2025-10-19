@@ -1,0 +1,9 @@
+[build]
+  base = "double-netlify/web"
+  command = "npm run build"
+  publish = "double-netlify/web/dist"
+
+[dev]
+  command = "npm run dev"
+  port = 5173
+  targetPort = 5173
