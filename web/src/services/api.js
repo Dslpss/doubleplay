@@ -12,14 +12,22 @@ export async function login(email, password) {
 
 export async function status() {
   if (!SERVER_URL) return { ok: true, wsConnected: false, hasToken: false };
-  const res = await fetch(`${SERVER_URL}/api/status`);
-  return res.json();
+  try {
+    const res = await fetch(`${SERVER_URL}/api/status`);
+    return res.json();
+  } catch {
+    return { ok: true, wsConnected: false, hasToken: false };
+  }
 }
 
 export async function connectWsBridge() {
   if (!SERVER_URL) return { ok: false, message: 'Backend não configurado' };
-  const res = await fetch(`${SERVER_URL}/api/connect`, { method: 'POST' });
-  return res.json();
+  try {
+    const res = await fetch(`${SERVER_URL}/api/connect`, { method: 'POST' });
+    return res.json();
+  } catch (e) {
+    return { ok: false, error: 'Falha ao conectar ao backend' };
+  }
 }
 
 export async function autoBet(color, amount = 1) {
