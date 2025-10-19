@@ -1,7 +1,7 @@
 [build]
-  base = "double-netlify/web"
+  base = "web"
   command = "npm run build"
-  publish = "double-netlify/web/dist"
+  publish = "web/dist"
 
 [dev]
   command = "npm run dev"
