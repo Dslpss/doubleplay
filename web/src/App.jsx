@@ -13,17 +13,19 @@ function App() {
   const [events, setEvents] = useState([]);
   const [results, setResults] = useState([]);
   const wsRef = useRef(null);
+  const MAX_EVENTS = 50;
+  const MAX_RESULTS = 100;
 
   useEffect(() => {
     wsRef.current = createWsClient((data) => {
-      setEvents((prev) => [data, ...prev].slice(0, 50));
+      setEvents((prev) => [data, ...prev].slice(0, MAX_EVENTS));
       if (data?.type === 'status') {
         setServerStatus((prev) => ({ ...prev, wsConnected: Boolean(data?.connected) }));
       }
       if (data?.type === 'double_result') {
         const parsed = parseDoublePayload(data?.data ?? data);
         if (parsed) {
-          setResults((prev) => [...prev, parsed].slice(-100));
+          setResults((prev) => [...prev, parsed].slice(-MAX_RESULTS));
         }
       }
     });
@@ -31,9 +33,9 @@ function App() {
     (async () => {
       try {
         const res = await connectWsBridge();
-        setEvents((prev) => [{ type: 'autoConnect', data: res }, ...prev].slice(0, 50));
+        setEvents((prev) => [{ type: 'autoConnect', data: res }, ...prev].slice(0, MAX_EVENTS));
       } catch (e) {
-        setEvents((prev) => [{ type: 'autoConnectError', error: String(e) }, ...prev].slice(0, 50));
+        setEvents((prev) => [{ type: 'autoConnectError', error: String(e) }, ...prev].slice(0, MAX_EVENTS));
       }
     })();
 
@@ -47,11 +49,9 @@ function App() {
     };
   }, []);
 
-
-
   const handleConnectWs = async () => {
     const res = await connectWsBridge();
-    setEvents((prev) => [{ type: 'connect', data: res }, ...prev]);
+    setEvents((prev) => [{ type: 'connect', data: res }, ...prev].slice(0, MAX_EVENTS));
   };
 
   const connected = Boolean(serverStatus?.wsConnected);
@@ -59,6 +59,13 @@ function App() {
   const stats = summarizeResults(results);
   const streaks = computeStreaks(results);
   const patterns = detectSimplePatterns(results);
+
+  // limitar exibição a 4 pilhas (linhas), 16 resultados por linha
+  const ROWS = 4;
+  const PER_ROW = 16;
+  const last = results.slice(-(ROWS * PER_ROW));
+  const lastNewestFirst = last.slice().reverse();
+  const resultRows = Array.from({ length: ROWS }, (_, i) => lastNewestFirst.slice(i * PER_ROW, (i + 1) * PER_ROW));
 
   return (
     <div className="App" style={{ padding: 24 }}>
@@ -78,12 +85,16 @@ function App() {
 
       <div style={{ marginTop: 24 }}>
         <h2>Últimos Resultados</h2>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {results.length === 0 ? (
             <p>Nenhum resultado ainda.</p>
           ) : (
-            results.slice().reverse().map((r, idx) => (
-              <ResultChip key={idx} number={r.number} color={r.color} />
+            resultRows.map((row, ridx) => (
+              <div key={ridx} style={{ display: 'flex', gap: 8, flexWrap: 'nowrap' }}>
+                {row.map((r, idx) => (
+                  <ResultChip key={`${ridx}-${idx}`} number={r.number} color={r.color} />
+                ))}
+              </div>
             ))
           )}
         </div>
@@ -93,20 +104,11 @@ function App() {
         <StatsPanel stats={stats} streaks={streaks} />
       </div>
 
+
       <div style={{ marginTop: 24 }}>
         <PatternsPanel patterns={patterns} />
       </div>
 
-      <div style={{ marginTop: 24 }}>
-        <h2>Eventos recentes</h2>
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {events.map((e, i) => (
-            <li key={i} style={{ border: '1px solid #eee', marginBottom: 8, padding: 8 }}>
-              <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(e, null, 2)}</pre>
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   );
 }

@@ -26,6 +26,56 @@ let reconnectTimer = null;
 const clients = new Set();
 let lastPayload = null;
 
+// Janela deslizante de apostas recentes
+const BET_WINDOW_SIZE = 200;
+const recentBets = [];
+
+function isBetEvent(obj) {
+  try {
+    const t = String(obj?.type || '').toLowerCase();
+    if (t.includes('bet') || t.includes('aposta') || t.includes('placebet') || t.includes('wager') || t.includes('stake')) return true;
+    const data = obj?.data || obj;
+    if (data && (Object.prototype.hasOwnProperty.call(data, 'bet') || Object.prototype.hasOwnProperty.call(data, 'aposta'))) return true;
+    if (typeof data?.action === 'string' && data.action.toLowerCase().includes('bet')) return true;
+    return false;
+  } catch { return false; }
+}
+
+function detectBetColor(obj) {
+  const data = obj?.data || obj;
+  const candidates = [data?.color, data?.betColor, data?.selection, data?.side, data?.bet?.color, data?.aposta?.cor];
+  for (const c of candidates) {
+    if (typeof c === 'string') {
+      const s = c.toLowerCase();
+      if (s.includes('red') || s.includes('vermelho')) return 'red';
+      if (s.includes('black') || s.includes('preto')) return 'black';
+      if (s.includes('white') || s.includes('branco')) return 'white';
+    }
+  }
+  const text = JSON.stringify(obj).toLowerCase();
+  if (text.includes('vermelho') || text.includes('red')) return 'red';
+  if (text.includes('preto') || text.includes('black')) return 'black';
+  if (text.includes('branco') || text.includes('white')) return 'white';
+  return null;
+}
+
+function pushBetColor(color) {
+  if (!color || !['red','black','white'].includes(color)) return;
+  recentBets.push(color);
+  if (recentBets.length > BET_WINDOW_SIZE) recentBets.shift();
+}
+
+function getBetsSummary() {
+  const summary = { total: 0, red: 0, black: 0, white: 0, sampled: recentBets.length };
+  for (const c of recentBets) {
+    summary[c]++;
+    summary.total++;
+  }
+  const pct = (n) => (summary.total ? Math.round((n / summary.total) * 100) : 0);
+  summary.pct = { red: pct(summary.red), black: pct(summary.black), white: pct(summary.white) };
+  return summary;
+}
+
 function extractJsonStr(s) {
   if (!s || typeof s !== 'string') return null;
   const i = s.indexOf('{');
@@ -100,6 +150,14 @@ function connectPlayWs() {
     if (payload) {
       lastPayload = payload;
       broadcast({ type: 'double_result', data: payload });
+      // Tenta capturar apostas de usuários
+      if (isBetEvent(payload)) {
+        const color = detectBetColor(payload);
+        if (color) {
+          pushBetColor(color);
+          broadcast({ type: 'bets_popularity', data: getBetsSummary() });
+        }
+      }
     }
   });
 
@@ -134,7 +192,12 @@ app.get('/api/status', (req, res) => {
     wsConnected: playWs?.readyState === WebSocket.OPEN,
     hasToken: Boolean(auth.token),
     lastPayload,
+    betsPopularity: getBetsSummary(),
   });
+});
+
+app.get('/api/bets', (req, res) => {
+  res.json({ ok: true, data: getBetsSummary() });
 });
 
 app.post('/api/connect', (req, res) => {

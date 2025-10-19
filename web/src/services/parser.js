@@ -79,3 +79,50 @@ export function detectSimplePatterns(results) {
   }
   return patterns;
 }
+
+// Detecta apostas do usuário dentro dos eventos recentes
+export function analyzeUserBets(events = []) {
+  const summary = { total: 0, red: 0, black: 0, white: 0, sampled: 0 };
+  if (!Array.isArray(events)) return summary;
+
+  const isBetEvent = (evt) => {
+    const t = String(evt?.type || '').toLowerCase();
+    const data = evt?.data || evt;
+    if (t.includes('bet') || t.includes('aposta') || t.includes('placebet') || t.includes('wager') || t.includes('stake')) return true;
+    if (data && (Object.prototype.hasOwnProperty.call(data, 'bet') || Object.prototype.hasOwnProperty.call(data, 'aposta'))) return true;
+    if (typeof data?.action === 'string' && data.action.toLowerCase().includes('bet')) return true;
+    return false;
+  };
+
+  const detectColor = (evt) => {
+    const data = evt?.data || evt;
+    const candidates = [data?.color, data?.betColor, data?.selection, data?.side, data?.bet?.color, data?.aposta?.cor];
+    for (const c of candidates) {
+      if (typeof c === 'string') {
+        const s = c.toLowerCase();
+        if (s.includes('red') || s.includes('vermelho')) return 'red';
+        if (s.includes('black') || s.includes('preto')) return 'black';
+        if (s.includes('white') || s.includes('branco')) return 'white';
+      }
+    }
+    // fallback: busca em texto
+    const text = JSON.stringify(evt).toLowerCase();
+    if (text.includes('vermelho') || text.includes('red')) return 'red';
+    if (text.includes('preto') || text.includes('black')) return 'black';
+    if (text.includes('branco') || text.includes('white')) return 'white';
+    return null;
+  };
+
+  for (const e of events) {
+    summary.sampled++;
+    if (!isBetEvent(e)) continue;
+    const color = detectColor(e);
+    if (!color) continue;
+    summary[color]++;
+    summary.total++;
+  }
+
+  const pct = (n) => (summary.total ? Math.round((n / summary.total) * 100) : 0);
+  summary.pct = { red: pct(summary.red), black: pct(summary.black), white: pct(summary.white) };
+  return summary;
+}
