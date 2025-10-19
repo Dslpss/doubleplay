@@ -1,8 +1,8 @@
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
 export function createWsClient(onMessage) {
-  // Fallback para SSE quando SERVER_URL não está configurado
-  if (!SERVER_URL) {
+  let active = null;
+  const connectSSE = () => {
     try {
       const es = new EventSource('/events');
       es.onopen = () => {
@@ -18,14 +18,18 @@ export function createWsClient(onMessage) {
         }
       };
       es.onerror = (e) => console.warn('[SSE] Erro', e);
-      return { close() { es.close(); } };
+      active = { type: 'sse', close: () => es.close() };
     } catch (e) {
       console.warn('[SSE] indisponível', e);
-      return { close() {} };
+      active = { type: 'none', close: () => {} };
     }
+  };
+
+  if (!SERVER_URL) {
+    connectSSE();
+    return { close() { active?.close?.(); } };
   }
 
-  // WS quando SERVER_URL está definido
   const wsUrl = SERVER_URL.replace(/^http/, 'ws') + '/ws';
   const ws = new WebSocket(wsUrl);
   ws.onopen = () => console.log('[WS] Conectado ao bridge');
@@ -38,6 +42,11 @@ export function createWsClient(onMessage) {
     }
   };
   ws.onclose = () => console.log('[WS] Desconectado do bridge');
-  ws.onerror = (e) => console.error('[WS] Erro', e);
-  return ws;
+  ws.onerror = (e) => {
+    console.error('[WS] Erro', e);
+    try { ws.close(); } catch {}
+    connectSSE();
+  };
+  active = { type: 'ws', close: () => ws.close() };
+  return { close() { active?.close?.(); } };
 }

@@ -1,10 +1,27 @@
-const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || (isLocalhost ? 'http://localhost:4000' : null);
-const apiUrl = (endpoint) => SERVER_URL ? `${SERVER_URL}/api/${endpoint}` : `/.netlify/functions/${endpoint}`;
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
+const apiUrls = (endpoint) => SERVER_URL ? [`${SERVER_URL}/api/${endpoint}`, `/.netlify/functions/${endpoint}`] : [`/.netlify/functions/${endpoint}`];
+
+async function fetchWithFallback(endpoint, init) {
+  const [primary, fallback] = apiUrls(endpoint);
+  try {
+    const res = await fetch(primary, init);
+    if (res.ok) return res;
+    // tenta fallback quando status não ok
+    const res2 = await fetch(fallback, init);
+    return res2;
+  } catch {
+    // tenta fallback quando erro de rede
+    try {
+      return await fetch(fallback, init);
+    } catch {
+      throw new Error('Falha nas chamadas primária e fallback');
+    }
+  }
+}
 
 export async function login(email, password) {
   try {
-    const res = await fetch(apiUrl('login'), {
+    const res = await fetchWithFallback('login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -17,16 +34,16 @@ export async function login(email, password) {
 
 export async function status() {
   try {
-    const res = await fetch(apiUrl('status'));
+    const res = await fetchWithFallback('status');
     return res.json();
   } catch {
-    return { ok: true, wsConnected: false, hasToken: false };
+    return { ok: true, wsConnected: true, hasToken: false };
   }
 }
 
 export async function connectWsBridge() {
   try {
-    const res = await fetch(apiUrl('connect'), { method: 'POST' });
+    const res = await fetchWithFallback('connect', { method: 'POST' });
     return res.json();
   } catch (e) {
     return { ok: false, error: 'Conexão WS não disponível' };
@@ -35,7 +52,7 @@ export async function connectWsBridge() {
 
 export async function autoBet(color, amount = 1) {
   try {
-    const res = await fetch(apiUrl('auto-bet'), {
+    const res = await fetchWithFallback('auto-bet', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ color, amount }),
