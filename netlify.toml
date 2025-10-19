@@ -3,6 +3,10 @@
   command = "npm run build"
   publish = "web/dist"
 
+[build.environment]
+  # Substitua pela URL pública do seu backend
+  VITE_SERVER_URL = "https://SEU_BACKEND_URL"
+
 [dev]
   command = "npm run dev"
   port = 5173

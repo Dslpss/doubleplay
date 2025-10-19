@@ -1,4 +1,5 @@
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:4000';
+const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || (isLocalhost ? 'http://localhost:4000' : null);
 
 export async function login(email, password) {
   const res = await fetch(`${SERVER_URL}/api/login`, {
@@ -10,17 +11,19 @@ export async function login(email, password) {
 }
 
 export async function status() {
+  if (!SERVER_URL) return { ok: true, wsConnected: false, hasToken: false };
   const res = await fetch(`${SERVER_URL}/api/status`);
   return res.json();
 }
 
 export async function connectWsBridge() {
+  if (!SERVER_URL) return { ok: false, message: 'Backend não configurado' };
   const res = await fetch(`${SERVER_URL}/api/connect`, { method: 'POST' });
   return res.json();
 }
 
 export async function autoBet(color, amount = 1) {
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:4000';
+  if (!SERVER_URL) throw new Error('Backend não configurado');
   const res = await fetch(`${SERVER_URL}/api/auto-bet`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
