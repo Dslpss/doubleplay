@@ -4,7 +4,9 @@ export function createWsClient(onMessage) {
   let active = null;
   const connectSSE = () => {
     try {
-      const es = new EventSource('/events');
+      const sseUrl = SERVER_URL ? `${SERVER_URL}/events` : '/events';
+      try { console.log('[SSE] Connect to', sseUrl); } catch {}
+      const es = new EventSource(sseUrl);
       es.onopen = () => {
         try { onMessage?.({ type: 'status', connected: true }); } catch {}
         console.log('[SSE] Conectado ao stream');
@@ -36,12 +38,16 @@ export function createWsClient(onMessage) {
     }
   };
 
+  // Log URL de servidor para diagnóstico
+  try { console.log('[WSClient] SERVER_URL', SERVER_URL); } catch {}
+
   if (!SERVER_URL) {
     connectSSE();
     return { close() { active?.close?.(); } };
   }
 
   const wsUrl = SERVER_URL.replace(/^http/, 'ws') + '/ws';
+  try { console.log('[WSClient] Connect to', wsUrl); } catch {}
   const ws = new WebSocket(wsUrl);
   ws.onopen = () => console.log('[WS] Conectado ao bridge');
   ws.onmessage = (ev) => {

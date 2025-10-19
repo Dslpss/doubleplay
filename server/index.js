@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import cors from 'cors';
 import axios from 'axios';
 import { WebSocketServer, WebSocket } from 'ws';
+import http from 'http';
 
 const app = express();
 app.use(express.json());
@@ -25,6 +26,9 @@ let playWs = null;
 let reconnectTimer = null;
 const clients = new Set();
 let lastPayload = null;
+
+// SSE clients
+const sseClients = new Set();
 
 // Janela deslizante de apostas recentes
 const BET_WINDOW_SIZE = 200;
@@ -95,6 +99,17 @@ function broadcast(obj) {
   }
 }
 
+function broadcastSse(obj) {
+  const msg = typeof obj === 'string' ? obj : JSON.stringify(obj);
+  const type = (typeof obj === 'object' && obj?.type) ? obj.type : 'message';
+  for (const res of sseClients) {
+    try {
+      res.write(`event: ${type}\n`);
+      res.write(`data: ${msg}\n\n`);
+    } catch {}
+  }
+}
+
 async function performLogin(email, password) {
   try {
     const { data } = await axios.post(LOGIN_URL, { email, password }, {
@@ -123,7 +138,9 @@ function connectPlayWs() {
 
   playWs.on('open', () => {
     console.log('[PlayNaBets WS] Conectado');
-    broadcast({ type: 'status', connected: true });
+    const payload = { type: 'status', connected: true };
+    broadcast(payload);
+    broadcastSse(payload);
   });
 
   playWs.on('message', (data) => {
@@ -149,13 +166,17 @@ function connectPlayWs() {
 
     if (payload) {
       lastPayload = payload;
-      broadcast({ type: 'double_result', data: payload });
+      const ev = { type: 'double_result', data: payload };
+      broadcast(ev);
+      broadcastSse(ev);
       // Tenta capturar apostas de usuários
       if (isBetEvent(payload)) {
         const color = detectBetColor(payload);
         if (color) {
           pushBetColor(color);
-          broadcast({ type: 'bets_popularity', data: getBetsSummary() });
+          const bp = { type: 'bets_popularity', data: getBetsSummary() };
+          broadcast(bp);
+          broadcastSse(bp);
         }
       }
     }
@@ -167,7 +188,9 @@ function connectPlayWs() {
 
   playWs.on('close', () => {
     console.warn('[PlayNaBets WS] Desconectado, tentando reconectar em 3s...');
-    broadcast({ type: 'status', connected: false });
+    const payload = { type: 'status', connected: false };
+    broadcast(payload);
+    broadcastSse(payload);
     reconnectTimer = setTimeout(connectPlayWs, 3000);
   });
 }
@@ -218,11 +241,37 @@ app.post('/api/auto-bet', (req, res) => {
   const payload = { type: 'auto_bet', data: { color, amount, time: Date.now() } };
   console.log('[AutoBet] Intent:', payload);
   broadcast(payload);
+  broadcastSse(payload);
   res.json({ ok: true, data: payload.data });
 });
 
+// SSE endpoint
+app.get('/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders?.();
+  sseClients.add(res);
+  console.log('[SSE] Cliente conectado, ativos:', sseClients.size);
+  // Mensagem inicial
+  try {
+    res.write('event: hello\n');
+    res.write('data: {"message":"Conexão SSE estabelecida"}\n\n');
+    if (lastPayload) {
+      const ev = JSON.stringify({ type: 'double_result', data: lastPayload });
+      res.write('event: double_result\n');
+      res.write(`data: ${ev}\n\n`);
+    }
+  } catch {}
+
+  req.on('close', () => {
+    sseClients.delete(res);
+    console.log('[SSE] Cliente desconectado, ativos:', sseClients.size);
+  });
+});
+
 // WebSocket server para clientes
-import http from 'http';
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
