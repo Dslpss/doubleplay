@@ -205,6 +205,22 @@ app.post('/api/connect', (req, res) => {
   res.json({ ok: true, message: 'Tentando conectar ao WebSocket PlayNaBets' });
 });
 
+// Recebe intenção de auto-aposta (stub) e emite broadcast
+app.post('/api/auto-bet', (req, res) => {
+  const color = String(req.body?.color || '').toLowerCase();
+  const amount = Number(req.body?.amount || 1);
+  if (!['red','black','white'].includes(color)) {
+    return res.status(400).json({ ok: false, error: 'Cor inválida' });
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return res.status(400).json({ ok: false, error: 'Valor inválido' });
+  }
+  const payload = { type: 'auto_bet', data: { color, amount, time: Date.now() } };
+  console.log('[AutoBet] Intent:', payload);
+  broadcast(payload);
+  res.json({ ok: true, data: payload.data });
+});
+
 // WebSocket server para clientes
 import http from 'http';
 const server = http.createServer(app);
