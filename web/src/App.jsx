@@ -13,6 +13,13 @@ function App() {
   const [results, setResults] = useState([]);
   const wsRef = useRef(null);
   const MAX_RESULTS = 100;
+  const [autoBetEnabled, setAutoBetEnabled] = useState(false);
+  const [lastAutoBetRound, setLastAutoBetRound] = useState(null);
+  const [lastAutoBetStatus, setLastAutoBetStatus] = useState(null);
+  const [lastPatternKey, setLastPatternKey] = useState(null);
+  const [activeSignal, setActiveSignal] = useState(null);
+  const [signalHistory, setSignalHistory] = useState([]);
+  const [historyLimit, setHistoryLimit] = useState(5);
 
   useEffect(() => {
     wsRef.current = createWsClient((data) => {
@@ -70,20 +77,139 @@ function App() {
   const lastNewestFirst = last.slice().reverse();
   const resultRows = Array.from({ length: ROWS }, (_, i) => lastNewestFirst.slice(i * PER_ROW, (i + 1) * PER_ROW));
 
+  function chooseBetSignal(patterns, streaks, results) {
+    if (!patterns || patterns.length === 0) return null;
+    if (patterns.some(p => p.key === 'white_proximity')) return { color: 'white', key: 'white_proximity' };
+    const triple = patterns.find(p => p.key === 'triple_repeat');
+    if (triple && streaks?.current?.color) {
+      return { color: (streaks.current.color === 'red' ? 'black' : 'red'), key: 'triple_repeat' };
+    }
+    const balance = patterns.find(p => p.key === 'red_black_balance');
+    if (balance) {
+      const stats20 = summarizeResults(results.slice(-20));
+      if ((stats20.red || 0) > (stats20.black || 0)) return { color: 'red', key: 'red_black_balance' };
+      if ((stats20.black || 0) > (stats20.red || 0)) return { color: 'black', key: 'red_black_balance' };
+    }
+    return null;
+  }
+
+  // Helpers de cor para UI do alerta de sinal
+  const colorHex = { red: '#e74c3c', black: '#2c3e50', white: '#ecf0f1' };
+  const colorLabelPt = (c) => (c === 'red' ? 'vermelho' : c === 'black' ? 'preto' : 'branco');
+  const colorSquareStyle = (c) => ({
+    display: 'inline-block',
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    background: colorHex[c],
+    border: '1px solid rgba(0,0,0,0.2)',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.15)'
+  });
+
+  useEffect(() => {
+    const lastRes = results[results.length - 1];
+    if (!lastRes || !autoBetEnabled) return;
+    if (lastAutoBetRound && lastRes.round_id === lastAutoBetRound) return;
+    const s = computeStreaks(results);
+    const p = detectSimplePatterns(results);
+    const signal = chooseBetSignal(p, s, results);
+    if (!signal) { if (lastPatternKey) setLastPatternKey(null); return; }
+    if (lastPatternKey === signal.key) return; // mesmo padrão ainda ativo, não repetir
+    setLastPatternKey(signal.key);
+    setLastAutoBetRound(lastRes.round_id);
+    setActiveSignal({ key: signal.key, color: signal.color, fromRound: lastRes.round_id, number: lastRes.number });
+    const colorPt = signal.color === 'red' ? 'vermelho' : signal.color === 'black' ? 'preto' : 'branco';
+    setLastAutoBetStatus(`Após número ${lastRes.number} aposte ${colorPt}`);
+  }, [results, autoBetEnabled]);
+
+  // Avalia o próximo resultado após um sinal e limpa o aviso
+  useEffect(() => {
+    if (!activeSignal) return;
+    const lastRes = results[results.length - 1];
+    if (!lastRes) return;
+    if (lastRes.round_id === activeSignal.fromRound) return; // ainda no mesmo round do sinal
+    const hit = lastRes.color === activeSignal.color;
+    setLastAutoBetStatus(hit ? 'Acerto' : 'Erro');
+    setSignalHistory(prev => [
+      {
+        round: lastRes.round_id,
+        number: activeSignal.number ?? lastRes.number,
+        color: activeSignal.color,
+        key: activeSignal.key,
+        result: hit ? 'acerto' : 'erro',
+        time: Date.now()
+      },
+      ...prev
+    ].slice(0, 50));
+    setActiveSignal(null);
+    const t = setTimeout(() => setLastAutoBetStatus(null), 3000);
+    return () => clearTimeout(t);
+  }, [results, activeSignal]);
+
   return (
     <div className="App" style={{ padding: 24 }}>
       <h1>Análise do Double (Play na Bet)</h1>
       <p>Servidor: {connected ? 'WS conectado' : 'WS desconectado'}{hasToken ? ' | Token: Ativo' : ''}</p>
 
       <div style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
-
-
         <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
           <h2>Conexão em tempo real</h2>
           <p>Conexão automática ao Play na Bet.</p>
           <p>Status: {connected ? 'Conectado' : 'Desconectado'} <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', marginLeft: 8, background: connected ? '#2ecc71' : '#e74c3c' }} /></p>
           <button onClick={handleConnectWs}>Reconectar WS</button>
         </div>
+
+        <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
+           <h2>Auto aposta (sinal)</h2>
+           <p>Estado: {autoBetEnabled ? 'Ativa' : 'Desativada'}</p>
+           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button onClick={() => setAutoBetEnabled(v => !v)}>{autoBetEnabled ? 'Desativar sinais' : 'Ativar sinais'}</button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ opacity: 0.8 }}>Mostrar</span>
+                <select value={historyLimit} onChange={(e) => setHistoryLimit(Number(e.target.value))}>
+                  {[3,5,10,15].map(n => (<option key={n} value={n}>{n}</option>))}
+                </select>
+                <span style={{ opacity: 0.8 }}>sinais</span>
+              </label>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>
+              ⚠️ Você pode aplicar Martingale 2 (até duas entradas de recuperação),
+              por sua conta e risco. Os sinais são apenas visuais e não automatizam
+              valor nem execução de apostas.
+            </div>
+           {lastAutoBetStatus ? (
+             <div style={{ marginTop: 8 }}>
+               {activeSignal ? (
+                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                   <span style={colorSquareStyle(activeSignal.color)} />
+                   <span style={{ color: colorHex[activeSignal.color], fontWeight: 600 }}>
+                     {colorLabelPt(activeSignal.color)}
+                   </span>
+                 </div>
+               ) : null}
+               <p style={{ marginTop: 4, opacity: 0.85, color: activeSignal ? colorHex[activeSignal.color] : undefined }}>{lastAutoBetStatus}</p>
+             </div>
+           ) : null}
+
+           <div style={{ marginTop: 12 }}>
+             <div style={{ fontWeight: 600 }}>Histórico</div>
+             {signalHistory.length === 0 ? (
+               <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
+             ) : (
+               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                 {signalHistory.slice(0, historyLimit).map((h, i) => (
+                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                     <span style={colorSquareStyle(h.color)} />
+                     <span style={{ color: colorHex[h.color], fontWeight: 600 }}>{colorLabelPt(h.color)}</span>
+                     <span style={{ opacity: 0.8 }}>após número {h.number}</span>
+                     <span style={{ opacity: 0.6, fontSize: 12 }}>{new Date(h.time).toLocaleTimeString()}</span>
+                     <span style={{ marginLeft: 'auto', fontWeight: 600, color: h.result === 'acerto' ? '#2ecc71' : '#e74c3c' }}>{h.result}</span>
+                   </div>
+                 ))}
+               </div>
+             )}
+           </div>
+         </div>
       </div>
 
       <div style={{ marginTop: 24 }}>
