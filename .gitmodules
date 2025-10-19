@@ -1,0 +1,3 @@
+[submodule "double-pay"]
+	path = double-pay
+	url = git@github.com:Dslpss/double-pay.git
