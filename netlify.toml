@@ -10,6 +10,10 @@
 [functions]
   directory = "netlify/functions"
 
+[[edge_functions]]
+  function = "events"
+  path = "/events"
+
 [dev]
   command = "npm run dev"
   port = 5173
