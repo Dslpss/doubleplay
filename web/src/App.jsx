@@ -81,7 +81,7 @@ function App() {
 
   // limitar exibição a 4 pilhas (linhas), 16 resultados por linha
   const ROWS = 4;
-  const PER_ROW = 16;
+  const PER_ROW = isNarrow ? 6 : 16;
   const last = results.slice(-(ROWS * PER_ROW));
   const lastNewestFirst = last.slice().reverse();
   const resultRows = Array.from({ length: ROWS }, (_, i) => lastNewestFirst.slice(i * PER_ROW, (i + 1) * PER_ROW));
@@ -282,7 +282,7 @@ function App() {
             <p>Nenhum resultado ainda.</p>
           ) : (
             resultRows.map((row, ridx) => (
-              <div key={ridx} style={{ display: 'flex', gap: 8, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 6, justifyContent: 'center' }}>
+              <div key={ridx} style={{ display: 'flex', gap: 8, flexWrap: isNarrow ? 'wrap' : 'nowrap', overflowX: isNarrow ? 'hidden' : 'auto', paddingBottom: 6, justifyContent: 'center' }}>
                 {row.map((r, idx) => (
                   <ResultChip key={`${ridx}-${idx}`} number={r.number} color={r.color} compact={isNarrow} />
                 ))}
