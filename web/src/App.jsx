@@ -85,6 +85,9 @@ function App() {
   const last = results.slice(-(ROWS * PER_ROW));
   const lastNewestFirst = last.slice().reverse();
   const resultRows = Array.from({ length: ROWS }, (_, i) => lastNewestFirst.slice(i * PER_ROW, (i + 1) * PER_ROW));
+  const ROW_HEIGHT = isNarrow ? 32 : 40;
+  const GAP = 8;
+  const resultsBoxHeight = (ROW_HEIGHT * ROWS) + GAP * (ROWS - 1) + 6;
 
   function chooseBetSignal(patterns, streaks, results) {
     if (!patterns || patterns.length === 0) return null;
@@ -247,7 +250,7 @@ function App() {
                    <span style={{ opacity: 0.8, fontSize: 12 }}>chance {activeSignal.chance}%</span>
                  </div>
                ) : null}
-               <p style={{ marginTop: 4, opacity: 0.85, color: activeSignal ? colorHex[activeSignal.color] : undefined }}>{lastAutoBetStatus}</p>
+               <p style={{ marginTop: 4, opacity: 0.85, color: activeSignal ? (activeSignal.color === 'black' ? '#ecf0f1' : colorHex[activeSignal.color]) : undefined }}>{lastAutoBetStatus}</p>
              </div>
            ) : null}
 
@@ -274,7 +277,7 @@ function App() {
 
       <div style={{ marginTop: 24 }}>
         <h2>Últimos Resultados</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: resultsBoxHeight, maxHeight: resultsBoxHeight, overflow: 'hidden' }}>
           {results.length === 0 ? (
             <p>Nenhum resultado ainda.</p>
           ) : (
