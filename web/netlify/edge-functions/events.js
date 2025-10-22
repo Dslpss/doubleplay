@@ -224,10 +224,22 @@ export default async (request, context) => {
               'Referer': 'https://playnabets.com/',
               'Authorization': `Bearer ${token}`,
             },
-            redirect: 'follow'
+            // Não seguir redirects para capturar headers (Set-Cookie/Location)
+            redirect: 'manual'
           });
+
           const setCookie = res.headers.get('set-cookie') || '';
-          const sid = extractJSessionIdFromSetCookie(setCookie);
+          // Também tentar extrair do Location (com JSESSIONID na URL)
+          const location = res.headers.get('location') || res.headers.get('Location') || '';
+          let sid = extractJSessionIdFromSetCookie(setCookie);
+          if (!sid && location) {
+            try {
+              const u = new URL(location, PRAGMATIC_BASE);
+              const qs = new URLSearchParams(u.search || '');
+              sid = qs.get('JSESSIONID') || sid;
+            } catch {}
+          }
+
           emitRouletteStatus({ stage: 'gamelaunch', ok: !!sid, httpStatus: res.status || 0, hasSetCookie: !!setCookie });
           return sid;
         } catch (err) { emitRouletteStatus({ stage: 'gamelaunch', ok: false, error: String(err?.message || err) }); return null; }
