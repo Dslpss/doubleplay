@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import './App.css';
 import { status, connectWsBridge } from './services/api';
 import { createWsClient } from './services/wsClient';
@@ -44,10 +44,30 @@ function App() {
     zero_proximity: true,
     red_black_balance: true,
     hot_numbers: true,
+    sector_voisins: true,
+    sector_tiers: true,
+    sector_orphelins: true,
+    sector_jeu_zero: true,
+    neighbors_cluster: true,
+    final_digit: true,
+    final_digit_0: true,
+    final_digit_1: true,
+    final_digit_2: true,
+    final_digit_3: true,
+    final_digit_4: true,
+    final_digit_5: true,
+    final_digit_6: true,
+    final_digit_7: true,
+    final_digit_8: true,
+    final_digit_9: true,
   });
   const [aggressiveMode, setAggressiveMode] = useState(false);
   const [rouletteMartingale, setRouletteMartingale] = useState(null);
   const [lastRouletteAdviceFingerprint, setLastRouletteAdviceFingerprint] = useState(null);
+  const [cooldownRounds, setCooldownRounds] = useState(3);
+  const [patternClearRounds, setPatternClearRounds] = useState(2);
+  const [lastRouletteAlertCount, setLastRouletteAlertCount] = useState(null);
+  const [lastPatternAbsentStreak, setLastPatternAbsentStreak] = useState(0);
   const rouletteAdviceFingerprint = (adv) => {
     if (!adv) return null;
     switch (adv.type) {
@@ -60,6 +80,19 @@ function App() {
       default: return adv.type;
     }
   };
+
+  // Janela para contagem de Finales
+  const [finalesWindow, setFinalesWindow] = useState(15);
+  const rouletteFinalCounts = useMemo(() => {
+    const counts = Array(10).fill(0);
+    const lastN = roulette.slice(-finalesWindow);
+    for (const r of lastN) {
+      const n = Number(r.number);
+      if (!Number.isFinite(n)) continue;
+      counts[n % 10]++;
+    }
+    return counts;
+  }, [roulette, finalesWindow]);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 430px)');
@@ -273,7 +306,21 @@ function App() {
     if (activeRouletteSignal && lastRes.timestamp === activeRouletteSignal.fromTs) return;
     const patternsR = detectRouletteAdvancedPatterns(roulette, { aggressive: aggressiveMode });
     const streaksR = computeRouletteStreaks(roulette);
-    const allowedPatterns = patternsR.filter(p => enabledPatterns[p.key]);
+    const isEnabled = (p) => {
+      if (enabledPatterns[p.key] !== undefined) return enabledPatterns[p.key];
+      if (p.key.startsWith('final_digit_')) {
+        return enabledPatterns[p.key] ?? enabledPatterns['final_digit'];
+      }
+      return false;
+    };
+    const allowedPatterns = patternsR.filter(isEnabled);
+    // Atualiza streak de ausência do último padrão
+    setLastPatternAbsentStreak(prev => {
+      if (!lastRoulettePatternKey?.key) return 0;
+      const stillDetected = allowedPatterns.some(p => p.key === lastRoulettePatternKey.key);
+      return stillDetected ? 0 : Math.min(prev + 1, 999);
+    });
+
     const signalR = chooseRouletteBetSignal(
       allowedPatterns,
       summarizeRoulette(roulette),
@@ -283,13 +330,27 @@ function App() {
     );
     if (!signalR) { if (lastRoulettePatternKey) setLastRoulettePatternKey(null); return; }
     if (lastRoulettePatternKey?.key === signalR.key && lastRoulettePatternKey?.fromTs === lastRes.timestamp) return;
+
+    const roundsSinceAlert = (lastRouletteAlertCount == null) ? Infinity : (roulette.length - lastRouletteAlertCount);
+    if (lastRoulettePatternKey?.key && lastPatternAbsentStreak < patternClearRounds) {
+      // Exige que o padrão anterior esteja ausente por Y rodadas consecutivas
+      return;
+    }
+
+    const fpNew = rouletteAdviceFingerprint(signalR);
+    if (lastRouletteAdviceFingerprint && fpNew === lastRouletteAdviceFingerprint && roundsSinceAlert < cooldownRounds) {
+      // Resfriamento: aguarda X rodadas antes de re-alertar mesmo fingerprint
+      return;
+    }
+
     const chance = computeRouletteSignalChance(signalR, roulette);
     setLastRoulettePatternKey({ key: signalR.key, fromTs: lastRes.timestamp });
     setActiveRouletteSignal({ ...signalR, fromTs: lastRes.timestamp, number: lastRes.number, chance });
-    setLastRouletteAdviceFingerprint(rouletteAdviceFingerprint(signalR));
+    setLastRouletteAdviceFingerprint(fpNew);
+    setLastRouletteAlertCount(roulette.length);
     const label = adviceLabelPt(signalR);
     setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label} (${chance}% de chance)`);
-  }, [roulette, autoRouletteEnabled, aggressiveMode]);
+  }, [roulette, autoRouletteEnabled, aggressiveMode, lastPatternAbsentStreak, cooldownRounds, patternClearRounds]);
 
   useEffect(() => {
     if (!activeRouletteSignal) return;
@@ -577,6 +638,11 @@ function App() {
                   { key: 'zero_proximity', label: 'Zero recente' },
                   { key: 'red_black_balance', label: 'Desequilíbrio vermelho/preto' },
                   { key: 'hot_numbers', label: 'Números quentes' },
+                  { key: 'sector_voisins', label: 'Setor: Voisins du Zéro' },
+                  { key: 'sector_tiers', label: 'Setor: Tiers du Cylindre' },
+                  { key: 'sector_orphelins', label: 'Setor: Orphelins' },
+                  { key: 'sector_jeu_zero', label: 'Setor: Jeu Zéro' },
+                  { key: 'neighbors_cluster', label: 'Cluster de vizinhos' },
                 ].map(item => (
                   <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <input type="checkbox" checked={enabledPatterns[item.key]} onChange={() => setEnabledPatterns(prev => ({ ...prev, [item.key]: !prev[item.key] }))} />
@@ -584,6 +650,44 @@ function App() {
                   </label>
                 ))}
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: 8, marginTop: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ opacity: 0.85 }}>Cooldown (rodadas)</span>
+                  <input type="number" min={0} step={1} value={cooldownRounds} onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    setCooldownRounds(Number.isFinite(v) && v >= 0 ? v : 0);
+                  }} style={{ width: 80 }} />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ opacity: 0.85 }}>Ausência necessária (Y rodadas)</span>
+                  <input type="number" min={0} step={1} value={patternClearRounds} onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    setPatternClearRounds(Number.isFinite(v) && v >= 0 ? v : 0);
+                  }} style={{ width: 80 }} />
+                </label>
+              </div>
+
+              <div style={{ opacity: 0.85, fontWeight: 600, marginTop: 10 }}>Finales por dígito</div>
+              <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr 1fr' : 'repeat(5, 1fr)', gap: 8, marginTop: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="checkbox" checked={enabledPatterns['final_digit']} onChange={() => setEnabledPatterns(prev => {
+                    const next = !prev['final_digit'];
+                    const updates = {};
+                    for (let d = 0; d <= 9; d++) updates[`final_digit_${d}`] = next;
+                    return { ...prev, final_digit: next, ...updates };
+                  })} />
+                  <span style={{ opacity: 0.85 }}>Finales (todos)</span>
+                </label>
+                {[0,1,2,3,4,5,6,7,8,9].map(d => (
+                  <label key={`final_digit_${d}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="checkbox" checked={enabledPatterns[`final_digit_${d}`]} onChange={() => setEnabledPatterns(prev => ({ ...prev, [`final_digit_${d}`]: !prev[`final_digit_${d}`] }))} />
+                    <span style={{ opacity: 0.85 }}>{`Final ${d}`}</span>
+                    <span style={{ opacity: 0.6, fontSize: 12 }}>({rouletteFinalCounts[d]})</span>
+                  </label>
+                ))}
+              </div>
+
               <div style={{ opacity: 0.7, fontSize: 12, marginTop: 4 }}>M1/M2: indicadores aparecem no histórico ao aplicar recuperação.</div>
             </div>
             {lastRouletteAdviceStatus ? (
@@ -604,32 +708,32 @@ function App() {
               </div>
             ) : null}
 
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontWeight: 600 }}>Histórico</div>
-              {rouletteSignalHistory.length === 0 ? (
-                <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {rouletteSignalHistory.slice(0, rouletteHistoryLimit).map((h, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: '#374151', color: '#fff', fontSize: 12 }}>{h.value}</span>
-                      <span style={{ opacity: 0.8 }}>após número {h.number}</span>
-                      <span style={{ opacity: 0.6, fontSize: 12 }}>{new Date(h.time).toLocaleTimeString()}</span>
-                      {h.m1 && (
-                        <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: h.m1 === 'acerto' ? '#2ecc71' : '#e74c3c', color: '#fff', fontSize: 12 }}>M1 {h.m1}</span>
-                      )}
-                      {h.m2 && (
-                        <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: h.m2 === 'acerto' ? '#2ecc71' : '#e74c3c', color: '#fff', fontSize: 12 }}>M2 {h.m2}</span>
-                      )}
-                      <span style={{ marginLeft: 'auto', fontWeight: 600, color: h.result === 'acerto' ? '#2ecc71' : '#e74c3c' }}>{h.result}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontWeight: 600 }}>Histórico</div>
+                {rouletteSignalHistory.length === 0 ? (
+                  <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {rouletteSignalHistory.slice(0, rouletteHistoryLimit).map((h, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: '#374151', color: '#fff', fontSize: 12 }}>{h.value}</span>
+                        <span style={{ opacity: 0.8 }}>após número {h.number}</span>
+                        <span style={{ opacity: 0.6, fontSize: 12 }}>{new Date(h.time).toLocaleTimeString()}</span>
+                        {h.m1 && (
+                          <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: h.m1 === 'acerto' ? '#2ecc71' : '#e74c3c', color: '#fff', fontSize: 12 }}>M1 {h.m1}</span>
+                        )}
+                        {h.m2 && (
+                          <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: h.m2 === 'acerto' ? '#2ecc71' : '#e74c3c', color: '#fff', fontSize: 12 }}>M2 {h.m2}</span>
+                        )}
+                        <span style={{ marginLeft: 'auto', fontWeight: 600, color: h.result === 'acerto' ? '#2ecc71' : '#e74c3c' }}>{h.result}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
       <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>
         <h2>Roleta (Pragmatic) - Timeline</h2>

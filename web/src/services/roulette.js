@@ -17,6 +17,32 @@ export function rouletteDozen(num) {
   return 3;
 }
 
+// Adições: ordem da roda europeia e setores clássicos
+export const EU_WHEEL_ORDER = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+];
+
+export const SECTOR_VOISINS = [22, 18, 29, 7, 28, 12, 35, 3, 26, 0, 32, 15, 19, 4, 21, 2, 25];
+export const SECTOR_TIERS = [27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33];
+export const SECTOR_ORPHELINS = [17, 34, 6, 1, 20, 14, 31, 9];
+export const SECTOR_JEU_ZERO = [12, 35, 3, 26, 0, 32, 15];
+
+export function wheelIndexOf(num) {
+  return EU_WHEEL_ORDER.indexOf(Number(num));
+}
+
+export function neighborsOf(num, k = 2) {
+  const idx = wheelIndexOf(num);
+  if (idx < 0) return [];
+  const out = [];
+  for (let d = -k; d <= k; d++) {
+    let pos = (idx + d) % EU_WHEEL_ORDER.length;
+    if (pos < 0) pos += EU_WHEEL_ORDER.length;
+    out.push(EU_WHEEL_ORDER[pos]);
+  }
+  return out;
+}
+
 export function rouletteHighLow(num) {
   if (!isValidNumber(num) || num === 0) return null;
   return num <= 18 ? 'low' : 'high';
@@ -63,6 +89,8 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   const last10 = results.slice(-10);
   const last12 = results.slice(-12);
   const last20 = results.slice(-20);
+  const last24 = results.slice(-24);
+  const last15 = results.slice(-15);
 
   const aggressive = Boolean(options.aggressive);
   const T = aggressive ? {
@@ -71,12 +99,18 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     parityStreak: 4,
     rbDiff: 4,
     hotMin: 3,
+    sectorMin: 8,
+    finalsMin: 5,
+    clusterArcMax: 7,
   } : {
     dozenMin: 6,
     highlowStreak: 4,
     parityStreak: 5,
     rbDiff: 5,
     hotMin: 4,
+    sectorMin: 9,
+    finalsMin: 6,
+    clusterArcMax: 7,
   };
 
   // Trinca por coluna
@@ -131,6 +165,67 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     patterns.push({ key: 'hot_numbers', description: `Números quentes: ${hot.join(', ')}`, risk: 'medium', targets: { type: 'numbers', numbers: hot } });
   }
 
+  // Setores da roda (Voisins/Tiers/Orphelins/Jeu Zéro) nos últimos 24
+  const sectorCounts = { voisins: 0, tiers: 0, orphelins: 0, jeu_zero: 0 };
+  for (const r of last24) {
+    const n = Number(r.number);
+    if (!Number.isFinite(n)) continue;
+    if (SECTOR_VOISINS.includes(n)) sectorCounts.voisins++;
+    if (SECTOR_TIERS.includes(n)) sectorCounts.tiers++;
+    if (SECTOR_ORPHELINS.includes(n)) sectorCounts.orphelins++;
+    if (SECTOR_JEU_ZERO.includes(n)) sectorCounts.jeu_zero++;
+  }
+  if (sectorCounts.voisins >= T.sectorMin)
+    patterns.push({ key: 'sector_voisins', description: 'Voisins du Zéro frequente nos últimos 24', risk: 'medium', targets: { type: 'numbers', numbers: SECTOR_VOISINS } });
+  if (sectorCounts.tiers >= T.sectorMin)
+    patterns.push({ key: 'sector_tiers', description: 'Tiers du Cylindre frequente nos últimos 24', risk: 'medium', targets: { type: 'numbers', numbers: SECTOR_TIERS } });
+  if (sectorCounts.orphelins >= T.sectorMin)
+    patterns.push({ key: 'sector_orphelins', description: 'Orphelins frequente nos últimos 24', risk: 'medium', targets: { type: 'numbers', numbers: SECTOR_ORPHELINS } });
+  if (sectorCounts.jeu_zero >= Math.max(5, Math.round(T.sectorMin * 0.7)))
+    patterns.push({ key: 'sector_jeu_zero', description: 'Jeu Zéro frequente nos últimos 24', risk: 'medium', targets: { type: 'numbers', numbers: SECTOR_JEU_ZERO } });
+
+  // Finales (dígitos finais) nos últimos 15
+  const finalCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 };
+  for (const r of last15) {
+    const n = Number(r.number);
+    if (!Number.isFinite(n)) continue;
+    const d = n % 10; finalCounts[d]++;
+  }
+  const finalsNumbers = {
+    0: [0, 10, 20, 30], 1: [1, 11, 21, 31], 2: [2, 12, 22, 32], 3: [3, 13, 23, 33],
+    4: [4, 14, 24, 34], 5: [5, 15, 25, 35], 6: [6, 16, 26, 36], 7: [7, 17, 27], 8: [8, 18, 28], 9: [9, 19, 29]
+  };
+  const finalsSorted = Object.entries(finalCounts).sort((a, b) => b[1] - a[1]);
+  const topFinal = finalsSorted[0];
+  if (topFinal && topFinal[1] >= T.finalsMin) {
+    const d = Number(topFinal[0]);
+    patterns.push({ key: `final_digit_${d}`, description: `Final ${d} frequente nos últimos 15`, risk: 'medium', targets: { type: 'numbers', numbers: finalsNumbers[d] } });
+  }
+
+  // Cluster de vizinhos na roda com últimos 7
+  const last7 = results.slice(-7);
+  const positions = last7.map(r => wheelIndexOf(r.number)).filter(p => p >= 0);
+  if (positions.length >= 5) {
+    const sorted = [...positions].sort((a, b) => a - b);
+    const n = EU_WHEEL_ORDER.length;
+    let maxGap = -1; let gapIdx = -1;
+    for (let i = 0; i < sorted.length; i++) {
+      const a = sorted[i];
+      const b = sorted[(i + 1) % sorted.length];
+      const gap = (b - a + n) % n;
+      if (gap > maxGap) { maxGap = gap; gapIdx = i; }
+    }
+    const arcLen = n - maxGap;
+    if (arcLen <= T.clusterArcMax) {
+      // centro aproximado: posição após o maior gap
+      const start = sorted[(gapIdx + 1) % sorted.length];
+      const center = (start + Math.floor(arcLen / 2)) % n;
+      const centerNum = EU_WHEEL_ORDER[center];
+      const neigh = neighborsOf(centerNum, 2);
+      patterns.push({ key: 'neighbors_cluster', description: `Cluster na roda detectado (arco ${arcLen})`, risk: 'medium', targets: { type: 'numbers', numbers: neigh } });
+    }
+  }
+
   return patterns;
 }
 
@@ -178,7 +273,15 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
       case 'zero_proximity':
         candidates.push({ key: 'zero_proximity', type: 'color', color: 'green', risk: p.risk });
         break;
+      case 'sector_voisins':
+      case 'sector_tiers':
+      case 'sector_orphelins':
+      case 'sector_jeu_zero':
+      case 'neighbors_cluster':
       default:
+        if (p.targets?.type === 'numbers') {
+          candidates.push({ key: p.key, type: 'numbers', numbers: p.targets.numbers, risk: p.risk });
+        }
         break;
     }
   }
@@ -186,7 +289,7 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
   if (candidates.length === 0) return null;
 
   if (strategy === 'priority') {
-    const order = ['column_triple', 'dozen_imbalance', 'highlow_streak', 'parity_streak', 'hot_numbers', 'red_black_balance', 'zero_proximity'];
+    const order = ['column_triple', 'dozen_imbalance', 'highlow_streak', 'parity_streak', 'hot_numbers', 'red_black_balance', 'zero_proximity', 'sector_voisins', 'sector_tiers', 'sector_orphelins', 'sector_jeu_zero', 'neighbors_cluster'];
     const selected = order.map(k => candidates.find(c => c.key === k)).find(Boolean);
     return selected || null;
   }
