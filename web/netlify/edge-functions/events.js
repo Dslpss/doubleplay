@@ -147,10 +147,17 @@ export default async (request, context) => {
 
       async function performLoginViaFunction() {
         try {
-          const res = await fetch('/.netlify/functions/login', { method: 'POST' });
+          let fnUrl = null;
+          try { fnUrl = new URL('/.netlify/functions/login', request.url).toString(); } catch {}
+          if (!fnUrl && context?.site?.url) {
+            try { fnUrl = new URL('/.netlify/functions/login', context.site.url).toString(); } catch {}
+          }
+          if (!fnUrl) throw new Error('cannot_build_functions_url');
+
+          const res = await fetch(fnUrl, { method: 'POST' });
           const data = await res.json().catch(() => ({}));
           const token = data?.results?.tokenCassino || data?.tokenCassino || data?.token || null;
-          emitRouletteStatus({ stage: 'login_function', ok: !!token, httpStatus: res.status || 0 });
+          emitRouletteStatus({ stage: 'login_function', ok: !!token, httpStatus: res.status || 0, url: fnUrl });
           return token;
         } catch (err) {
           emitRouletteStatus({ stage: 'login_function', ok: false, error: String(err?.message || err) });
