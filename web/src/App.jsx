@@ -2,17 +2,24 @@ import { useEffect, useRef, useState } from 'react';
 import './App.css';
 import { status, connectWsBridge } from './services/api';
 import { createWsClient } from './services/wsClient';
-import { parseDoublePayload, summarizeResults, computeStreaks, detectSimplePatterns } from './services/parser';
+import { parseDoublePayload, summarizeResults, computeStreaks, detectSimplePatterns, summarizeRoulette, computeRouletteStreaks, detectRoulettePatterns } from './services/parser';
 import ResultChip from './components/ResultChip';
 import StatsPanel from './components/StatsPanel';
 import PatternsPanel from './components/PatternsPanel';
+import RouletteStatsPanel from './components/RouletteStatsPanel';
+import RoulettePatternsPanel from './components/RoulettePatternsPanel';
+
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
 function App() {
 
   const [serverStatus, setServerStatus] = useState({});
   const [results, setResults] = useState([]);
+  const [roulette, setRoulette] = useState([]);
   const wsRef = useRef(null);
+  const lastRouletteKeyRef = useRef(null);
   const MAX_RESULTS = 100;
+  const [activeTab, setActiveTab] = useState('double');
   const [autoBetEnabled, setAutoBetEnabled] = useState(false);
   const [lastAutoBetRound, setLastAutoBetRound] = useState(null);
   const [lastAutoBetStatus, setLastAutoBetStatus] = useState(null);
@@ -21,6 +28,7 @@ function App() {
   const [signalHistory, setSignalHistory] = useState([]);
   const [historyLimit, setHistoryLimit] = useState(5);
   const [isNarrow, setIsNarrow] = useState(false);
+  const [route, setRoute] = useState(window.location.hash || '#/');
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 430px)');
@@ -28,6 +36,12 @@ function App() {
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    const updateRoute = () => setRoute(window.location.hash || '#/');
+    window.addEventListener('hashchange', updateRoute);
+    return () => window.removeEventListener('hashchange', updateRoute);
   }, []);
 
   useEffect(() => {
@@ -48,15 +62,27 @@ function App() {
             return [...prev, parsed].slice(-MAX_RESULTS);
           });
         }
+      } else if (data?.type === 'roulette_result') {
+        const item = data?.data ?? data;
+        if (item && typeof item.number !== 'undefined') {
+          const normalized = { ...item, timestamp: item.timestamp || item.ts || Date.now() };
+          const key = `${normalized.number}-${normalized.color}`;
+          if (lastRouletteKeyRef.current === key) return; // dedup persistente até mudar o número
+          lastRouletteKeyRef.current = key;
+          setRoulette((prev) => [normalized, ...prev].slice(0, 100));
+        }
       }
     });
-    // Autoconecta ao bridge PlayNaBets no carregamento
     (async () => {
       try {
         await connectWsBridge();
       } catch {
         // silencioso
       }
+      try {
+        const [primary] = SERVER_URL ? [`${SERVER_URL}/api/roulette/start`] : ['/api/roulette/start'];
+        await fetch(primary, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ intervalMs: 2000 }) });
+      } catch {}
     })();
 
     const t = setInterval(async () => {
@@ -78,6 +104,9 @@ function App() {
   const stats = summarizeResults(results);
   const streaks = computeStreaks(results);
   const patterns = detectSimplePatterns(results);
+  const rouletteStats = summarizeRoulette(roulette);
+  const rouletteStreaks = computeRouletteStreaks(roulette);
+  const roulettePatterns = detectRoulettePatterns(roulette);
 
   // limitar exibição a 4 pilhas (linhas), 16 resultados por linha
   const ROWS = 4;
@@ -204,78 +233,91 @@ function App() {
 
   return (
     <div className="App" style={{ padding: 24 }}>
-      <h1 style={{ fontSize: isNarrow ? 24 : undefined }}>Análise do Double (Play na Bet)</h1>
+      <h1 style={{ fontSize: isNarrow ? 24 : undefined }}>
+        {route === '#/roulette' ? 'Análise da Roleta (Pragmatic)' : 'Análise do Double (Play na Bet)'}
+      </h1>
       <p>Servidor: {connected ? 'WS conectado' : 'WS desconectado'}{hasToken ? ' | Token: Ativo' : ''}</p>
 
-      <div className="panels" style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
-        <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
-          <h2>Conexão em tempo real</h2>
-          <p>Conexão automática ao Play na Bet.</p>
-          <p>Status: {connected ? 'Conectado' : 'Desconectado'} <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', marginLeft: 8, background: connected ? '#2ecc71' : '#e74c3c' }} /></p>
-          <button onClick={handleConnectWs} style={{ width: isNarrow ? '100%' : undefined }}>Reconectar WS</button>
-          <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', flexDirection: isNarrow ? 'column' : 'row', width: isNarrow ? '100%' : undefined }}>
-            <span style={{ opacity: 0.8 }}>Não tem conta?</span>
-            <a href="https://playnabets.com/cadastro?refId=NjMzMTRyZWZJZA==" target="_blank" rel="noopener noreferrer" style={{ width: isNarrow ? '100%' : undefined }}>
-              <button style={{ width: isNarrow ? '100%' : undefined }}>Cadastre-se na Play na Bets</button>
-            </a>
-          </div>
-        </div>
-
-        <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
-           <h2>Auto aposta (sinal)</h2>
-           <p>Estado: {autoBetEnabled ? 'Ativa' : 'Desativada'}</p>
-           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button onClick={() => setAutoBetEnabled(v => !v)} style={{ width: isNarrow ? '100%' : undefined }}>{autoBetEnabled ? 'Desativar sinais' : 'Ativar sinais'}</button>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ opacity: 0.8 }}>Mostrar</span>
-                <select value={historyLimit} onChange={(e) => setHistoryLimit(Number(e.target.value))}>
-                  {[3,5,10,15].map(n => (<option key={n} value={n}>{n}</option>))}
-                </select>
-                <span style={{ opacity: 0.8 }}>sinais</span>
-              </label>
-            </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>
-              ⚠️ Você pode aplicar Martingale 2 (até duas entradas de recuperação),
-              por sua conta e risco. Os sinais são apenas visuais e não automatizam
-              valor nem execução de apostas.
-            </div>
-           {lastAutoBetStatus ? (
-             <div style={{ marginTop: 8 }}>
-               {activeSignal ? (
-                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                   <span style={colorSquareStyle(activeSignal.color)} />
-                   <span style={{ color: colorHex[activeSignal.color], fontWeight: 600 }}>
-                     {colorLabelPt(activeSignal.color)}
-                   </span>
-                   <span style={{ opacity: 0.8, fontSize: 12 }}>chance {activeSignal.chance}%</span>
-                 </div>
-               ) : null}
-               <p style={{ marginTop: 4, opacity: 0.85, color: activeSignal ? (activeSignal.color === 'black' ? '#ecf0f1' : colorHex[activeSignal.color]) : undefined }}>{lastAutoBetStatus}</p>
-             </div>
-           ) : null}
-
-           <div style={{ marginTop: 12 }}>
-             <div style={{ fontWeight: 600 }}>Histórico</div>
-             {signalHistory.length === 0 ? (
-               <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
-             ) : (
-               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                 {signalHistory.slice(0, historyLimit).map((h, i) => (
-                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                     <span style={colorSquareStyle(h.color)} />
-                     <span style={{ color: colorHex[h.color], fontWeight: 600 }}>{colorLabelPt(h.color)}</span>
-                     <span style={{ opacity: 0.8 }}>após número {h.number}</span>
-                     <span style={{ opacity: 0.6, fontSize: 12 }}>{new Date(h.time).toLocaleTimeString()}</span>
-                     <span style={{ marginLeft: 'auto', fontWeight: 600, color: h.result === 'acerto' ? '#2ecc71' : '#e74c3c' }}>{h.result}</span>
-                   </div>
-                 ))}
-               </div>
-             )}
-           </div>
-         </div>
+      <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
+        <a href="#/" style={{ textDecoration: 'none' }}>
+          <button style={{ padding: '6px 12px', borderRadius: 6, background: route !== '#/roulette' ? '#2c3e50' : '#1f2937', color: '#fff', border: '1px solid #374151' }}>Double</button>
+        </a>
+        <a href="#/roulette" style={{ textDecoration: 'none' }}>
+          <button style={{ padding: '6px 12px', borderRadius: 6, background: route === '#/roulette' ? '#2c3e50' : '#1f2937', color: '#fff', border: '1px solid #374151' }}>Roleta</button>
+        </a>
       </div>
 
-      <div style={{ marginTop: 24 }}>
+      {route !== '#/roulette' && (
+        <div className="panels" style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
+          <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
+            <h2>Conexão em tempo real</h2>
+            <p>Conexão automática ao Play na Bet.</p>
+            <p>Status: {connected ? 'Conectado' : 'Desconectado'} <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', marginLeft: 8, background: connected ? '#2ecc71' : '#e74c3c' }} /></p>
+            <button onClick={handleConnectWs} style={{ width: isNarrow ? '100%' : undefined }}>Reconectar WS</button>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', flexDirection: isNarrow ? 'column' : 'row', width: isNarrow ? '100%' : undefined }}>
+              <span style={{ opacity: 0.8 }}>Não tem conta?</span>
+              <a href="https://playnabets.com/cadastro?refId=NjMzMTRyZWZJZA==" target="_blank" rel="noopener noreferrer" style={{ width: isNarrow ? '100%' : undefined }}>
+                <button style={{ width: isNarrow ? '100%' : undefined }}>Cadastre-se na Play na Bets</button>
+              </a>
+            </div>
+          </div>
+
+          <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
+             <h2>Auto aposta (sinal)</h2>
+             <p>Estado: {autoBetEnabled ? 'Ativa' : 'Desativada'}</p>
+             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={() => setAutoBetEnabled(v => !v)} style={{ width: isNarrow ? '100%' : undefined }}>{autoBetEnabled ? 'Desativar sinais' : 'Ativar sinais'}</button>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ opacity: 0.8 }}>Mostrar</span>
+                  <select value={historyLimit} onChange={(e) => setHistoryLimit(Number(e.target.value))}>
+                    {[3,5,10,15].map(n => (<option key={n} value={n}>{n}</option>))}
+                  </select>
+                  <span style={{ opacity: 0.8 }}>sinais</span>
+                </label>
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>
+                ⚠️ Você pode aplicar Martingale 2 (até duas entradas de recuperação),
+                por sua conta e risco. Os sinais são apenas visuais e não automatizam
+                valor nem execução de apostas.
+              </div>
+             {lastAutoBetStatus ? (
+               <div style={{ marginTop: 8 }}>
+                 {activeSignal ? (
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                     <span style={colorSquareStyle(activeSignal.color)} />
+                     <span style={{ color: colorHex[activeSignal.color], fontWeight: 600 }}>
+                       {colorLabelPt(activeSignal.color)}
+                     </span>
+                     <span style={{ opacity: 0.8, fontSize: 12 }}>chance {activeSignal.chance}%</span>
+                   </div>
+                 ) : null}
+                 <p style={{ marginTop: 4, opacity: 0.85, color: activeSignal ? (activeSignal.color === 'black' ? '#ecf0f1' : colorHex[activeSignal.color]) : undefined }}>{lastAutoBetStatus}</p>
+               </div>
+             ) : null}
+
+             <div style={{ marginTop: 12 }}>
+               <div style={{ fontWeight: 600 }}>Histórico</div>
+               {signalHistory.length === 0 ? (
+                 <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
+               ) : (
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                   {signalHistory.slice(0, historyLimit).map((h, i) => (
+                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                       <span style={colorSquareStyle(h.color)} />
+                       <span style={{ color: colorHex[h.color], fontWeight: 600 }}>{colorLabelPt(h.color)}</span>
+                       <span style={{ opacity: 0.8 }}>após número {h.number}</span>
+                       <span style={{ opacity: 0.6, fontSize: 12 }}>{new Date(h.time).toLocaleTimeString()}</span>
+                       <span style={{ marginLeft: 'auto', fontWeight: 600, color: h.result === 'acerto' ? '#2ecc71' : '#e74c3c' }}>{h.result}</span>
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </div>
+           </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 24, display: route !== '#/roulette' ? 'block' : 'none' }}>
         <h2>Últimos Resultados</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: resultsBoxHeight, maxHeight: resultsBoxHeight, overflow: 'hidden' }}>
           {results.length === 0 ? (
@@ -292,13 +334,47 @@ function App() {
         </div>
       </div>
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 24, display: route !== '#/roulette' ? 'block' : 'none' }}>
         <StatsPanel stats={stats} streaks={streaks} />
       </div>
 
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 24, display: route !== '#/roulette' ? 'block' : 'none' }}>
         <PatternsPanel patterns={patterns} />
+      </div>
+
+      <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>
+        <RouletteStatsPanel stats={rouletteStats} streaks={rouletteStreaks} />
+      </div>
+
+      <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>
+        <RoulettePatternsPanel patterns={roulettePatterns} />
+      </div>
+
+      <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>
+        <h2>Roleta (Pragmatic) - Timeline</h2>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {roulette.map((r, idx) => (
+            <div
+              key={`${r.timestamp || r.id || 'r'}_${idx}`}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 14,
+                background: r.color === 'red' ? '#e11d48' : r.color === 'black' ? '#111827' : '#10b981',
+                border: '1px solid rgba(255,255,255,0.15)'
+              }}
+              title={`${r.number} (${r.color})`}
+            >
+              {r.number}
+            </div>
+          ))}
+        </div>
       </div>
 
     </div>
