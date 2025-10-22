@@ -332,14 +332,17 @@ function App() {
     if (lastRoulettePatternKey?.key === signalR.key && lastRoulettePatternKey?.fromTs === lastRes.timestamp) return;
 
     const roundsSinceAlert = (lastRouletteAlertCount == null) ? Infinity : (roulette.length - lastRouletteAlertCount);
-    if (lastRoulettePatternKey?.key && lastPatternAbsentStreak < patternClearRounds) {
-      // Exige que o padrão anterior esteja ausente por Y rodadas consecutivas
+    const fpNew = rouletteAdviceFingerprint(signalR);
+    
+    // Verificação de cooldown para o mesmo fingerprint
+    if (lastRouletteAdviceFingerprint && fpNew === lastRouletteAdviceFingerprint && roundsSinceAlert < cooldownRounds) {
+      // Resfriamento: aguarda X rodadas antes de re-alertar mesmo fingerprint
       return;
     }
 
-    const fpNew = rouletteAdviceFingerprint(signalR);
-    if (lastRouletteAdviceFingerprint && fpNew === lastRouletteAdviceFingerprint && roundsSinceAlert < cooldownRounds) {
-      // Resfriamento: aguarda X rodadas antes de re-alertar mesmo fingerprint
+    // Verificação de pattern clear apenas para o mesmo padrão (não bloqueia padrões diferentes)
+    if (lastRoulettePatternKey?.key === signalR.key && lastPatternAbsentStreak < patternClearRounds) {
+      // Exige que o MESMO padrão anterior esteja ausente por Y rodadas consecutivas
       return;
     }
 
