@@ -137,10 +137,17 @@ export default async (request, context) => {
       let jsessionid = null;
       let rouletteTimer = null;
       let lastRouletteKey = null;
+      let lastStatusKey = '';
+
+      const emitRouletteStatus = (info) => {
+        const payload = { type: 'roulette_status', ...info, ts: Date.now() };
+        send('roulette_status', payload);
+        sendDefault(payload);
+      };
 
       async function performLogin() {
         try {
-          if (!email || !password) return null;
+          if (!email || !password) { emitRouletteStatus({ stage: 'login', ok: false, reason: 'missing_credentials' }); return null; }
           const body = {
             username: email,
             password,
@@ -160,18 +167,23 @@ export default async (request, context) => {
           const res = await fetch(LOGIN_URL, { method: 'POST', headers, body: JSON.stringify(body) });
           const data = await res.json().catch(() => ({}));
           const token = data?.results?.tokenCassino || null;
+          emitRouletteStatus({ stage: 'login', ok: !!token, httpStatus: res.status || 0 });
           return token;
-        } catch { return null; }
+        } catch (err) { emitRouletteStatus({ stage: 'login', ok: false, error: String(err?.message || err) }); return null; }
       }
 
       function extractJSessionIdFromSetCookie(setCookie) {
         if (!setCookie) return null;
-        const m = setCookie.match(/JSESSIONID=([^;]+)/i);
-        return m ? m[1] : null;
+        const cookies = Array.isArray(setCookie) ? setCookie : String(setCookie).split(/,(?=\s*[^;]+=)/);
+        for (const c of cookies) {
+          const m = String(c).match(/JSESSIONID=([^;]+)/i);
+          if (m) return m[1];
+        }
+        return null;
       }
 
       async function launchGameAndGetSession(token) {
-        if (!token) return null;
+        if (!token) { emitRouletteStatus({ stage: 'gamelaunch', ok: false, reason: 'no_token' }); return null; }
         const url = `${PRAGMATIC_BASE}/api/secure/GameLaunch` +
           `?environmentID=31&gameid=237&secureLogin=weebet_playnabet&requestCountryCode=BR` +
           `&userEnvId=31&ppCasinoId=4697&ppGame=237&ppToken=${encodeURIComponent(token)}` +
@@ -184,12 +196,13 @@ export default async (request, context) => {
               'Referer': 'https://playnabets.com/',
               'Authorization': `Bearer ${token}`,
             },
-            redirect: 'manual'
+            redirect: 'follow'
           });
           const setCookie = res.headers.get('set-cookie') || '';
           const sid = extractJSessionIdFromSetCookie(setCookie);
+          emitRouletteStatus({ stage: 'gamelaunch', ok: !!sid, httpStatus: res.status || 0, hasSetCookie: !!setCookie });
           return sid;
-        } catch { return null; }
+        } catch (err) { emitRouletteStatus({ stage: 'gamelaunch', ok: false, error: String(err?.message || err) }); return null; }
       }
 
       async function ensureRouletteSession() {
@@ -247,20 +260,25 @@ export default async (request, context) => {
               'Cookie': `JSESSIONID=${jsessionid}`,
             },
           });
-          if (res.status === 401 || res.status === 403) { jsessionid = null; return null; }
+          if (res.status === 401 || res.status === 403) { emitRouletteStatus({ stage: 'history', ok: false, httpStatus: res.status }); jsessionid = null; return null; }
           const data = await res.json().catch(() => ({}));
           const hist = Array.isArray(data?.history) ? data.history : [];
+          if (!hist.length) emitRouletteStatus({ stage: 'history', ok: true, size: 0 });
           return hist;
-        } catch { return null; }
+        } catch (err) { emitRouletteStatus({ stage: 'history', ok: false, error: String(err?.message || err) }); return null; }
       }
 
       async function rouletteTick() {
         if (stopped) return;
         const ok = await ensureRouletteSession();
-        if (!ok) { rouletteTimer = setTimeout(rouletteTick, 5000); return; }
+        if (!ok) {
+          const key = 'no_session';
+          if (lastStatusKey !== key) { emitRouletteStatus({ stage: 'tick', ok: false, reason: key }); lastStatusKey = key; }
+          rouletteTimer = setTimeout(rouletteTick, 5000);
+          return;
+        }
         const hist = await fetchRouletteHistory(3);
         if (Array.isArray(hist) && hist.length) {
-          // Pegar o mais recente (assumindo primeiro item)
           const item = hist[0];
           const normalized = normalizeRoulette(item);
           if (typeof normalized.number !== 'undefined') {
@@ -270,8 +288,12 @@ export default async (request, context) => {
               const payload = { type: 'roulette_result', data: normalized };
               send('roulette_result', payload);
               sendDefault(payload);
+              lastStatusKey = 'emitting';
             }
           }
+        } else {
+          const key = 'empty_history';
+          if (lastStatusKey !== key) { emitRouletteStatus({ stage: 'tick', ok: true, reason: key }); lastStatusKey = key; }
         }
         rouletteTimer = setTimeout(rouletteTick, 2000);
       }
