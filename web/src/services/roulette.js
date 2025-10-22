@@ -247,7 +247,7 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
   const strategy = options.strategy || 'balanced';
   const lastKey = options.lastKey || null;
   const lastFingerprint = options.lastFingerprint || null;
-  const randomizeTopDelta = Number(options.randomizeTopDelta ?? 3);
+  const randomizeTopDelta = Number(options.randomizeTopDelta ?? 5); // Aumentado de 3 para 5
 
   const candidates = [];
   for (const p of patterns) {
@@ -298,11 +298,14 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
   const scored = candidates
     .map(advice => {
       const chance = computeRouletteSignalChance(advice, results);
-      const penaltyKey = lastKey && advice.key === lastKey ? 3 : 0;
+      // Reduzir penalidade por repetição de chave para permitir mais diversidade
+      const penaltyKey = lastKey && advice.key === lastKey ? 1 : 0; // Reduzido de 3 para 1
       const fp = adviceFingerprint(advice);
-      const penaltyFingerprint = lastFingerprint && fp === lastFingerprint ? 8 : 0;
+      // Incluir chave do padrão no fingerprint para comparação mais específica
+      const fullFp = `${advice.key || 'unknown'}:${fp}`;
+      const penaltyFingerprint = lastFingerprint && fullFp === lastFingerprint ? 4 : 0; // Reduzido de 8 para 4
       const score = chance + riskWeight(advice.risk) - penaltyKey - penaltyFingerprint;
-      return { advice, chance, score };
+      return { advice, chance, score, fullFp };
     })
     .sort((a, b) => b.score - a.score);
 

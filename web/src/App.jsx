@@ -64,21 +64,26 @@ function App() {
   const [aggressiveMode, setAggressiveMode] = useState(false);
   const [rouletteMartingale, setRouletteMartingale] = useState(null);
   const [lastRouletteAdviceFingerprint, setLastRouletteAdviceFingerprint] = useState(null);
-  const [cooldownRounds, setCooldownRounds] = useState(3);
-  const [patternClearRounds, setPatternClearRounds] = useState(2);
+  const [cooldownRounds, setCooldownRounds] = useState(1); // Reduzido de 3 para 1
+  const [patternClearRounds, setPatternClearRounds] = useState(1); // Reduzido de 2 para 1
   const [lastRouletteAlertCount, setLastRouletteAlertCount] = useState(null);
   const [lastPatternAbsentStreak, setLastPatternAbsentStreak] = useState(0);
   const rouletteAdviceFingerprint = (adv) => {
     if (!adv) return null;
-    switch (adv.type) {
-      case 'color': return `color:${adv.color}`;
-      case 'column': return `column:${adv.column}`;
-      case 'dozen': return `dozen:${adv.dozen}`;
-      case 'highlow': return `highlow:${adv.value}`;
-      case 'parity': return `parity:${adv.value}`;
-      case 'numbers': return `numbers:${(Array.isArray(adv.numbers) ? adv.numbers : []).join('-')}`;
-      default: return adv.type;
-    }
+    // Incluir a chave do padrão no fingerprint para maior especificidade
+    const baseFingerprint = (() => {
+      switch (adv.type) {
+        case 'color': return `color:${adv.color}`;
+        case 'column': return `column:${adv.column}`;
+        case 'dozen': return `dozen:${adv.dozen}`;
+        case 'highlow': return `highlow:${adv.value}`;
+        case 'parity': return `parity:${adv.value}`;
+        case 'numbers': return `numbers:${(Array.isArray(adv.numbers) ? adv.numbers : []).join('-')}`;
+        default: return adv.type;
+      }
+    })();
+    // Adicionar a chave do padrão para maior especificidade
+    return `${adv.key || 'unknown'}:${baseFingerprint}`;
   };
 
   // Janela para contagem de Finales
@@ -326,7 +331,7 @@ function App() {
       summarizeRoulette(roulette),
       streaksR,
       roulette,
-      { strategy: 'balanced', lastKey: lastRoulettePatternKey?.key, lastFingerprint: lastRouletteAdviceFingerprint, randomizeTopDelta: 3 }
+      { strategy: 'balanced', lastKey: lastRoulettePatternKey?.key, lastFingerprint: lastRouletteAdviceFingerprint, randomizeTopDelta: 5 } // Aumentado de 3 para 5
     );
     if (!signalR) { if (lastRoulettePatternKey) setLastRoulettePatternKey(null); return; }
     if (lastRoulettePatternKey?.key === signalR.key && lastRoulettePatternKey?.fromTs === lastRes.timestamp) return;
