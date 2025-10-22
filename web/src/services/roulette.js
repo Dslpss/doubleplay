@@ -103,14 +103,14 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     finalsMin: 5,
     clusterArcMax: 7,
   } : {
-    dozenMin: 6,
-    highlowStreak: 4,
-    parityStreak: 5,
-    rbDiff: 5,
-    hotMin: 4,
-    sectorMin: 9,
-    finalsMin: 6,
-    clusterArcMax: 7,
+    dozenMin: 5,        // Reduzido de 6 para 5 (igual ao agressivo)
+    highlowStreak: 3,   // Reduzido de 4 para 3 (igual ao agressivo)
+    parityStreak: 4,    // Reduzido de 5 para 4 (igual ao agressivo)
+    rbDiff: 4,          // Reduzido de 5 para 4 (igual ao agressivo)
+    hotMin: 3,          // Reduzido de 4 para 3 (igual ao agressivo)
+    sectorMin: 8,       // Reduzido de 9 para 8 (igual ao agressivo)
+    finalsMin: 5,       // Reduzido de 6 para 5 (igual ao agressivo)
+    clusterArcMax: 7,   // Mantido igual
   };
 
   // Trinca por coluna
