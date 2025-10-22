@@ -8,6 +8,7 @@ import StatsPanel from './components/StatsPanel';
 import PatternsPanel from './components/PatternsPanel';
 import RouletteStatsPanel from './components/RouletteStatsPanel';
 import RoulettePatternsPanel from './components/RoulettePatternsPanel';
+import { detectRouletteAdvancedPatterns, chooseRouletteBetSignal, computeRouletteSignalChance, adviceLabelPt, rouletteColumn, rouletteDozen, rouletteHighLow, rouletteParity } from './services/roulette';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
@@ -29,6 +30,22 @@ function App() {
   const [historyLimit, setHistoryLimit] = useState(5);
   const [isNarrow, setIsNarrow] = useState(false);
   const [route, setRoute] = useState(window.location.hash || '#/');
+  const [autoRouletteEnabled, setAutoRouletteEnabled] = useState(false);
+  const [lastRoulettePatternKey, setLastRoulettePatternKey] = useState(null);
+  const [activeRouletteSignal, setActiveRouletteSignal] = useState(null);
+  const [rouletteSignalHistory, setRouletteSignalHistory] = useState([]);
+  const [rouletteHistoryLimit, setRouletteHistoryLimit] = useState(5);
+  const [lastRouletteAdviceStatus, setLastRouletteAdviceStatus] = useState(null);
+  const [enabledPatterns, setEnabledPatterns] = useState({
+    column_triple: true,
+    dozen_imbalance: true,
+    highlow_streak: true,
+    parity_streak: true,
+    zero_proximity: true,
+    red_black_balance: true,
+    hot_numbers: true,
+  });
+  const [rouletteMartingale, setRouletteMartingale] = useState(null);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 430px)');
@@ -235,6 +252,142 @@ function App() {
     return () => clearTimeout(t);
   }, [results, activeSignal]);
 
+  // Sinais da Roleta (Pragmatic)
+  useEffect(() => {
+    const lastRes = roulette[0];
+    if (!lastRes || !autoRouletteEnabled) return;
+    if (activeRouletteSignal && lastRes.timestamp === activeRouletteSignal.fromTs) return;
+    const patternsR = detectRouletteAdvancedPatterns(roulette);
+    const streaksR = computeRouletteStreaks(roulette);
+    const allowedPatterns = patternsR.filter(p => enabledPatterns[p.key]);
+    const signalR = chooseRouletteBetSignal(allowedPatterns, summarizeRoulette(roulette), streaksR, roulette);
+    if (!signalR) { if (lastRoulettePatternKey) setLastRoulettePatternKey(null); return; }
+    if (lastRoulettePatternKey === signalR.key) return;
+    const chance = computeRouletteSignalChance(signalR, roulette);
+    setLastRoulettePatternKey(signalR.key);
+    setActiveRouletteSignal({ ...signalR, fromTs: lastRes.timestamp, number: lastRes.number, chance });
+    const label = adviceLabelPt(signalR);
+    setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label} (${chance}% de chance)`);
+  }, [roulette, autoRouletteEnabled]);
+
+  useEffect(() => {
+    if (!activeRouletteSignal) return;
+    const lastRes = roulette[0];
+    if (!lastRes) return;
+    if (lastRes.timestamp === activeRouletteSignal.fromTs) return;
+    const num = Number(lastRes.number);
+    let hit = false;
+    switch (activeRouletteSignal.type) {
+      case 'color':
+        hit = ((lastRes.color === 'green' ? 'green' : lastRes.color) === activeRouletteSignal.color);
+        break;
+      case 'column':
+        hit = rouletteColumn(num) === activeRouletteSignal.column;
+        break;
+      case 'dozen':
+        hit = rouletteDozen(num) === activeRouletteSignal.dozen;
+        break;
+      case 'highlow':
+        hit = rouletteHighLow(num) === activeRouletteSignal.value;
+        break;
+      case 'parity':
+        hit = rouletteParity(num) === activeRouletteSignal.value;
+        break;
+      case 'numbers':
+        hit = Array.isArray(activeRouletteSignal.numbers) && activeRouletteSignal.numbers.includes(num);
+        break;
+      default:
+        hit = false;
+    }
+    setLastRouletteAdviceStatus(hit ? 'Acerto' : 'Erro');
+    setRouletteSignalHistory(prev => [
+      {
+        number: activeRouletteSignal.number ?? lastRes.number,
+        type: activeRouletteSignal.type,
+        value: adviceLabelPt(activeRouletteSignal),
+        result: hit ? 'acerto' : 'erro',
+        time: Date.now(),
+        chance: activeRouletteSignal.chance,
+        m1: null,
+        m2: null,
+      },
+      ...prev
+    ].slice(0, 50));
+    if (!hit) {
+      setRouletteMartingale({
+        active: true,
+        target: activeRouletteSignal,
+        attemptsLeft: 2,
+        index: 0,
+        lastCheckedTs: lastRes.timestamp,
+      });
+    }
+    setActiveRouletteSignal(null);
+    const t = setTimeout(() => setLastRouletteAdviceStatus(null), 3000);
+    return () => clearTimeout(t);
+  }, [roulette, activeRouletteSignal]);
+
+  useEffect(() => {
+    if (!rouletteMartingale?.active) return;
+    const lastRes = roulette[0];
+    if (!lastRes) return;
+    if (lastRes.timestamp === rouletteMartingale.lastCheckedTs) return;
+    const num = Number(lastRes.number);
+    let hit = false;
+    switch (rouletteMartingale.target.type) {
+      case 'color':
+        hit = ((lastRes.color === 'green' ? 'green' : lastRes.color) === rouletteMartingale.target.color);
+        break;
+      case 'column':
+        hit = rouletteColumn(num) === rouletteMartingale.target.column;
+        break;
+      case 'dozen':
+        hit = rouletteDozen(num) === rouletteMartingale.target.dozen;
+        break;
+      case 'highlow':
+        hit = rouletteHighLow(num) === rouletteMartingale.target.value;
+        break;
+      case 'parity':
+        hit = rouletteParity(num) === rouletteMartingale.target.value;
+        break;
+      case 'numbers':
+        hit = Array.isArray(rouletteMartingale.target.numbers) && rouletteMartingale.target.numbers.includes(num);
+        break;
+      default:
+        hit = false;
+    }
+
+    const isM1 = rouletteMartingale.attemptsLeft === 2;
+    setRouletteSignalHistory(prev => prev.map((h, idx) => {
+      if (idx !== rouletteMartingale.index) return h;
+      return {
+        ...h,
+        [isM1 ? 'm1' : 'm2']: hit ? 'acerto' : 'erro',
+      };
+    }));
+
+    if (hit) {
+      setLastRouletteAdviceStatus(isM1 ? 'Recuperado (Martingale M1)' : 'Recuperado (Martingale M2)');
+      setRouletteMartingale(null);
+      const t = setTimeout(() => setLastRouletteAdviceStatus(null), 3000);
+      return () => clearTimeout(t);
+    } else {
+      const attemptsLeft = rouletteMartingale.attemptsLeft - 1;
+      if (attemptsLeft <= 0) {
+        setLastRouletteAdviceStatus('Falha (Martingale M2)');
+        setRouletteMartingale(null);
+        const t = setTimeout(() => setLastRouletteAdviceStatus(null), 3000);
+        return () => clearTimeout(t);
+      } else {
+        setRouletteMartingale({
+          ...rouletteMartingale,
+          attemptsLeft,
+          lastCheckedTs: lastRes.timestamp,
+        });
+      }
+    }
+  }, [roulette, rouletteMartingale]);
+
   return (
     <div className="App" style={{ padding: 24 }}>
       <h1 style={{ fontSize: isNarrow ? 24 : undefined }}>
@@ -368,6 +521,89 @@ function App() {
 
       <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>
         <RoulettePatternsPanel patterns={roulettePatterns} />
+      </div>
+
+      <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>
+        <div className="panels" style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
+          <div style={{ border: '1px solid #ccc', padding: 16, borderRadius: 8 }}>
+            <h2>Auto aposta (sinal) - Roleta</h2>
+            <p>Estado: {autoRouletteEnabled ? 'Ativa' : 'Desativada'}</p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => setAutoRouletteEnabled(v => !v)} style={{ width: isNarrow ? '100%' : undefined }}>{autoRouletteEnabled ? 'Desativar sinais' : 'Ativar sinais'}</button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ opacity: 0.8 }}>Mostrar</span>
+                <select value={rouletteHistoryLimit} onChange={(e) => setRouletteHistoryLimit(Number(e.target.value))}>
+                  {[3,5,10,15].map(n => (<option key={n} value={n}>{n}</option>))}
+                </select>
+                <span style={{ opacity: 0.8 }}>sinais</span>
+              </label>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>
+              ⚠️ Os sinais são visuais e sugerem cor/coluna/dúzia/números com base em padrões. Use por sua conta e risco.
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Padrões habilitados</div>
+              <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: 8 }}>
+                {[
+                  { key: 'column_triple', label: 'Trinca de coluna' },
+                  { key: 'dozen_imbalance', label: 'Desequilíbrio de dúzia' },
+                  { key: 'highlow_streak', label: 'Sequência alta/baixa' },
+                  { key: 'parity_streak', label: 'Sequência de paridade' },
+                  { key: 'zero_proximity', label: 'Zero recente' },
+                  { key: 'red_black_balance', label: 'Desequilíbrio vermelho/preto' },
+                  { key: 'hot_numbers', label: 'Números quentes' },
+                ].map(item => (
+                  <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="checkbox" checked={enabledPatterns[item.key]} onChange={() => setEnabledPatterns(prev => ({ ...prev, [item.key]: !prev[item.key] }))} />
+                    <span style={{ opacity: 0.85 }}>{item.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ opacity: 0.7, fontSize: 12, marginTop: 4 }}>M1/M2: indicadores aparecem no histórico ao aplicar recuperação.</div>
+            </div>
+            {lastRouletteAdviceStatus ? (
+              <div style={{ marginTop: 8 }}>
+                {activeRouletteSignal ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {activeRouletteSignal.type === 'color' ? (
+                      <span style={colorSquareStyle(activeRouletteSignal.color)} />
+                    ) : (
+                      <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: '#374151', color: '#fff', fontSize: 12 }}>
+                        {adviceLabelPt(activeRouletteSignal)}
+                      </span>
+                    )}
+                    <span style={{ opacity: 0.8, fontSize: 12 }}>chance {activeRouletteSignal.chance}%</span>
+                  </div>
+                ) : null}
+                <p style={{ marginTop: 4, opacity: 0.85 }}>{lastRouletteAdviceStatus}</p>
+              </div>
+            ) : null}
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontWeight: 600 }}>Histórico</div>
+              {rouletteSignalHistory.length === 0 ? (
+                <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {rouletteSignalHistory.slice(0, rouletteHistoryLimit).map((h, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: '#374151', color: '#fff', fontSize: 12 }}>{h.value}</span>
+                      <span style={{ opacity: 0.8 }}>após número {h.number}</span>
+                      <span style={{ opacity: 0.6, fontSize: 12 }}>{new Date(h.time).toLocaleTimeString()}</span>
+                      {h.m1 && (
+                        <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: h.m1 === 'acerto' ? '#2ecc71' : '#e74c3c', color: '#fff', fontSize: 12 }}>M1 {h.m1}</span>
+                      )}
+                      {h.m2 && (
+                        <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: h.m2 === 'acerto' ? '#2ecc71' : '#e74c3c', color: '#fff', fontSize: 12 }}>M2 {h.m2}</span>
+                      )}
+                      <span style={{ marginLeft: 'auto', fontWeight: 600, color: h.result === 'acerto' ? '#2ecc71' : '#e74c3c' }}>{h.result}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>

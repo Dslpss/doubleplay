@@ -1,0 +1,218 @@
+// Utilidades e detector avançado de padrões para Roleta
+
+function isValidNumber(n) {
+  const num = Number(n);
+  return Number.isFinite(num) && num >= 0 && num <= 36;
+}
+
+export function rouletteColumn(num) {
+  if (!isValidNumber(num) || num === 0) return null;
+  return ((num - 1) % 3) + 1; // 1,2,3
+}
+
+export function rouletteDozen(num) {
+  if (!isValidNumber(num) || num === 0) return null;
+  if (num <= 12) return 1;
+  if (num <= 24) return 2;
+  return 3;
+}
+
+export function rouletteHighLow(num) {
+  if (!isValidNumber(num) || num === 0) return null;
+  return num <= 18 ? 'low' : 'high';
+}
+
+export function rouletteParity(num) {
+  if (!isValidNumber(num) || num === 0) return null;
+  return num % 2 === 0 ? 'even' : 'odd';
+}
+
+export function buildRouletteStats(results = []) {
+  const stats = {
+    total: 0,
+    color: { red: 0, black: 0, green: 0 },
+    columns: { 1: 0, 2: 0, 3: 0 },
+    dozens: { 1: 0, 2: 0, 3: 0 },
+    highlow: { low: 0, high: 0 },
+    parity: { even: 0, odd: 0 },
+    numbers: {},
+  };
+  for (const r of results) {
+    if (!r) continue;
+    stats.total++;
+    const c = r.color === 'green' ? 'green' : (r.color === 'red' ? 'red' : 'black');
+    stats.color[c] = (stats.color[c] || 0) + 1;
+    const num = Number(r.number);
+    if (!Number.isFinite(num)) continue;
+    const col = rouletteColumn(num);
+    const doz = rouletteDozen(num);
+    const hl = rouletteHighLow(num);
+    const par = rouletteParity(num);
+    if (col) stats.columns[col] = (stats.columns[col] || 0) + 1;
+    if (doz) stats.dozens[doz] = (stats.dozens[doz] || 0) + 1;
+    if (hl) stats.highlow[hl] = (stats.highlow[hl] || 0) + 1;
+    if (par) stats.parity[par] = (stats.parity[par] || 0) + 1;
+    stats.numbers[num] = (stats.numbers[num] || 0) + 1;
+  }
+  return stats;
+}
+
+export function detectRouletteAdvancedPatterns(results = []) {
+  const patterns = [];
+  if (!Array.isArray(results) || results.length < 3) return patterns;
+  const last10 = results.slice(-10);
+  const last12 = results.slice(-12);
+  const last20 = results.slice(-20);
+
+  // Trinca por coluna
+  const c3 = last10.slice(-3).map(r => rouletteColumn(r.number)).filter(Boolean);
+  if (c3.length === 3 && c3.every(c => c === c3[0])) {
+    patterns.push({ key: 'column_triple', description: `Trinca de coluna ${c3[0]} detectada`, risk: 'medium', targets: { type: 'column', column: c3[0] } });
+  }
+
+  // Desequilíbrio por dúzia nos últimos 12
+  const d12 = { 1: 0, 2: 0, 3: 0 };
+  for (const r of last12) { const d = rouletteDozen(r.number); if (d) d12[d]++; }
+  const dMax = Object.entries(d12).sort((a, b) => b[1] - a[1])[0];
+  if (dMax && dMax[1] >= 6) {
+    patterns.push({ key: 'dozen_imbalance', description: `Dúzia ${dMax[0]} mais frequente nos últimos 12`, risk: 'low', targets: { type: 'dozen', dozen: Number(dMax[0]) } });
+  }
+
+  // Streak High/Low (4+)
+  const hl4 = last10.slice(-4).map(r => rouletteHighLow(r.number)).filter(Boolean);
+  if (hl4.length === 4 && hl4.every(v => v === hl4[0])) {
+    patterns.push({ key: 'highlow_streak', description: `Sequência de ${hl4[0] === 'low' ? 'baixa (1-18)' : 'alta (19-36)'} detectada`, risk: 'medium', targets: { type: 'highlow', value: hl4[0] } });
+  }
+
+  // Streak paridade (5+)
+  const p5 = last10.slice(-5).map(r => rouletteParity(r.number)).filter(Boolean);
+  if (p5.length === 5 && p5.every(v => v === p5[0])) {
+    patterns.push({ key: 'parity_streak', description: `Sequência de ${p5[0] === 'even' ? 'par' : 'ímpar'} detectada`, risk: 'medium', targets: { type: 'parity', value: p5[0] } });
+  }
+
+  // Zero recente
+  if (last10.some(r => r.number === 0 || r.color === 'green')) {
+    patterns.push({ key: 'zero_proximity', description: 'Zero (verde) detectado nos últimos 10', risk: 'high', targets: { type: 'color', color: 'green' } });
+  }
+
+  // Desequilíbrio vermelho/preto nos últimos 20 (já existente, reforço)
+  const rr = last20.filter(r => r.color === 'red').length;
+  const bb = last20.filter(r => r.color === 'black').length;
+  if (Math.abs(rr - bb) >= 5) {
+    const dominant = rr > bb ? 'red' : 'black';
+    patterns.push({ key: 'red_black_balance', description: `Desequilíbrio recente favorece ${dominant === 'red' ? 'vermelho' : 'preto'}`, risk: 'low', targets: { type: 'color', color: dominant } });
+  }
+
+  // Números quentes (top 3 dos últimos 30 com >=3 ocorrências)
+  const last30 = results.slice(-30);
+  const freq = {};
+  for (const r of last30) { const n = Number(r.number); if (Number.isFinite(n)) freq[n] = (freq[n] || 0) + 1; }
+  const hot = Object.entries(freq)
+    .filter(([n, c]) => Number(n) !== 0 && c >= 4)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([n]) => Number(n));
+  if (hot.length) {
+    patterns.push({ key: 'hot_numbers', description: `Números quentes: ${hot.join(', ')}`, risk: 'medium', targets: { type: 'numbers', numbers: hot } });
+  }
+
+  return patterns;
+}
+
+export function chooseRouletteBetSignal(patterns, stats, streaks, results) {
+  if (!patterns || patterns.length === 0) return null;
+  const byKey = (k) => patterns.find(p => p.key === k);
+
+  // Prioridades
+  const colTriple = byKey('column_triple');
+  if (colTriple) return { key: 'column_triple', type: 'column', column: colTriple.targets.column };
+
+  const dozenImb = byKey('dozen_imbalance');
+  if (dozenImb) return { key: 'dozen_imbalance', type: 'dozen', dozen: dozenImb.targets.dozen };
+
+  const hlStreak = byKey('highlow_streak');
+  if (hlStreak) return { key: 'highlow_streak', type: 'highlow', value: hlStreak.targets.value };
+
+  const parityStreak = byKey('parity_streak');
+  if (parityStreak) return { key: 'parity_streak', type: 'parity', value: parityStreak.targets.value };
+
+  const hot = byKey('hot_numbers');
+  if (hot) return { key: 'hot_numbers', type: 'numbers', numbers: hot.targets.numbers };
+
+  const colorBalance = byKey('red_black_balance');
+  if (colorBalance) return { key: 'red_black_balance', type: 'color', color: colorBalance.targets.color };
+
+  const zero = byKey('zero_proximity');
+  if (zero) return { key: 'zero_proximity', type: 'color', color: 'green' };
+
+  return null;
+}
+
+export function computeRouletteSignalChance(advice, results) {
+  const sample = results.slice(-50);
+  const s = buildRouletteStats(sample);
+  const total = s.total || 0;
+  const pct = (n, base) => total >= 10 ? Math.round(((n || 0) / total) * 100) : base;
+
+  let base = 0;
+  let bonus = 0;
+
+  switch (advice?.type) {
+    case 'color': {
+      const color = advice.color || 'red';
+      const baseFallback = color === 'green' ? 2 : 48;
+      base = pct(s.color[color], baseFallback);
+      break;
+    }
+    case 'column': {
+      const c = advice.column || 1;
+      base = pct(s.columns[c], 32);
+      // bônus por trinca
+      bonus += 8;
+      break;
+    }
+    case 'dozen': {
+      const d = advice.dozen || 1;
+      base = pct(s.dozens[d], 32);
+      bonus += 6;
+      break;
+    }
+    case 'highlow': {
+      const v = advice.value || 'low';
+      base = pct(s.highlow[v], 48);
+      bonus += 5;
+      break;
+    }
+    case 'parity': {
+      const v = advice.value || 'even';
+      base = pct(s.parity[v], 48);
+      bonus += 4;
+      break;
+    }
+    case 'numbers': {
+      const arr = Array.isArray(advice.numbers) ? advice.numbers : [];
+      const sum = arr.reduce((acc, n) => acc + (s.numbers[n] || 0), 0);
+      base = pct(sum, Math.max(6, Math.round((arr.length / 37) * 100))); // aproximação
+      bonus += Math.min(6, arr.length * 1.5);
+      break;
+    }
+    default: base = 10;
+  }
+
+  let chance = Math.round(base + bonus);
+  chance = Math.max(3, Math.min(85, chance));
+  return chance;
+}
+
+export function adviceLabelPt(advice) {
+  if (!advice) return '';
+  switch (advice.type) {
+    case 'color': return advice.color === 'red' ? 'vermelho' : advice.color === 'black' ? 'preto' : 'verde (0)';
+    case 'column': return `coluna ${advice.column}`;
+    case 'dozen': return `dúzia ${advice.dozen}`;
+    case 'highlow': return advice.value === 'low' ? 'baixa (1–18)' : 'alta (19–36)';
+    case 'parity': return advice.value === 'even' ? 'par' : 'ímpar';
+    case 'numbers': return `números ${advice.numbers.join(', ')}`;
+    default: return 'aposta';
+  }
+}
