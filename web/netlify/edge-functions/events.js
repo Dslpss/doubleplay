@@ -145,9 +145,26 @@ export default async (request, context) => {
         sendDefault(payload);
       };
 
+      async function performLoginViaFunction() {
+        try {
+          const res = await fetch('/.netlify/functions/login', { method: 'POST' });
+          const data = await res.json().catch(() => ({}));
+          const token = data?.results?.tokenCassino || data?.tokenCassino || data?.token || null;
+          emitRouletteStatus({ stage: 'login_function', ok: !!token, httpStatus: res.status || 0 });
+          return token;
+        } catch (err) {
+          emitRouletteStatus({ stage: 'login_function', ok: false, error: String(err?.message || err) });
+          return null;
+        }
+      }
+
       async function performLogin() {
         try {
-          if (!email || !password) { emitRouletteStatus({ stage: 'login', ok: false, reason: 'missing_credentials' }); return null; }
+          if (!email || !password) { 
+            emitRouletteStatus({ stage: 'login', ok: false, reason: 'missing_credentials' }); 
+            // Fallback: usar Netlify Function que tem acesso às envs
+            return await performLoginViaFunction(); 
+          }
           const body = {
             username: email,
             password,
@@ -169,7 +186,11 @@ export default async (request, context) => {
           const token = data?.results?.tokenCassino || null;
           emitRouletteStatus({ stage: 'login', ok: !!token, httpStatus: res.status || 0 });
           return token;
-        } catch (err) { emitRouletteStatus({ stage: 'login', ok: false, error: String(err?.message || err) }); return null; }
+        } catch (err) { 
+          emitRouletteStatus({ stage: 'login', ok: false, error: String(err?.message || err) }); 
+          // Fallback adicional: tentar via Function
+          return await performLoginViaFunction(); 
+        }
       }
 
       function extractJSessionIdFromSetCookie(setCookie) {
