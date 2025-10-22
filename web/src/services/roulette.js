@@ -139,8 +139,8 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     patterns.push({ key: 'parity_streak', description: `Sequência de ${pSeq[0] === 'even' ? 'par' : 'ímpar'} detectada`, risk: 'medium', targets: { type: 'parity', value: pSeq[0] } });
   }
 
-  // Zero recente
-  if (last10.some(r => r.number === 0 || r.color === 'green')) {
+  // Zero recente - CORRIGIDO: verificar number E color consistentemente
+  if (last10.some(r => r.number === 0 && r.color === 'green')) {
     patterns.push({ key: 'zero_proximity', description: 'Zero (verde) detectado nos últimos 10', risk: 'high', targets: { type: 'color', color: 'green' } });
   }
 
@@ -202,27 +202,34 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     patterns.push({ key: `final_digit_${d}`, description: `Final ${d} frequente nos últimos 15`, risk: 'medium', targets: { type: 'numbers', numbers: finalsNumbers[d] } });
   }
 
-  // Cluster de vizinhos na roda com últimos 7
+  // Cluster de vizinhos na roda com últimos 7 - SIMPLIFICADO
   const last7 = results.slice(-7);
   const positions = last7.map(r => wheelIndexOf(r.number)).filter(p => p >= 0);
-  if (positions.length >= 5) {
-    const sorted = [...positions].sort((a, b) => a - b);
-    const n = EU_WHEEL_ORDER.length;
-    let maxGap = -1; let gapIdx = -1;
-    for (let i = 0; i < sorted.length; i++) {
-      const a = sorted[i];
-      const b = sorted[(i + 1) % sorted.length];
-      const gap = (b - a + n) % n;
-      if (gap > maxGap) { maxGap = gap; gapIdx = i; }
+  if (positions.length >= 4) { // Reduzido de 5 para 4
+    // Verificar se há concentração em um setor específico
+    const sectors = {};
+    for (const pos of positions) {
+      // Dividir a roda em 6 setores de ~6 números cada
+      const sector = Math.floor(pos / 6);
+      sectors[sector] = (sectors[sector] || 0) + 1;
     }
-    const arcLen = n - maxGap;
-    if (arcLen <= T.clusterArcMax) {
-      // centro aproximado: posição após o maior gap
-      const start = sorted[(gapIdx + 1) % sorted.length];
-      const center = (start + Math.floor(arcLen / 2)) % n;
-      const centerNum = EU_WHEEL_ORDER[center];
+    
+    // Se algum setor tem 3+ ocorrências, considerar cluster
+    const maxSector = Object.entries(sectors)
+      .sort((a, b) => b[1] - a[1])[0];
+    
+    if (maxSector && maxSector[1] >= 3) {
+      const sectorNum = Number(maxSector[0]);
+      const sectorStart = sectorNum * 6;
+      const centerPos = sectorStart + 3; // Centro do setor
+      const centerNum = EU_WHEEL_ORDER[centerPos % EU_WHEEL_ORDER.length];
       const neigh = neighborsOf(centerNum, 2);
-      patterns.push({ key: 'neighbors_cluster', description: `Cluster na roda detectado (arco ${arcLen})`, risk: 'medium', targets: { type: 'numbers', numbers: neigh } });
+      patterns.push({ 
+        key: 'neighbors_cluster', 
+        description: `Cluster na roda detectado (setor ${sectorNum + 1})`, 
+        risk: 'medium', 
+        targets: { type: 'numbers', numbers: neigh } 
+      });
     }
   }
 
@@ -327,32 +334,33 @@ export function computeRouletteSignalChance(advice, results) {
   switch (advice?.type) {
     case 'color': {
       const color = advice.color || 'red';
-      const baseFallback = color === 'green' ? 2 : 48;
+      // CORRIGIDO: Probabilidades base mais precisas
+      const baseFallback = color === 'green' ? 3 : 49; // Verde: 1/37≈2.7%, Vermelho/Preto: 18/37≈48.6%
       base = pct(s.color[color], baseFallback);
       break;
     }
     case 'column': {
       const c = advice.column || 1;
-      base = pct(s.columns[c], 32);
+      base = pct(s.columns[c], 32); // 12/37≈32.4%
       // bônus por trinca
       bonus += 8;
       break;
     }
     case 'dozen': {
       const d = advice.dozen || 1;
-      base = pct(s.dozens[d], 32);
+      base = pct(s.dozens[d], 32); // 12/37≈32.4%
       bonus += 6;
       break;
     }
     case 'highlow': {
       const v = advice.value || 'low';
-      base = pct(s.highlow[v], 48);
+      base = pct(s.highlow[v], 49); // 18/37≈48.6%
       bonus += 5;
       break;
     }
     case 'parity': {
       const v = advice.value || 'even';
-      base = pct(s.parity[v], 48);
+      base = pct(s.parity[v], 49); // 18/37≈48.6%
       bonus += 4;
       break;
     }
