@@ -76,13 +76,17 @@ function App() {
     (async () => {
       try {
         await connectWsBridge();
-      } catch {
-        // silencioso
+      } catch { /* silencioso */ }
+      // Inicia monitor da roleta apenas quando há backend externo configurado
+      if (SERVER_URL) {
+        try {
+          await fetch(`${SERVER_URL}/api/roulette/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ intervalMs: 2000 }),
+          });
+        } catch { /* silencioso */ }
       }
-      try {
-        const [primary] = SERVER_URL ? [`${SERVER_URL}/api/roulette/start`] : ['/api/roulette/start'];
-        await fetch(primary, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ intervalMs: 2000 }) });
-      } catch {}
     })();
 
     const t = setInterval(async () => {

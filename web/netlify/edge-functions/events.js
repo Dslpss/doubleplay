@@ -126,11 +126,164 @@ export default async (request, context) => {
       };
 
       connect();
+
+      // ------------------------- Roleta (Pragmatic) -------------------------
+      const PRAGMATIC_BASE = context?.env?.PRAGMATIC_BASE || 'https://games.pragmaticplaylive.net';
+      const PRAGMATIC_HISTORY_ENDPOINT = context?.env?.PRAGMATIC_HISTORY_ENDPOINT || '/api/ui/statisticHistory';
+      let TABLE_ID = context?.env?.PRAGMATIC_TABLE_ID || context?.env?.ROULETTE_TABLE_ID || 'rwbrzportrwa16rg';
+      const LOGIN_URL = context?.env?.PLAYNABETS_LOGIN_URL || 'https://loki1.weebet.tech/auth/login';
+      const email = context?.env?.PLAYNABETS_USER || context?.env?.PLAYNABETS_EMAIL || '';
+      const password = context?.env?.PLAYNABETS_PASS || context?.env?.PLAYNABETS_PASSWORD || '';
+      let jsessionid = null;
+      let rouletteTimer = null;
+      let lastRouletteKey = null;
+
+      async function performLogin() {
+        try {
+          if (!email || !password) return null;
+          const body = {
+            username: email,
+            password,
+            googleId: '',
+            googleIdToken: '',
+            loginMode: 'email',
+            cookie: '',
+            ignorarValidacaoEmailObrigatoria: true,
+            betting_shop_code: null,
+          };
+          const headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+            'Referer': 'https://playnabets.com/',
+            'Origin': 'https://playnabets.com',
+          };
+          const res = await fetch(LOGIN_URL, { method: 'POST', headers, body: JSON.stringify(body) });
+          const data = await res.json().catch(() => ({}));
+          const token = data?.results?.tokenCassino || null;
+          return token;
+        } catch { return null; }
+      }
+
+      function extractJSessionIdFromSetCookie(setCookie) {
+        if (!setCookie) return null;
+        const m = setCookie.match(/JSESSIONID=([^;]+)/i);
+        return m ? m[1] : null;
+      }
+
+      async function launchGameAndGetSession(token) {
+        if (!token) return null;
+        const url = `${PRAGMATIC_BASE}/api/secure/GameLaunch` +
+          `?environmentID=31&gameid=237&secureLogin=weebet_playnabet&requestCountryCode=BR` +
+          `&userEnvId=31&ppCasinoId=4697&ppGame=237&ppToken=${encodeURIComponent(token)}` +
+          `&ppExtraData=eyJsYW5ndWFnZSI6InB0IiwibG9iYnlVcmwiOiJodHRwczovL3BsYXluYWJldC5jb20vY2FzaW5vIiwicmVxdWVzdENvdW50cnlDb2RlIjoiQlIifQ%3D%3D` +
+          `&isGameUrlApiCalled=true&stylename=weebet_playnabet`;
+        try {
+          const res = await fetch(url, {
+            headers: {
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Referer': 'https://playnabets.com/',
+              'Authorization': `Bearer ${token}`,
+            },
+            redirect: 'manual'
+          });
+          const setCookie = res.headers.get('set-cookie') || '';
+          const sid = extractJSessionIdFromSetCookie(setCookie);
+          return sid;
+        } catch { return null; }
+      }
+
+      async function ensureRouletteSession() {
+        if (jsessionid) return true;
+        const token = await performLogin();
+        if (!token) return false;
+        const sid = await launchGameAndGetSession(token);
+        if (sid) { jsessionid = sid; return true; }
+        return false;
+      }
+
+      function normalizeRoulette(item) {
+        try {
+          const out = { ...item };
+          const numCandidates = [out.number, out.value, out.n];
+          let num = null;
+          for (const c of numCandidates) {
+            const n = Number(c);
+            if (Number.isFinite(n)) { num = n; break; }
+          }
+          if (num == null && typeof out.gameResult === 'string') {
+            const m = out.gameResult.match(/\d+/);
+            if (m) num = Number(m[0]);
+          }
+          let color = out.color;
+          if (!color && typeof out.gameResult === 'string') {
+            if (/red/i.test(out.gameResult)) color = 'red';
+            else if (/black/i.test(out.gameResult)) color = 'black';
+            else if (/green|\b0\b/i.test(out.gameResult)) color = 'green';
+          }
+          if (num === 0) color = 'green';
+          out.number = num;
+          out.color = color || (num === 0 ? 'green' : out.color || 'black');
+          out.timestamp = out.timestamp || out.ts || Date.now();
+          return out;
+        } catch { return item; }
+      }
+
+      async function fetchRouletteHistory(numberOfGames = 5) {
+        if (!jsessionid) return null;
+        const url = `${PRAGMATIC_BASE}${PRAGMATIC_HISTORY_ENDPOINT}` +
+          `?tableId=${encodeURIComponent(TABLE_ID)}` +
+          `&numberOfGames=${numberOfGames}` +
+          `&JSESSIONID=${encodeURIComponent(jsessionid)}` +
+          `&ck=${Date.now()}` +
+          `&game_mode=lobby_desktop`;
+        try {
+          const res = await fetch(url, {
+            headers: {
+              'Accept': 'application/json, text/plain, */*',
+              'Referer': 'https://client.pragmaticplaylive.net/',
+              'Origin': 'https://client.pragmaticplaylive.net',
+              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+              'Cookie': `JSESSIONID=${jsessionid}`,
+            },
+          });
+          if (res.status === 401 || res.status === 403) { jsessionid = null; return null; }
+          const data = await res.json().catch(() => ({}));
+          const hist = Array.isArray(data?.history) ? data.history : [];
+          return hist;
+        } catch { return null; }
+      }
+
+      async function rouletteTick() {
+        if (stopped) return;
+        const ok = await ensureRouletteSession();
+        if (!ok) { rouletteTimer = setTimeout(rouletteTick, 5000); return; }
+        const hist = await fetchRouletteHistory(3);
+        if (Array.isArray(hist) && hist.length) {
+          // Pegar o mais recente (assumindo primeiro item)
+          const item = hist[0];
+          const normalized = normalizeRoulette(item);
+          if (typeof normalized.number !== 'undefined') {
+            const key = `${normalized.number}-${normalized.color}`;
+            if (key !== lastRouletteKey) {
+              lastRouletteKey = key;
+              const payload = { type: 'roulette_result', data: normalized };
+              send('roulette_result', payload);
+              sendDefault(payload);
+            }
+          }
+        }
+        rouletteTimer = setTimeout(rouletteTick, 2000);
+      }
+
+      rouletteTick();
     },
     cancel() {
       stopped = true;
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
       try { ws?.close(); } catch {}
+      // Encerrar polling de roleta
+      if (rouletteTimer) { clearTimeout(rouletteTimer); rouletteTimer = null; }
     }
   });
 
