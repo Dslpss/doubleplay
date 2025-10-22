@@ -242,6 +242,21 @@ function App() {
       </h1>
       <p>Servidor: {connected ? 'WS conectado' : 'WS desconectado'}{hasToken ? ' | Token: Ativo' : ''}</p>
 
+      {route === '#/roulette' && (
+        <div style={{ marginTop: 12, textAlign: 'center' }}>
+          <a
+            href="https://playnabets.com/live-casino/pragmatic/237"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: 'none' }}
+          >
+            <button style={{ padding: '6px 12px', borderRadius: 6, background: '#1f2937', color: '#fff', border: '1px solid #374151' }}>
+              Abrir roleta na Play na Bets
+            </button>
+          </a>
+        </div>
+      )}
+
       <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
         <a href="#/" style={{ textDecoration: 'none' }}>
           <button style={{ padding: '6px 12px', borderRadius: 6, background: route !== '#/roulette' ? '#2c3e50' : '#1f2937', color: '#fff', border: '1px solid #374151' }}>Double</button>
