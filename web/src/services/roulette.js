@@ -57,12 +57,27 @@ export function buildRouletteStats(results = []) {
   return stats;
 }
 
-export function detectRouletteAdvancedPatterns(results = []) {
+export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   const patterns = [];
   if (!Array.isArray(results) || results.length < 3) return patterns;
   const last10 = results.slice(-10);
   const last12 = results.slice(-12);
   const last20 = results.slice(-20);
+
+  const aggressive = Boolean(options.aggressive);
+  const T = aggressive ? {
+    dozenMin: 5,
+    highlowStreak: 3,
+    parityStreak: 4,
+    rbDiff: 4,
+    hotMin: 3,
+  } : {
+    dozenMin: 6,
+    highlowStreak: 4,
+    parityStreak: 5,
+    rbDiff: 5,
+    hotMin: 4,
+  };
 
   // Trinca por coluna
   const c3 = last10.slice(-3).map(r => rouletteColumn(r.number)).filter(Boolean);
@@ -74,20 +89,20 @@ export function detectRouletteAdvancedPatterns(results = []) {
   const d12 = { 1: 0, 2: 0, 3: 0 };
   for (const r of last12) { const d = rouletteDozen(r.number); if (d) d12[d]++; }
   const dMax = Object.entries(d12).sort((a, b) => b[1] - a[1])[0];
-  if (dMax && dMax[1] >= 6) {
+  if (dMax && dMax[1] >= T.dozenMin) {
     patterns.push({ key: 'dozen_imbalance', description: `Dúzia ${dMax[0]} mais frequente nos últimos 12`, risk: 'low', targets: { type: 'dozen', dozen: Number(dMax[0]) } });
   }
 
-  // Streak High/Low (4+)
-  const hl4 = last10.slice(-4).map(r => rouletteHighLow(r.number)).filter(Boolean);
-  if (hl4.length === 4 && hl4.every(v => v === hl4[0])) {
-    patterns.push({ key: 'highlow_streak', description: `Sequência de ${hl4[0] === 'low' ? 'baixa (1-18)' : 'alta (19-36)'} detectada`, risk: 'medium', targets: { type: 'highlow', value: hl4[0] } });
+  // Streak High/Low
+  const hlSeq = last10.slice(-T.highlowStreak).map(r => rouletteHighLow(r.number)).filter(Boolean);
+  if (hlSeq.length === T.highlowStreak && hlSeq.every(v => v === hlSeq[0])) {
+    patterns.push({ key: 'highlow_streak', description: `Sequência de ${hlSeq[0] === 'low' ? 'baixa (1-18)' : 'alta (19-36)'} detectada`, risk: 'medium', targets: { type: 'highlow', value: hlSeq[0] } });
   }
 
-  // Streak paridade (5+)
-  const p5 = last10.slice(-5).map(r => rouletteParity(r.number)).filter(Boolean);
-  if (p5.length === 5 && p5.every(v => v === p5[0])) {
-    patterns.push({ key: 'parity_streak', description: `Sequência de ${p5[0] === 'even' ? 'par' : 'ímpar'} detectada`, risk: 'medium', targets: { type: 'parity', value: p5[0] } });
+  // Streak paridade
+  const pSeq = last10.slice(-T.parityStreak).map(r => rouletteParity(r.number)).filter(Boolean);
+  if (pSeq.length === T.parityStreak && pSeq.every(v => v === pSeq[0])) {
+    patterns.push({ key: 'parity_streak', description: `Sequência de ${pSeq[0] === 'even' ? 'par' : 'ímpar'} detectada`, risk: 'medium', targets: { type: 'parity', value: pSeq[0] } });
   }
 
   // Zero recente
@@ -95,20 +110,20 @@ export function detectRouletteAdvancedPatterns(results = []) {
     patterns.push({ key: 'zero_proximity', description: 'Zero (verde) detectado nos últimos 10', risk: 'high', targets: { type: 'color', color: 'green' } });
   }
 
-  // Desequilíbrio vermelho/preto nos últimos 20 (já existente, reforço)
+  // Desequilíbrio vermelho/preto nos últimos 20
   const rr = last20.filter(r => r.color === 'red').length;
   const bb = last20.filter(r => r.color === 'black').length;
-  if (Math.abs(rr - bb) >= 5) {
+  if (Math.abs(rr - bb) >= T.rbDiff) {
     const dominant = rr > bb ? 'red' : 'black';
     patterns.push({ key: 'red_black_balance', description: `Desequilíbrio recente favorece ${dominant === 'red' ? 'vermelho' : 'preto'}`, risk: 'low', targets: { type: 'color', color: dominant } });
   }
 
-  // Números quentes (top 3 dos últimos 30 com >=3 ocorrências)
+  // Números quentes
   const last30 = results.slice(-30);
   const freq = {};
   for (const r of last30) { const n = Number(r.number); if (Number.isFinite(n)) freq[n] = (freq[n] || 0) + 1; }
   const hot = Object.entries(freq)
-    .filter(([n, c]) => Number(n) !== 0 && c >= 4)
+    .filter(([n, c]) => Number(n) !== 0 && c >= T.hotMin)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([n]) => Number(n));

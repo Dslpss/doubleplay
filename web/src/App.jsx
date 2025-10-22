@@ -45,6 +45,7 @@ function App() {
     red_black_balance: true,
     hot_numbers: true,
   });
+  const [aggressiveMode, setAggressiveMode] = useState(false);
   const [rouletteMartingale, setRouletteMartingale] = useState(null);
 
   useEffect(() => {
@@ -257,18 +258,18 @@ function App() {
     const lastRes = roulette[0];
     if (!lastRes || !autoRouletteEnabled) return;
     if (activeRouletteSignal && lastRes.timestamp === activeRouletteSignal.fromTs) return;
-    const patternsR = detectRouletteAdvancedPatterns(roulette);
+    const patternsR = detectRouletteAdvancedPatterns(roulette, { aggressive: aggressiveMode });
     const streaksR = computeRouletteStreaks(roulette);
     const allowedPatterns = patternsR.filter(p => enabledPatterns[p.key]);
     const signalR = chooseRouletteBetSignal(allowedPatterns, summarizeRoulette(roulette), streaksR, roulette);
     if (!signalR) { if (lastRoulettePatternKey) setLastRoulettePatternKey(null); return; }
-    if (lastRoulettePatternKey === signalR.key) return;
+    if (lastRoulettePatternKey?.key === signalR.key && lastRoulettePatternKey?.fromTs === lastRes.timestamp) return;
     const chance = computeRouletteSignalChance(signalR, roulette);
-    setLastRoulettePatternKey(signalR.key);
+    setLastRoulettePatternKey({ key: signalR.key, fromTs: lastRes.timestamp });
     setActiveRouletteSignal({ ...signalR, fromTs: lastRes.timestamp, number: lastRes.number, chance });
     const label = adviceLabelPt(signalR);
     setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label} (${chance}% de chance)`);
-  }, [roulette, autoRouletteEnabled]);
+  }, [roulette, autoRouletteEnabled, aggressiveMode]);
 
   useEffect(() => {
     if (!activeRouletteSignal) return;
@@ -537,7 +538,11 @@ function App() {
                 </select>
                 <span style={{ opacity: 0.8 }}>sinais</span>
               </label>
-            </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={aggressiveMode} onChange={() => setAggressiveMode(v => !v)} />
+                <span style={{ opacity: 0.8 }}>Modo agressivo</span>
+              </label>
+              </div>
             <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>
               ⚠️ Os sinais são visuais e sugerem cor/coluna/dúzia/números com base em padrões. Use por sua conta e risco.
             </div>
