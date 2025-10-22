@@ -47,6 +47,19 @@ function App() {
   });
   const [aggressiveMode, setAggressiveMode] = useState(false);
   const [rouletteMartingale, setRouletteMartingale] = useState(null);
+  const [lastRouletteAdviceFingerprint, setLastRouletteAdviceFingerprint] = useState(null);
+  const rouletteAdviceFingerprint = (adv) => {
+    if (!adv) return null;
+    switch (adv.type) {
+      case 'color': return `color:${adv.color}`;
+      case 'column': return `column:${adv.column}`;
+      case 'dozen': return `dozen:${adv.dozen}`;
+      case 'highlow': return `highlow:${adv.value}`;
+      case 'parity': return `parity:${adv.value}`;
+      case 'numbers': return `numbers:${(Array.isArray(adv.numbers) ? adv.numbers : []).join('-')}`;
+      default: return adv.type;
+    }
+  };
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 430px)');
@@ -261,12 +274,19 @@ function App() {
     const patternsR = detectRouletteAdvancedPatterns(roulette, { aggressive: aggressiveMode });
     const streaksR = computeRouletteStreaks(roulette);
     const allowedPatterns = patternsR.filter(p => enabledPatterns[p.key]);
-    const signalR = chooseRouletteBetSignal(allowedPatterns, summarizeRoulette(roulette), streaksR, roulette);
+    const signalR = chooseRouletteBetSignal(
+      allowedPatterns,
+      summarizeRoulette(roulette),
+      streaksR,
+      roulette,
+      { strategy: 'balanced', lastKey: lastRoulettePatternKey?.key, lastFingerprint: lastRouletteAdviceFingerprint, randomizeTopDelta: 3 }
+    );
     if (!signalR) { if (lastRoulettePatternKey) setLastRoulettePatternKey(null); return; }
     if (lastRoulettePatternKey?.key === signalR.key && lastRoulettePatternKey?.fromTs === lastRes.timestamp) return;
     const chance = computeRouletteSignalChance(signalR, roulette);
     setLastRoulettePatternKey({ key: signalR.key, fromTs: lastRes.timestamp });
     setActiveRouletteSignal({ ...signalR, fromTs: lastRes.timestamp, number: lastRes.number, chance });
+    setLastRouletteAdviceFingerprint(rouletteAdviceFingerprint(signalR));
     const label = adviceLabelPt(signalR);
     setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label} (${chance}% de chance)`);
   }, [roulette, autoRouletteEnabled, aggressiveMode]);
@@ -614,7 +634,7 @@ function App() {
       <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>
         <h2>Roleta (Pragmatic) - Timeline</h2>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {roulette.map((r, idx) => (
+          {roulette.slice(0, 20).map((r, idx) => (
             <div
               key={`${r.timestamp || r.id || 'r'}_${idx}`}
               style={{

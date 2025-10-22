@@ -134,33 +134,79 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   return patterns;
 }
 
-export function chooseRouletteBetSignal(patterns, stats, streaks, results) {
+export function adviceFingerprint(advice) {
+  if (!advice) return null;
+  switch (advice.type) {
+    case 'color': return `color:${advice.color}`;
+    case 'column': return `column:${advice.column}`;
+    case 'dozen': return `dozen:${advice.dozen}`;
+    case 'highlow': return `highlow:${advice.value}`;
+    case 'parity': return `parity:${advice.value}`;
+    case 'numbers': return `numbers:${(Array.isArray(advice.numbers) ? advice.numbers : []).join('-')}`;
+    default: return advice.type;
+  }
+}
+
+export function chooseRouletteBetSignal(patterns, stats, streaks, results, options = {}) {
   if (!patterns || patterns.length === 0) return null;
-  const byKey = (k) => patterns.find(p => p.key === k);
+  const strategy = options.strategy || 'balanced';
+  const lastKey = options.lastKey || null;
+  const lastFingerprint = options.lastFingerprint || null;
+  const randomizeTopDelta = Number(options.randomizeTopDelta ?? 3);
 
-  // Prioridades
-  const colTriple = byKey('column_triple');
-  if (colTriple) return { key: 'column_triple', type: 'column', column: colTriple.targets.column };
+  const candidates = [];
+  for (const p of patterns) {
+    switch (p.key) {
+      case 'column_triple':
+        candidates.push({ key: 'column_triple', type: 'column', column: p.targets.column, risk: p.risk });
+        break;
+      case 'dozen_imbalance':
+        candidates.push({ key: 'dozen_imbalance', type: 'dozen', dozen: p.targets.dozen, risk: p.risk });
+        break;
+      case 'highlow_streak':
+        candidates.push({ key: 'highlow_streak', type: 'highlow', value: p.targets.value, risk: p.risk });
+        break;
+      case 'parity_streak':
+        candidates.push({ key: 'parity_streak', type: 'parity', value: p.targets.value, risk: p.risk });
+        break;
+      case 'hot_numbers':
+        candidates.push({ key: 'hot_numbers', type: 'numbers', numbers: p.targets.numbers, risk: p.risk });
+        break;
+      case 'red_black_balance':
+        candidates.push({ key: 'red_black_balance', type: 'color', color: p.targets.color, risk: p.risk });
+        break;
+      case 'zero_proximity':
+        candidates.push({ key: 'zero_proximity', type: 'color', color: 'green', risk: p.risk });
+        break;
+      default:
+        break;
+    }
+  }
 
-  const dozenImb = byKey('dozen_imbalance');
-  if (dozenImb) return { key: 'dozen_imbalance', type: 'dozen', dozen: dozenImb.targets.dozen };
+  if (candidates.length === 0) return null;
 
-  const hlStreak = byKey('highlow_streak');
-  if (hlStreak) return { key: 'highlow_streak', type: 'highlow', value: hlStreak.targets.value };
+  if (strategy === 'priority') {
+    const order = ['column_triple', 'dozen_imbalance', 'highlow_streak', 'parity_streak', 'hot_numbers', 'red_black_balance', 'zero_proximity'];
+    const selected = order.map(k => candidates.find(c => c.key === k)).find(Boolean);
+    return selected || null;
+  }
 
-  const parityStreak = byKey('parity_streak');
-  if (parityStreak) return { key: 'parity_streak', type: 'parity', value: parityStreak.targets.value };
+  const riskWeight = (r) => (r === 'low' ? 2 : r === 'medium' ? 1 : 0);
+  const scored = candidates
+    .map(advice => {
+      const chance = computeRouletteSignalChance(advice, results);
+      const penaltyKey = lastKey && advice.key === lastKey ? 3 : 0;
+      const fp = adviceFingerprint(advice);
+      const penaltyFingerprint = lastFingerprint && fp === lastFingerprint ? 8 : 0;
+      const score = chance + riskWeight(advice.risk) - penaltyKey - penaltyFingerprint;
+      return { advice, chance, score };
+    })
+    .sort((a, b) => b.score - a.score);
 
-  const hot = byKey('hot_numbers');
-  if (hot) return { key: 'hot_numbers', type: 'numbers', numbers: hot.targets.numbers };
-
-  const colorBalance = byKey('red_black_balance');
-  if (colorBalance) return { key: 'red_black_balance', type: 'color', color: colorBalance.targets.color };
-
-  const zero = byKey('zero_proximity');
-  if (zero) return { key: 'zero_proximity', type: 'color', color: 'green' };
-
-  return null;
+  const topScore = scored[0].score;
+  const nearTop = scored.filter(s => (topScore - s.score) <= randomizeTopDelta);
+  const pick = nearTop[Math.floor(Math.random() * nearTop.length)] || scored[0];
+  return { ...pick.advice };
 }
 
 export function computeRouletteSignalChance(advice, results) {
