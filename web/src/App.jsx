@@ -8,7 +8,7 @@ import StatsPanel from './components/StatsPanel';
 import PatternsPanel from './components/PatternsPanel';
 import RouletteStatsPanel from './components/RouletteStatsPanel';
 import RoulettePatternsPanel from './components/RoulettePatternsPanel';
-import { detectRouletteAdvancedPatterns, chooseRouletteBetSignal, computeRouletteSignalChance, adviceLabelPt, rouletteColumn, rouletteDozen, rouletteHighLow, rouletteParity } from './services/roulette';
+import { detectRouletteAdvancedPatterns, chooseRouletteBetSignal, computeRouletteSignalChance, adviceLabelPt, rouletteColumn, rouletteDozen, rouletteHighLow, rouletteParity, integrateSignalMetrics, processSignalResult } from './services/roulette';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
@@ -352,12 +352,19 @@ function App() {
     }
 
     const chance = computeRouletteSignalChance(signalR, roulette);
+    
+    // Integra métricas de performance no sinal
+    const enhancedSignal = integrateSignalMetrics({ ...signalR, chance }, roulette);
+    
     setLastRoulettePatternKey({ key: signalR.key, fromTs: lastRes.timestamp });
-    setActiveRouletteSignal({ ...signalR, fromTs: lastRes.timestamp, number: lastRes.number, chance });
+    setActiveRouletteSignal({ ...enhancedSignal, fromTs: lastRes.timestamp, number: lastRes.number });
     setLastRouletteAdviceFingerprint(fpNew);
     setLastRouletteAlertCount(roulette.length);
     const label = adviceLabelPt(signalR);
-    setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label} (${chance}% de chance)`);
+    const performanceText = enhancedSignal.performance?.historicalHitRate 
+      ? ` (${chance}% chance, ${enhancedSignal.performance.historicalHitRate}% histórico)`
+      : ` (${chance}% chance)`;
+    setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label}${performanceText}`);
   }, [roulette, autoRouletteEnabled, aggressiveMode, lastPatternAbsentStreak, cooldownRounds, patternClearRounds]);
 
   useEffect(() => {
@@ -389,6 +396,12 @@ function App() {
       default:
         hit = false;
     }
+    
+    // Processa o resultado para atualizar métricas de performance
+    if (activeRouletteSignal.performance?.signalIndex !== undefined) {
+      processSignalResult(activeRouletteSignal.performance.signalIndex, num, activeRouletteSignal);
+    }
+    
     setLastRouletteAdviceStatus(hit ? 'Acerto' : 'Erro');
     setRouletteSignalHistory(prev => [
       {
@@ -398,6 +411,7 @@ function App() {
         result: hit ? 'acerto' : 'erro',
         time: Date.now(),
         chance: activeRouletteSignal.chance,
+        historicalHitRate: activeRouletteSignal.performance?.historicalHitRate,
         m1: null,
         m2: null,
       },

@@ -83,34 +83,60 @@ export function buildRouletteStats(results = []) {
   return stats;
 }
 
+/**
+ * Detecta padrões avançados em resultados de roleta usando análise estatística
+ * e geográfica da roda. Suporta modo normal e agressivo para diferentes sensibilidades.
+ * 
+ * @param {Array} results - Array de resultados da roleta com {number, color}
+ * @param {Object} options - Opções de configuração
+ * @param {boolean} options.aggressive - Modo agressivo (thresholds menores)
+ * @returns {Array} Array de padrões detectados com {key, description, risk, targets}
+ * 
+ * Padrões detectados:
+ * - column_triple: 3 números consecutivos da mesma coluna
+ * - dozen_imbalance: Dúzia dominante nos últimos 12 resultados
+ * - highlow_streak: Sequência de números altos/baixos
+ * - parity_streak: Sequência de números pares/ímpares
+ * - zero_proximity: Zero recente (últimos 10)
+ * - red_black_balance: Desequilíbrio de cores
+ * - hot_numbers: Números mais frequentes
+ * - sector_*: Concentração em setores da roda (Voisins, Tiers, etc.)
+ * - finals_*: Concentração em dígitos finais
+ * - neighbors_cluster: Agrupamento geográfico na roda
+ */
 export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   const patterns = [];
   if (!Array.isArray(results) || results.length < 3) return patterns;
-  const last10 = results.slice(-10);
-  const last12 = results.slice(-12);
-  const last20 = results.slice(-20);
-  const last24 = results.slice(-24);
-  const last15 = results.slice(-15);
+  
+  // Janelas de análise otimizadas para diferentes tipos de padrões
+  const last10 = results.slice(-10);   // Para padrões de curto prazo
+  const last12 = results.slice(-12);   // Para análise de dúzias (12 números por dúzia)
+  const last20 = results.slice(-20);   // Para equilíbrio vermelho/preto
+  const last24 = results.slice(-24);   // Para setores da roda
+  const last15 = results.slice(-15);   // Para análise de finales
 
   const aggressive = Boolean(options.aggressive);
+  
+  // Thresholds diferenciados: modo agressivo detecta padrões mais cedo/facilmente
+  // Modo normal é mais conservador, exigindo evidências mais fortes
   const T = aggressive ? {
-    dozenMin: 5,
-    highlowStreak: 3,
-    parityStreak: 4,
-    rbDiff: 4,
-    hotMin: 3,
-    sectorMin: 8,
-    finalsMin: 5,
-    clusterArcMax: 7,
+    dozenMin: 4,        // Agressivo: detecta com menos ocorrências
+    highlowStreak: 3,   // Agressivo: sequências menores
+    parityStreak: 3,    // Agressivo: sequências menores
+    rbDiff: 3,          // Agressivo: menor diferença necessária
+    hotMin: 2,          // Agressivo: números ficam "quentes" mais rápido
+    sectorMin: 6,       // Agressivo: setores detectados com menos hits
+    finalsMin: 4,       // Agressivo: finales detectadas mais cedo
+    clusterArcMax: 9,   // Agressivo: clusters maiores aceitos
   } : {
-    dozenMin: 5,        // Reduzido de 6 para 5 (igual ao agressivo)
-    highlowStreak: 3,   // Reduzido de 4 para 3 (igual ao agressivo)
-    parityStreak: 4,    // Reduzido de 5 para 4 (igual ao agressivo)
-    rbDiff: 4,          // Reduzido de 5 para 4 (igual ao agressivo)
-    hotMin: 3,          // Reduzido de 4 para 3 (igual ao agressivo)
-    sectorMin: 8,       // Reduzido de 9 para 8 (igual ao agressivo)
-    finalsMin: 5,       // Reduzido de 6 para 5 (igual ao agressivo)
-    clusterArcMax: 7,   // Mantido igual
+    dozenMin: 6,        // Normal: mais conservador, exige mais evidência
+    highlowStreak: 4,   // Normal: sequências maiores para confirmar padrão
+    parityStreak: 5,    // Normal: sequências maiores para confirmar padrão
+    rbDiff: 5,          // Normal: maior diferença necessária
+    hotMin: 4,          // Normal: números precisam aparecer mais para serem "quentes"
+    sectorMin: 9,       // Normal: setores precisam de mais hits
+    finalsMin: 6,       // Normal: finales precisam de mais evidência
+    clusterArcMax: 7,   // Normal: clusters menores, mais precisos
   };
 
   // Trinca por coluna
@@ -249,12 +275,33 @@ export function adviceFingerprint(advice) {
   }
 }
 
+/**
+ * Escolhe o melhor sinal de aposta baseado nos padrões detectados, usando
+ * estratégias de pontuação e randomização para evitar previsibilidade.
+ * 
+ * @param {Array} patterns - Padrões detectados pela função detectRouletteAdvancedPatterns
+ * @param {Object} stats - Estatísticas gerais dos resultados
+ * @param {Object} streaks - Informações sobre sequências atuais
+ * @param {Array} results - Histórico de resultados
+ * @param {Object} options - Opções de configuração
+ * @param {string} options.strategy - Estratégia: 'balanced', 'aggressive', 'conservative'
+ * @param {string} options.lastKey - Chave do último padrão para evitar repetição
+ * @param {string} options.lastFingerprint - Fingerprint do último sinal para deduplicação
+ * @param {number} options.randomizeTopDelta - Delta para randomização entre top candidatos
+ * @returns {Object|null} Sinal de aposta escolhido ou null se nenhum disponível
+ * 
+ * Sistema de pontuação:
+ * - Chance base do tipo de aposta (verde: 3%, vermelho/preto: 49%, etc.)
+ * - Bônus por nível de risco (high: +15, medium: +10, low: +5)
+ * - Penalidades por repetição de padrão ou fingerprint
+ * - Randomização entre candidatos com pontuação similar
+ */
 export function chooseRouletteBetSignal(patterns, stats, streaks, results, options = {}) {
   if (!patterns || patterns.length === 0) return null;
   const strategy = options.strategy || 'balanced';
   const lastKey = options.lastKey || null;
   const lastFingerprint = options.lastFingerprint || null;
-  const randomizeTopDelta = Number(options.randomizeTopDelta ?? 5); // Aumentado de 3 para 5
+  const randomizeTopDelta = Number(options.randomizeTopDelta ?? 5); // Aumentado para maior variação
 
   const candidates = [];
   for (const p of patterns) {
@@ -301,18 +348,65 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
     return selected || null;
   }
 
-  const riskWeight = (r) => (r === 'low' ? 2 : r === 'medium' ? 1 : 0);
+  // Sistema de pontuação otimizado com múltiplos fatores
+  const riskWeight = (r) => (r === 'low' ? 3 : r === 'medium' ? 5 : r === 'high' ? 8 : 0);
+  
   const scored = candidates
     .map(advice => {
       const chance = computeRouletteSignalChance(advice, results);
-      // Reduzir penalidade por repetição de chave para permitir mais diversidade
-      const penaltyKey = lastKey && advice.key === lastKey ? 1 : 0; // Reduzido de 3 para 1
+      
+      // Penalidades por repetição (reduzidas para maior diversidade)
+      const penaltyKey = lastKey && advice.key === lastKey ? 2 : 0;
       const fp = adviceFingerprint(advice);
-      // Incluir chave do padrão no fingerprint para comparação mais específica
       const fullFp = `${advice.key || 'unknown'}:${fp}`;
-      const penaltyFingerprint = lastFingerprint && fullFp === lastFingerprint ? 4 : 0; // Reduzido de 8 para 4
-      const score = chance + riskWeight(advice.risk) - penaltyKey - penaltyFingerprint;
-      return { advice, chance, score, fullFp };
+      const penaltyFingerprint = lastFingerprint && fullFp === lastFingerprint ? 5 : 0;
+      
+      // Bônus baseado em métricas históricas (se disponível)
+      let performanceBonus = 0;
+      const patternMetrics = rouletteMetrics.metrics.patterns[advice.key];
+      if (patternMetrics && patternMetrics.hits + patternMetrics.misses >= 5) {
+        // Bônus/penalidade baseado na taxa de acerto histórica
+        const historicalRate = patternMetrics.hitRate;
+        if (historicalRate > 0.6) performanceBonus = 8;      // Padrão muito bom
+        else if (historicalRate > 0.5) performanceBonus = 4; // Padrão bom
+        else if (historicalRate > 0.4) performanceBonus = 0; // Padrão neutro
+        else performanceBonus = -3;                          // Padrão ruim
+      }
+      
+      // Bônus por diversidade de tipos de aposta
+      let diversityBonus = 0;
+      if (advice.type === 'color' && advice.color === 'green') diversityBonus = 2; // Verde é raro
+      else if (advice.type === 'numbers' && advice.numbers?.length <= 8) diversityBonus = 3; // Apostas específicas
+      else if (['column', 'dozen'].includes(advice.type)) diversityBonus = 1; // Apostas intermediárias
+      
+      // Fator de estratégia
+      let strategyMultiplier = 1;
+      if (strategy === 'aggressive') {
+        strategyMultiplier = advice.risk === 'high' ? 1.3 : advice.risk === 'medium' ? 1.1 : 0.9;
+      } else if (strategy === 'conservative') {
+        strategyMultiplier = advice.risk === 'low' ? 1.2 : advice.risk === 'medium' ? 1.0 : 0.8;
+      }
+      
+      // Cálculo final da pontuação
+      const baseScore = chance + riskWeight(advice.risk) + performanceBonus + diversityBonus;
+      const adjustedScore = baseScore * strategyMultiplier;
+      const finalScore = adjustedScore - penaltyKey - penaltyFingerprint;
+      
+      return { 
+        advice, 
+        chance, 
+        score: Math.round(finalScore * 10) / 10, // Arredonda para 1 casa decimal
+        fullFp,
+        breakdown: {
+          chance,
+          riskWeight: riskWeight(advice.risk),
+          performanceBonus,
+          diversityBonus,
+          strategyMultiplier,
+          penaltyKey,
+          penaltyFingerprint
+        }
+      };
     })
     .sort((a, b) => b.score - a.score);
 
@@ -322,8 +416,30 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
   return { ...pick.advice };
 }
 
+/**
+ * Calcula a chance estimada de sucesso para um sinal de aposta específico,
+ * baseado no histórico recente e probabilidades teóricas da roleta.
+ * 
+ * @param {Object} advice - Objeto de conselho de aposta
+ * @param {string} advice.type - Tipo: 'color', 'column', 'dozen', 'highlow', 'parity', 'numbers'
+ * @param {*} advice.value - Valor específico (cor, coluna, etc.)
+ * @param {Array} results - Histórico de resultados para análise
+ * @returns {number} Chance estimada em porcentagem (3-85%)
+ * 
+ * Cálculo:
+ * - Base: probabilidade teórica do tipo de aposta
+ * - Bônus: ajustes baseados no histórico recente (máx +20%)
+ * - Limites: mínimo 3% (verde), máximo 85%
+ * 
+ * Probabilidades base:
+ * - Verde (0): 2.7% (1/37)
+ * - Vermelho/Preto: 48.6% (18/37)
+ * - Coluna/Dúzia: 32.4% (12/37)
+ * - Alto/Baixo, Par/Ímpar: 48.6% (18/37)
+ * - Números específicos: baseado na quantidade
+ */
 export function computeRouletteSignalChance(advice, results) {
-  const sample = results.slice(-50);
+  const sample = results.slice(-50); // Analisa últimos 50 resultados
   const s = buildRouletteStats(sample);
   const total = s.total || 0;
   const pct = (n, base) => total >= 10 ? Math.round(((n || 0) / total) * 100) : base;
@@ -379,15 +495,253 @@ export function computeRouletteSignalChance(advice, results) {
   return chance;
 }
 
+/**
+ * Sistema de métricas de performance para rastrear eficácia dos padrões
+ */
+export class RoulettePatternMetrics {
+  constructor() {
+    this.metrics = {
+      // Contadores por tipo de padrão
+      patterns: {},
+      // Histórico de acertos/erros
+      history: [],
+      // Estatísticas agregadas
+      stats: {
+        totalSignals: 0,
+        totalHits: 0,
+        totalMisses: 0,
+        hitRate: 0,
+        bestPattern: null,
+        worstPattern: null
+      }
+    };
+  }
+
+  /**
+   * Registra um novo sinal emitido
+   */
+  recordSignal(patternKey, advice, timestamp = Date.now()) {
+    if (!this.metrics.patterns[patternKey]) {
+      this.metrics.patterns[patternKey] = {
+        signals: 0,
+        hits: 0,
+        misses: 0,
+        hitRate: 0,
+        avgChance: 0,
+        totalChance: 0
+      };
+    }
+
+    const pattern = this.metrics.patterns[patternKey];
+    pattern.signals++;
+    this.metrics.stats.totalSignals++;
+
+    // Adiciona ao histórico
+    this.metrics.history.push({
+      timestamp,
+      patternKey,
+      advice: { ...advice },
+      result: 'pending'
+    });
+
+    // Mantém apenas últimos 1000 registros
+    if (this.metrics.history.length > 1000) {
+      this.metrics.history = this.metrics.history.slice(-1000);
+    }
+  }
+
+  /**
+   * Registra o resultado de um sinal
+   */
+  recordResult(signalIndex, isHit, actualResult) {
+    if (signalIndex < 0 || signalIndex >= this.metrics.history.length) return;
+
+    const signal = this.metrics.history[signalIndex];
+    if (signal.result !== 'pending') return;
+
+    signal.result = isHit ? 'hit' : 'miss';
+    signal.actualResult = actualResult;
+
+    const pattern = this.metrics.patterns[signal.patternKey];
+    if (pattern) {
+      if (isHit) {
+        pattern.hits++;
+        this.metrics.stats.totalHits++;
+      } else {
+        pattern.misses++;
+        this.metrics.stats.totalMisses++;
+      }
+      
+      pattern.hitRate = pattern.hits / (pattern.hits + pattern.misses);
+      this.updateGlobalStats();
+    }
+  }
+
+  /**
+   * Atualiza estatísticas globais
+   */
+  updateGlobalStats() {
+    const total = this.metrics.stats.totalHits + this.metrics.stats.totalMisses;
+    this.metrics.stats.hitRate = total > 0 ? this.metrics.stats.totalHits / total : 0;
+
+    // Encontra melhor e pior padrão
+    let bestRate = -1, worstRate = 2;
+    let bestPattern = null, worstPattern = null;
+
+    for (const [key, pattern] of Object.entries(this.metrics.patterns)) {
+      if (pattern.hits + pattern.misses >= 5) { // Mínimo 5 tentativas
+        if (pattern.hitRate > bestRate) {
+          bestRate = pattern.hitRate;
+          bestPattern = key;
+        }
+        if (pattern.hitRate < worstRate) {
+          worstRate = pattern.hitRate;
+          worstPattern = key;
+        }
+      }
+    }
+
+    this.metrics.stats.bestPattern = bestPattern;
+    this.metrics.stats.worstPattern = worstPattern;
+  }
+
+  /**
+   * Retorna relatório de performance
+   */
+  getPerformanceReport() {
+    return {
+      summary: {
+        totalSignals: this.metrics.stats.totalSignals,
+        totalHits: this.metrics.stats.totalHits,
+        totalMisses: this.metrics.stats.totalMisses,
+        overallHitRate: Math.round(this.metrics.stats.hitRate * 100),
+        bestPattern: this.metrics.stats.bestPattern,
+        worstPattern: this.metrics.stats.worstPattern
+      },
+      patterns: Object.entries(this.metrics.patterns)
+        .filter(([_, pattern]) => pattern.signals > 0)
+        .map(([key, pattern]) => ({
+          pattern: key,
+          signals: pattern.signals,
+          hits: pattern.hits,
+          misses: pattern.misses,
+          hitRate: Math.round(pattern.hitRate * 100),
+          reliability: pattern.hits + pattern.misses >= 10 ? 'high' : 
+                      pattern.hits + pattern.misses >= 5 ? 'medium' : 'low'
+        }))
+        .sort((a, b) => b.hitRate - a.hitRate)
+    };
+  }
+
+  /**
+   * Limpa métricas antigas
+   */
+  reset() {
+    this.metrics = {
+      patterns: {},
+      history: [],
+      stats: {
+        totalSignals: 0,
+        totalHits: 0,
+        totalMisses: 0,
+        hitRate: 0,
+        bestPattern: null,
+        worstPattern: null
+      }
+    };
+  }
+}
+
+// Instância global para métricas
+export const rouletteMetrics = new RoulettePatternMetrics();
+
+/**
+ * Integra métricas de performance no processo de seleção de sinais
+ * @param {Object} signal - Sinal selecionado
+ * @param {Array} results - Resultados recentes da roleta
+ * @returns {Object} Sinal com métricas integradas
+ */
+export function integrateSignalMetrics(signal, results) {
+  if (!signal) return null;
+  
+  // Registra o sinal nas métricas
+  const signalIndex = rouletteMetrics.recordSignal(signal.key, signal);
+  
+  // Adiciona informações de performance ao sinal
+  const patternMetrics = rouletteMetrics.metrics.patterns[signal.key];
+  const performanceInfo = {
+    signalIndex,
+    historicalHitRate: patternMetrics ? Math.round(patternMetrics.hitRate * 100) : null,
+    totalSignals: patternMetrics ? patternMetrics.signals : 0,
+    confidence: signal.chance ? Math.round(signal.chance * 100) : 50
+  };
+  
+  return {
+    ...signal,
+    performance: performanceInfo,
+    timestamp: Date.now()
+  };
+}
+
+/**
+ * Processa resultado de um sinal para atualizar métricas
+ * @param {number} signalIndex - Índice do sinal nas métricas
+ * @param {number} actualResult - Resultado real da roleta
+ * @param {Object} originalSignal - Sinal original que foi emitido
+ */
+export function processSignalResult(signalIndex, actualResult, originalSignal) {
+  if (typeof signalIndex !== 'number' || !originalSignal) return;
+  
+  // Determina se o sinal foi um acerto
+  let isHit = false;
+  
+  switch (originalSignal.type) {
+    case 'color':
+      if (actualResult === 0) {
+        isHit = originalSignal.color === 'green';
+      } else {
+        const resultColor = actualResult % 2 === 0 ? 'black' : 'red';
+        isHit = originalSignal.color === resultColor;
+      }
+      break;
+      
+    case 'numbers':
+      isHit = originalSignal.numbers?.includes(actualResult) || false;
+      break;
+      
+    case 'column':
+      isHit = rouletteColumn(actualResult) === originalSignal.column;
+      break;
+      
+    case 'dozen':
+      isHit = rouletteDozen(actualResult) === originalSignal.dozen;
+      break;
+      
+    case 'highlow':
+      isHit = rouletteHighLow(actualResult) === originalSignal.range;
+      break;
+      
+    case 'parity':
+      isHit = rouletteParity(actualResult) === originalSignal.parity;
+      break;
+      
+    default:
+      isHit = false;
+  }
+  
+  // Registra o resultado nas métricas
+  rouletteMetrics.recordResult(signalIndex, isHit, actualResult);
+}
+
 export function adviceLabelPt(advice) {
-  if (!advice) return '';
+  if (!advice) return 'Sem conselho';
   switch (advice.type) {
-    case 'color': return advice.color === 'red' ? 'vermelho' : advice.color === 'black' ? 'preto' : 'verde (0)';
-    case 'column': return `coluna ${advice.column}`;
-    case 'dozen': return `dúzia ${advice.dozen}`;
-    case 'highlow': return advice.value === 'low' ? 'baixa (1–18)' : 'alta (19–36)';
-    case 'parity': return advice.value === 'even' ? 'par' : 'ímpar';
-    case 'numbers': return `números ${advice.numbers.join(', ')}`;
-    default: return 'aposta';
+    case 'color': return advice.color === 'red' ? 'Vermelho' : advice.color === 'black' ? 'Preto' : 'Verde';
+    case 'column': return `Coluna ${advice.column}`;
+    case 'dozen': return `Dúzia ${advice.dozen}`;
+    case 'highlow': return advice.value === 'low' ? 'Baixa (1-18)' : 'Alta (19-36)';
+    case 'parity': return advice.value === 'even' ? 'Par' : 'Ímpar';
+    case 'numbers': return `Números: ${advice.numbers?.join(', ') || 'N/A'}`;
+    default: return 'Desconhecido';
   }
 }
