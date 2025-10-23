@@ -111,9 +111,10 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   // Janelas de análise otimizadas para diferentes tipos de padrões
   const last10 = results.slice(-10);   // Para padrões de curto prazo
   const last12 = results.slice(-12);   // Para análise de dúzias (12 números por dúzia)
+  const last15 = results.slice(-15);   // Para análise de finales
+  const last18 = results.slice(-18);   // Para análise de dúzias frias
   const last20 = results.slice(-20);   // Para equilíbrio vermelho/preto
   const last24 = results.slice(-24);   // Para setores da roda
-  const last15 = results.slice(-15);   // Para análise de finales
 
   const aggressive = Boolean(options.aggressive);
   
