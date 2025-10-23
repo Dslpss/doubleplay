@@ -668,11 +668,11 @@ function App() {
               </div>
             
             {/* Configurações de Reset Adaptativo */}
-            <div style={{ marginTop: 12, padding: 12, backgroundColor: '#f8f9fa', borderRadius: 6, border: '1px solid #e9ecef' }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>🔄 Reset Adaptativo</div>
+            <div style={{ marginTop: 12, padding: 12, backgroundColor: '#1f1f1f', borderRadius: 6, border: '1px solid #3a3a3a' }}>
+              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14, color: '#ecf0f1' }}>🔄 Reset Adaptativo</div>
               <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: 8, fontSize: 12 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ opacity: 0.8 }}>Estratégia:</span>
+                  <span style={{ opacity: 0.9, color: '#ecf0f1' }}>Estratégia:</span>
                   <select 
                     value={resetStrategy} 
                     onChange={(e) => setResetStrategy(e.target.value)}
@@ -687,7 +687,7 @@ function App() {
                 
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW && (
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <span style={{ opacity: 0.8 }}>Tamanho da Janela:</span>
+                    <span style={{ opacity: 0.9, color: '#ecf0f1' }}>Tamanho da Janela:</span>
                     <input 
                       type="number" 
                       value={windowSize} 
@@ -701,7 +701,7 @@ function App() {
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.CONDITIONAL_RESET && (
                   <>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ opacity: 0.8 }}>Limite de Mudança:</span>
+                      <span style={{ opacity: 0.9, color: '#ecf0f1' }}>Limite de Mudança:</span>
                       <input 
                         type="number" 
                         value={changeThreshold} 
@@ -711,7 +711,7 @@ function App() {
                       />
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ opacity: 0.8 }}>Máx. Histórico:</span>
+                      <span style={{ opacity: 0.9, color: '#ecf0f1' }}>Máx. Histórico:</span>
                       <input 
                         type="number" 
                         value={maxLookback} 
@@ -726,7 +726,7 @@ function App() {
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.HYBRID && (
                   <>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ opacity: 0.8 }}>Peso Recente:</span>
+                      <span style={{ opacity: 0.9, color: '#ecf0f1' }}>Peso Recente:</span>
                       <input 
                         type="number" 
                         value={recentWeight} 
@@ -736,7 +736,7 @@ function App() {
                       />
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ opacity: 0.8 }}>Máx. Recente:</span>
+                      <span style={{ opacity: 0.9, color: '#ecf0f1' }}>Máx. Recente:</span>
                       <input 
                         type="number" 
                         value={maxRecent} 
@@ -746,7 +746,7 @@ function App() {
                       />
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ opacity: 0.8 }}>Máx. Histórico:</span>
+                      <span style={{ opacity: 0.9, color: '#ecf0f1' }}>Máx. Histórico:</span>
                       <input 
                         type="number" 
                         value={maxHistorical} 
@@ -758,7 +758,7 @@ function App() {
                   </>
                 )}
               </div>
-              <div style={{ marginTop: 6, fontSize: 11, color: '#6c757d', fontStyle: 'italic' }}>
+              <div style={{ marginTop: 6, fontSize: 11, color: '#c0c0c0', fontStyle: 'italic' }}>
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.FULL_RESET && 'Reinicia análise após cada sinal bem-sucedido'}
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW && 'Usa apenas os últimos N resultados'}
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.CONDITIONAL_RESET && 'Reinicia quando detecta mudança significativa nos padrões'}
