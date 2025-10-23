@@ -8,7 +8,7 @@ import StatsPanel from './components/StatsPanel';
 import PatternsPanel from './components/PatternsPanel';
 import RouletteStatsPanel from './components/RouletteStatsPanel';
 import RoulettePatternsPanel from './components/RoulettePatternsPanel';
-import { detectRouletteAdvancedPatterns, chooseRouletteBetSignal, computeRouletteSignalChance, adviceLabelPt, rouletteColumn, rouletteDozen, rouletteHighLow, rouletteParity, integrateSignalMetrics, processSignalResult } from './services/roulette';
+import { detectRouletteAdvancedPatterns, chooseRouletteBetSignal, computeRouletteSignalChance, adviceLabelPt, rouletteColumn, rouletteDozen, rouletteHighLow, rouletteParity, integrateSignalMetrics, processSignalResult, ADAPTIVE_RESET_STRATEGIES } from './services/roulette';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
@@ -20,7 +20,7 @@ function App() {
   const wsRef = useRef(null);
   const lastRouletteKeyRef = useRef(null);
   const MAX_RESULTS = 100;
-  const [activeTab, setActiveTab] = useState('double');
+
   const [autoBetEnabled, setAutoBetEnabled] = useState(false);
   const [lastAutoBetRound, setLastAutoBetRound] = useState(null);
   const [lastAutoBetStatus, setLastAutoBetStatus] = useState(null);
@@ -63,6 +63,15 @@ function App() {
   });
   const [aggressiveMode, setAggressiveMode] = useState(false);
   const [rouletteMartingale, setRouletteMartingale] = useState(null);
+  
+  // Configurações de Reset Adaptativo
+  const [resetStrategy, setResetStrategy] = useState(ADAPTIVE_RESET_STRATEGIES.FULL_RESET);
+  const [windowSize, setWindowSize] = useState(50);
+  const [changeThreshold, setChangeThreshold] = useState(0.3);
+  const [maxLookback, setMaxLookback] = useState(100);
+  const [recentWeight, setRecentWeight] = useState(0.7);
+  const [maxRecent, setMaxRecent] = useState(15);
+  const [maxHistorical, setMaxHistorical] = useState(35);
   const [lastRouletteAdviceFingerprint, setLastRouletteAdviceFingerprint] = useState(null);
   const [cooldownRounds, setCooldownRounds] = useState(1); // Reduzido de 3 para 1
   const [patternClearRounds, setPatternClearRounds] = useState(1); // Reduzido de 2 para 1
@@ -87,7 +96,7 @@ function App() {
   };
 
   // Janela para contagem de Finales
-  const [finalesWindow, setFinalesWindow] = useState(15);
+  const [finalesWindow] = useState(15);
   const rouletteFinalCounts = useMemo(() => {
     const counts = Array(10).fill(0);
     const lastN = roulette.slice(-finalesWindow);
@@ -309,7 +318,18 @@ function App() {
     const lastRes = roulette[0];
     if (!lastRes || !autoRouletteEnabled) return;
     if (activeRouletteSignal && lastRes.timestamp === activeRouletteSignal.fromTs) return;
-    const patternsR = detectRouletteAdvancedPatterns(roulette, { aggressive: aggressiveMode });
+    const patternsR = detectRouletteAdvancedPatterns(roulette, { 
+      aggressive: aggressiveMode,
+      resetOptions: {
+        strategy: resetStrategy,
+        windowSize,
+        changeThreshold,
+        maxLookback,
+        recentWeight,
+        maxRecent,
+        maxHistorical
+      }
+    });
     const streaksR = computeRouletteStreaks(roulette);
     const isEnabled = (p) => {
       if (enabledPatterns[p.key] !== undefined) return enabledPatterns[p.key];
@@ -354,7 +374,7 @@ function App() {
     const chance = computeRouletteSignalChance(signalR, roulette);
     
     // Integra métricas de performance no sinal
-    const enhancedSignal = integrateSignalMetrics({ ...signalR, chance }, roulette);
+    const enhancedSignal = integrateSignalMetrics({ ...signalR, chance });
     
     setLastRoulettePatternKey({ key: signalR.key, fromTs: lastRes.timestamp });
     setActiveRouletteSignal({ ...enhancedSignal, fromTs: lastRes.timestamp, number: lastRes.number });
@@ -646,6 +666,105 @@ function App() {
                 <span style={{ opacity: 0.8 }}>Modo agressivo</span>
               </label>
               </div>
+            
+            {/* Configurações de Reset Adaptativo */}
+            <div style={{ marginTop: 12, padding: 12, backgroundColor: '#f8f9fa', borderRadius: 6, border: '1px solid #e9ecef' }}>
+              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>🔄 Reset Adaptativo</div>
+              <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: 8, fontSize: 12 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ opacity: 0.8 }}>Estratégia:</span>
+                  <select 
+                    value={resetStrategy} 
+                    onChange={(e) => setResetStrategy(e.target.value)}
+                    style={{ padding: 4, fontSize: 12 }}
+                  >
+                    <option value={ADAPTIVE_RESET_STRATEGIES.FULL_RESET}>Reset Completo</option>
+                    <option value={ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW}>Janela Deslizante</option>
+                    <option value={ADAPTIVE_RESET_STRATEGIES.CONDITIONAL_RESET}>Reset Condicional</option>
+                    <option value={ADAPTIVE_RESET_STRATEGIES.HYBRID}>Híbrido</option>
+                  </select>
+                </label>
+                
+                {resetStrategy === ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW && (
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ opacity: 0.8 }}>Tamanho da Janela:</span>
+                    <input 
+                      type="number" 
+                      value={windowSize} 
+                      onChange={(e) => setWindowSize(Number(e.target.value))}
+                      min="10" max="200" step="10"
+                      style={{ padding: 4, fontSize: 12 }}
+                    />
+                  </label>
+                )}
+                
+                {resetStrategy === ADAPTIVE_RESET_STRATEGIES.CONDITIONAL_RESET && (
+                  <>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ opacity: 0.8 }}>Limite de Mudança:</span>
+                      <input 
+                        type="number" 
+                        value={changeThreshold} 
+                        onChange={(e) => setChangeThreshold(Number(e.target.value))}
+                        min="0.1" max="1" step="0.1"
+                        style={{ padding: 4, fontSize: 12 }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ opacity: 0.8 }}>Máx. Histórico:</span>
+                      <input 
+                        type="number" 
+                        value={maxLookback} 
+                        onChange={(e) => setMaxLookback(Number(e.target.value))}
+                        min="50" max="500" step="50"
+                        style={{ padding: 4, fontSize: 12 }}
+                      />
+                    </label>
+                  </>
+                )}
+                
+                {resetStrategy === ADAPTIVE_RESET_STRATEGIES.HYBRID && (
+                  <>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ opacity: 0.8 }}>Peso Recente:</span>
+                      <input 
+                        type="number" 
+                        value={recentWeight} 
+                        onChange={(e) => setRecentWeight(Number(e.target.value))}
+                        min="0.1" max="1" step="0.1"
+                        style={{ padding: 4, fontSize: 12 }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ opacity: 0.8 }}>Máx. Recente:</span>
+                      <input 
+                        type="number" 
+                        value={maxRecent} 
+                        onChange={(e) => setMaxRecent(Number(e.target.value))}
+                        min="5" max="50" step="5"
+                        style={{ padding: 4, fontSize: 12 }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ opacity: 0.8 }}>Máx. Histórico:</span>
+                      <input 
+                        type="number" 
+                        value={maxHistorical} 
+                        onChange={(e) => setMaxHistorical(Number(e.target.value))}
+                        min="10" max="100" step="10"
+                        style={{ padding: 4, fontSize: 12 }}
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, color: '#6c757d', fontStyle: 'italic' }}>
+                {resetStrategy === ADAPTIVE_RESET_STRATEGIES.FULL_RESET && 'Reinicia análise após cada sinal bem-sucedido'}
+                {resetStrategy === ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW && 'Usa apenas os últimos N resultados'}
+                {resetStrategy === ADAPTIVE_RESET_STRATEGIES.CONDITIONAL_RESET && 'Reinicia quando detecta mudança significativa nos padrões'}
+                {resetStrategy === ADAPTIVE_RESET_STRATEGIES.HYBRID && 'Combina resultados recentes e históricos com pesos diferentes'}
+              </div>
+            </div>
             <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>
               ⚠️ Os sinais são visuais e sugerem cor/coluna/dúzia/números com base em padrões. Use por sua conta e risco.
             </div>

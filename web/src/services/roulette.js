@@ -55,7 +55,6 @@ export function rouletteParity(num) {
 
 // Sistema de controle inteligente de sinais
 let lastSignalTimestamp = 0;
-let lastSignalResult = null;
 let signalCooldownActive = false;
 const SIGNAL_COOLDOWN_MS = 30000; // 30 segundos entre sinais
 const MIN_RESULTS_AFTER_SIGNAL = 3; // Mínimo de resultados após um sinal
@@ -79,18 +78,137 @@ export function isSignalCooldownActive() {
   return true;
 }
 
-export function getEffectiveResults(results, lastSignalIndex = -1) {
+// Configurações para diferentes estratégias de reset adaptativo
+export const ADAPTIVE_RESET_STRATEGIES = {
+  FULL_RESET: 'full_reset',           // Esquece tudo após cada sinal
+  SLIDING_WINDOW: 'sliding_window',   // Janela deslizante fixa
+  CONDITIONAL_RESET: 'conditional_reset', // Reset baseado em condições
+  HYBRID: 'hybrid'                    // Combinação de estratégias
+};
+
+export function getEffectiveResults(results, lastSignalIndex = -1, options = {}) {
   if (!Array.isArray(results) || results.length === 0) return [];
   
-  // Se há um sinal recente, usar apenas resultados após ele
-  if (lastSignalIndex >= 0 && lastSignalIndex < results.length - MIN_RESULTS_AFTER_SIGNAL) {
+  const strategy = options.strategy || ADAPTIVE_RESET_STRATEGIES.FULL_RESET;
+  const windowSize = options.windowSize || 50;
+  const minResultsAfterSignal = options.minResultsAfterSignal || MIN_RESULTS_AFTER_SIGNAL;
+  
+  switch (strategy) {
+    case ADAPTIVE_RESET_STRATEGIES.FULL_RESET:
+      return getFullResetResults(results, lastSignalIndex, minResultsAfterSignal);
+      
+    case ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW:
+      return getSlidingWindowResults(results, windowSize);
+      
+    case ADAPTIVE_RESET_STRATEGIES.CONDITIONAL_RESET:
+      return getConditionalResetResults(results, lastSignalIndex, options);
+      
+    case ADAPTIVE_RESET_STRATEGIES.HYBRID:
+      return getHybridResults(results, lastSignalIndex, options);
+      
+    default:
+      return getFullResetResults(results, lastSignalIndex, minResultsAfterSignal);
+  }
+}
+
+// Estratégia 1: Reset completo após cada sinal (sua ideia original)
+function getFullResetResults(results, lastSignalIndex, minResultsAfterSignal) {
+  // Se há um sinal recente, usar APENAS resultados após ele
+  if (lastSignalIndex >= 0 && lastSignalIndex < results.length - minResultsAfterSignal) {
     const effectiveResults = results.slice(lastSignalIndex + 1);
     // Garantir que temos dados suficientes para análise
-    return effectiveResults.length >= MIN_RESULTS_AFTER_SIGNAL ? effectiveResults : [];
+    return effectiveResults.length >= minResultsAfterSignal ? effectiveResults : [];
   }
   
-  // Caso contrário, usar janela limitada dos resultados mais recentes
-  return results.slice(-50); // Máximo 50 resultados para evitar ruído
+  // Se não há sinal recente, usar janela limitada
+  return results.slice(-20); // Janela menor para ser mais responsivo
+}
+
+// Estratégia 2: Janela deslizante fixa
+function getSlidingWindowResults(results, windowSize) {
+  return results.slice(-windowSize);
+}
+
+// Estratégia 3: Reset condicional baseado em mudanças de padrão
+function getConditionalResetResults(results, lastSignalIndex, options) {
+  const changeThreshold = options.changeThreshold || 0.3; // 30% de mudança
+  const maxLookback = options.maxLookback || 100;
+  
+  if (lastSignalIndex >= 0 && lastSignalIndex < results.length - MIN_RESULTS_AFTER_SIGNAL) {
+    const afterSignal = results.slice(lastSignalIndex + 1);
+    const beforeSignal = results.slice(Math.max(0, lastSignalIndex - 20), lastSignalIndex);
+    
+    // Verificar se houve mudança significativa no padrão
+    if (hasSignificantPatternChange(beforeSignal, afterSignal, changeThreshold)) {
+      // Se houve mudança, usar apenas resultados após o sinal
+      return afterSignal.length >= MIN_RESULTS_AFTER_SIGNAL ? afterSignal : [];
+    }
+  }
+  
+  // Se não houve mudança significativa, usar janela maior
+  return results.slice(-maxLookback);
+}
+
+// Estratégia 4: Híbrida - combina diferentes abordagens
+function getHybridResults(results, lastSignalIndex, options) {
+  const recentWeight = options.recentWeight || 0.7; // 70% peso para dados recentes
+  const maxRecent = options.maxRecent || 15;
+  const maxHistorical = options.maxHistorical || 35;
+  
+  let recentResults = [];
+  
+  if (lastSignalIndex >= 0 && lastSignalIndex < results.length - MIN_RESULTS_AFTER_SIGNAL) {
+    // Dados recentes: após o último sinal
+    recentResults = results.slice(lastSignalIndex + 1, lastSignalIndex + 1 + maxRecent);
+  } else {
+    // Se não há sinal recente, dividir os dados
+    recentResults = results.slice(-maxRecent);
+  }
+  
+  // Combinar com pesos (implementação simplificada - retorna dados recentes prioritariamente)
+  return recentResults.length >= MIN_RESULTS_AFTER_SIGNAL ? recentResults : results.slice(-maxRecent);
+}
+
+// Função auxiliar para detectar mudanças significativas de padrão
+function hasSignificantPatternChange(before, after, threshold) {
+  if (before.length < 5 || after.length < 5) return false;
+  
+  // Comparar distribuições de cores
+  const beforeColors = analyzeColorDistribution(before);
+  const afterColors = analyzeColorDistribution(after);
+  
+  const colorChange = Math.abs(beforeColors.redRatio - afterColors.redRatio) + 
+                     Math.abs(beforeColors.blackRatio - afterColors.blackRatio);
+  
+  // Comparar distribuições de números altos/baixos
+  const beforeHL = analyzeHighLowDistribution(before);
+  const afterHL = analyzeHighLowDistribution(after);
+  
+  const hlChange = Math.abs(beforeHL.highRatio - afterHL.highRatio);
+  
+  return (colorChange > threshold) || (hlChange > threshold);
+}
+
+function analyzeColorDistribution(results) {
+  const total = results.length;
+  const red = results.filter(r => r.color === 'red').length;
+  const black = results.filter(r => r.color === 'black').length;
+  
+  return {
+    redRatio: red / total,
+    blackRatio: black / total,
+    greenRatio: (total - red - black) / total
+  };
+}
+
+function analyzeHighLowDistribution(results) {
+  const total = results.filter(r => r.number !== 0).length; // Excluir zero
+  const high = results.filter(r => r.number > 18).length;
+  
+  return {
+    highRatio: high / total,
+    lowRatio: (total - high) / total
+  };
 }
 
 export function buildRouletteStats(results = []) {
@@ -153,8 +271,19 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     return []; // Não detectar padrões durante cooldown
   }
   
-  // Usar resultados efetivos baseados no último sinal
-  const effectiveResults = getEffectiveResults(results, options.lastSignalIndex);
+  // Usar resultados efetivos baseados no último sinal com estratégia configurável
+  const resetOptions = {
+    strategy: options.resetStrategy || ADAPTIVE_RESET_STRATEGIES.FULL_RESET,
+    windowSize: options.windowSize || 50,
+    changeThreshold: options.changeThreshold || 0.3,
+    maxLookback: options.maxLookback || 100,
+    recentWeight: options.recentWeight || 0.7,
+    maxRecent: options.maxRecent || 15,
+    maxHistorical: options.maxHistorical || 35,
+    minResultsAfterSignal: options.minResultsAfterSignal || MIN_RESULTS_AFTER_SIGNAL
+  };
+  
+  const effectiveResults = getEffectiveResults(results, options.lastSignalIndex, resetOptions);
   if (effectiveResults.length < 3) return patterns;
   
   // Usar resultados efetivos para análise
@@ -411,6 +540,17 @@ export function adviceFingerprint(advice) {
  * - Penalidades por repetição de padrão ou fingerprint
  * - Randomização entre candidatos com pontuação similar
  */
+// Helper functions for color checking
+function isRed(number) {
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return redNumbers.includes(Number(number));
+}
+
+function isBlack(number) {
+  const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
+  return blackNumbers.includes(Number(number));
+}
+
 // Filtro de qualidade de padrões
 function evaluatePatternQuality(pattern, results) {
   const quality = {
@@ -876,7 +1016,7 @@ export class RoulettePatternMetrics {
         worstPattern: this.metrics.stats.worstPattern
       },
       patterns: Object.entries(this.metrics.patterns)
-        .filter(([_, pattern]) => pattern.signals > 0)
+        .filter(([, pattern]) => pattern.signals > 0)
         .map(([key, pattern]) => ({
           pattern: key,
           signals: pattern.signals,
@@ -915,10 +1055,9 @@ export const rouletteMetrics = new RoulettePatternMetrics();
 /**
  * Integra métricas de performance no processo de seleção de sinais
  * @param {Object} signal - Sinal selecionado
- * @param {Array} results - Resultados recentes da roleta
  * @returns {Object} Sinal com métricas integradas
  */
-export function integrateSignalMetrics(signal, results) {
+export function integrateSignalMetrics(signal) {
   if (!signal) return null;
   
   // Registra o sinal nas métricas
