@@ -779,69 +779,7 @@ function App() {
             <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>
               ⚠️ Os sinais são visuais e sugerem cor/coluna/dúzia/números com base em padrões. Use por sua conta e risco.
             </div>
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Padrões habilitados</div>
-              <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: 8 }}>
-                {[
-                  { key: 'column_triple', label: 'Trinca de coluna' },
-                  { key: 'dozen_imbalance', label: 'Desequilíbrio de dúzia' },
-                  { key: 'highlow_streak', label: 'Sequência alta/baixa' },
-                  { key: 'parity_streak', label: 'Sequência de paridade' },
-                  { key: 'zero_proximity', label: 'Zero recente' },
-                  { key: 'red_black_balance', label: 'Desequilíbrio vermelho/preto' },
-                  { key: 'hot_numbers', label: 'Números quentes' },
-                  { key: 'sector_voisins', label: 'Setor: Voisins du Zéro' },
-                  { key: 'sector_tiers', label: 'Setor: Tiers du Cylindre' },
-                  { key: 'sector_orphelins', label: 'Setor: Orphelins' },
-                  { key: 'sector_jeu_zero', label: 'Setor: Jeu Zéro' },
-                  { key: 'neighbors_cluster', label: 'Cluster de vizinhos' },
-                ].map(item => (
-                  <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input type="checkbox" checked={enabledPatterns[item.key]} onChange={() => setEnabledPatterns(prev => ({ ...prev, [item.key]: !prev[item.key] }))} />
-                    <span style={{ opacity: 0.85 }}>{item.label}</span>
-                  </label>
-                ))}
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: 8, marginTop: 12 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ opacity: 0.85 }}>Cooldown (rodadas)</span>
-                  <input type="number" min={0} step={1} value={cooldownRounds} onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    setCooldownRounds(Number.isFinite(v) && v >= 0 ? v : 0);
-                  }} style={{ width: 80 }} />
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ opacity: 0.85 }}>Ausência necessária (Y rodadas)</span>
-                  <input type="number" min={0} step={1} value={patternClearRounds} onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    setPatternClearRounds(Number.isFinite(v) && v >= 0 ? v : 0);
-                  }} style={{ width: 80 }} />
-                </label>
-              </div>
-
-              <div style={{ opacity: 0.85, fontWeight: 600, marginTop: 10 }}>Finales por dígito</div>
-              <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr 1fr' : 'repeat(5, 1fr)', gap: 8, marginTop: 4 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input type="checkbox" checked={enabledPatterns['final_digit']} onChange={() => setEnabledPatterns(prev => {
-                    const next = !prev['final_digit'];
-                    const updates = {};
-                    for (let d = 0; d <= 9; d++) updates[`final_digit_${d}`] = next;
-                    return { ...prev, final_digit: next, ...updates };
-                  })} />
-                  <span style={{ opacity: 0.85 }}>Finales (todos)</span>
-                </label>
-                {[0,1,2,3,4,5,6,7,8,9].map(d => (
-                  <label key={`final_digit_${d}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input type="checkbox" checked={enabledPatterns[`final_digit_${d}`]} onChange={() => setEnabledPatterns(prev => ({ ...prev, [`final_digit_${d}`]: !prev[`final_digit_${d}`] }))} />
-                    <span style={{ opacity: 0.85 }}>{`Final ${d}`}</span>
-                    <span style={{ opacity: 0.6, fontSize: 12 }}>({rouletteFinalCounts[d]})</span>
-                  </label>
-                ))}
-              </div>
-
-              <div style={{ opacity: 0.7, fontSize: 12, marginTop: 4 }}>M1/M2: indicadores aparecem no histórico ao aplicar recuperação.</div>
-            </div>
             {lastRouletteAdviceStatus ? (
               <div style={{ marginTop: 8 }}>
                 {activeRouletteSignal ? (

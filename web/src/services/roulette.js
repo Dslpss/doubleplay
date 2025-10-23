@@ -56,8 +56,8 @@ export function rouletteParity(num) {
 // Sistema de controle inteligente de sinais
 let lastSignalTimestamp = 0;
 let signalCooldownActive = false;
-const SIGNAL_COOLDOWN_MS = 10000; // Reduzido de 30 para 10 segundos entre sinais
-const MIN_RESULTS_AFTER_SIGNAL = 2; // Reduzido de 3 para 2 resultados mínimos
+const SIGNAL_COOLDOWN_MS = 4000; // Reduzido de 10s para 4s entre sinais
+const MIN_RESULTS_AFTER_SIGNAL = 1; // Reduzido de 2 para 1 resultado mínimo
 
 export function setSignalCooldown(timestamp = Date.now()) {
   lastSignalTimestamp = timestamp;
@@ -111,17 +111,24 @@ export function getEffectiveResults(results, lastSignalIndex = -1, options = {})
   }
 }
 
-// Estratégia 1: Reset completo após cada sinal (sua ideia original)
+// Estratégia 1: Reset completo após cada sinal (responsivo)
 function getFullResetResults(results, lastSignalIndex, minResultsAfterSignal) {
-  // Se há um sinal recente, usar APENAS resultados após ele
-  if (lastSignalIndex >= 0 && lastSignalIndex < results.length - minResultsAfterSignal) {
-    const effectiveResults = results.slice(lastSignalIndex + 1);
-    // Garantir que temos dados suficientes para análise
-    return effectiveResults.length >= minResultsAfterSignal ? effectiveResults : [];
+  // Após um sinal, prioriza apenas os resultados seguintes,
+  // mas mantém responsividade enquanto a amostra ainda é pequena.
+  if (lastSignalIndex >= 0) {
+    const afterSignal = results.slice(lastSignalIndex + 1);
+    const minForPatterns = Math.max(3, minResultsAfterSignal); // precisa ao menos 3 para rodar análises
+    if (afterSignal.length >= minForPatterns) {
+      // Limitar janela para evitar dados antigos demais
+      return afterSignal.slice(-30);
+    }
+    // Fallback temporário: usar últimos 20 resultados gerais
+    // até termos amostra suficiente pós-sinal.
+    return results.slice(-20);
   }
   
-  // Se não há sinal recente, usar janela maior para ser mais responsivo
-  return results.slice(-30); // Aumentado de 20 para 30 para mais dados
+  // Sem sinal recente: usar janela maior para ser mais responsivo
+  return results.slice(-30);
 }
 
 // Estratégia 2: Janela deslizante fixa
@@ -296,7 +303,7 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   const last20 = analysisResults.slice(-20);   // Para equilíbrio vermelho/preto
   const last24 = analysisResults.slice(-24);   // Para setores da roda
 
-  const aggressive = Boolean(options.aggressive);
+  const aggressive = options.aggressive ?? true;
   
   // Thresholds diferenciados: modo agressivo detecta padrões mais cedo/facilmente
   // Modo normal é mais conservador, exigindo evidências mais fortes
@@ -552,10 +559,10 @@ function isBlack(number) {
 
 // Configurações de qualidade de padrões - valores mais permissivos
 const PATTERN_QUALITY_CONFIG = {
-  minQualityScore: 1.5, // Reduzido de 3 para 1.5
-  minConfidence: 0.25,  // Reduzido de 0.4 para 0.25
-  maxSaturationPenalty: 0.3, // Reduzido de 0.5 para 0.3
-  recentSaturationWindow: 8  // Reduzido de 5 para 8 (mais tolerante)
+  minQualityScore: 1.0,
+  minConfidence: 0.20,
+  maxSaturationPenalty: 0.2,
+  recentSaturationWindow: 10
 };
 
 // Filtro de qualidade de padrões
