@@ -145,12 +145,36 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     patterns.push({ key: 'column_triple', description: `Trinca de coluna ${c3[0]} detectada`, risk: 'medium', targets: { type: 'column', column: c3[0] } });
   }
 
+  // Desequilíbrio por coluna nos últimos 15
+  const col15 = { 1: 0, 2: 0, 3: 0 };
+  for (const r of last15) { const c = rouletteColumn(r.number); if (c) col15[c]++; }
+  const colMax = Object.entries(col15).sort((a, b) => b[1] - a[1])[0];
+  if (colMax && colMax[1] >= Math.max(6, Math.round(T.dozenMin * 0.8))) {
+    patterns.push({ key: 'column_imbalance', description: `Coluna ${colMax[0]} mais frequente nos últimos 15`, risk: 'low', targets: { type: 'column', column: Number(colMax[0]) } });
+  }
+
+  // Ausência de coluna (coluna "fria")
+  const colCounts = { 1: 0, 2: 0, 3: 0 };
+  for (const r of last20) { const c = rouletteColumn(r.number); if (c) colCounts[c]++; }
+  const colMin = Object.entries(colCounts).sort((a, b) => a[1] - b[1])[0];
+  if (colMin && colMin[1] <= 2) { // Coluna apareceu 2 vezes ou menos em 20 jogadas
+    patterns.push({ key: 'column_cold', description: `Coluna ${colMin[0]} ausente (apenas ${colMin[1]} vezes em 20)`, risk: 'medium', targets: { type: 'column', column: Number(colMin[0]) } });
+  }
+
   // Desequilíbrio por dúzia nos últimos 12
   const d12 = { 1: 0, 2: 0, 3: 0 };
   for (const r of last12) { const d = rouletteDozen(r.number); if (d) d12[d]++; }
   const dMax = Object.entries(d12).sort((a, b) => b[1] - a[1])[0];
   if (dMax && dMax[1] >= T.dozenMin) {
     patterns.push({ key: 'dozen_imbalance', description: `Dúzia ${dMax[0]} mais frequente nos últimos 12`, risk: 'low', targets: { type: 'dozen', dozen: Number(dMax[0]) } });
+  }
+
+  // Ausência de dúzia (dúzia "fria")
+  const dozenCounts = { 1: 0, 2: 0, 3: 0 };
+  for (const r of last18) { const d = rouletteDozen(r.number); if (d) dozenCounts[d]++; }
+  const dozenMin = Object.entries(dozenCounts).sort((a, b) => a[1] - b[1])[0];
+  if (dozenMin && dozenMin[1] <= 2) { // Dúzia apareceu 2 vezes ou menos em 18 jogadas
+    patterns.push({ key: 'dozen_cold', description: `Dúzia ${dozenMin[0]} ausente (apenas ${dozenMin[1]} vezes em 18)`, risk: 'medium', targets: { type: 'dozen', dozen: Number(dozenMin[0]) } });
   }
 
   // Streak High/Low
@@ -176,6 +200,44 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   if (Math.abs(rr - bb) >= T.rbDiff) {
     const dominant = rr > bb ? 'red' : 'black';
     patterns.push({ key: 'red_black_balance', description: `Desequilíbrio recente favorece ${dominant === 'red' ? 'vermelho' : 'preto'}`, risk: 'low', targets: { type: 'color', color: dominant } });
+  }
+
+  // Números dormentes (frios) - números que não saíram há muito tempo
+  const last50 = results.slice(-50);
+  const recentNumbers = new Set(last50.map(r => Number(r.number)).filter(n => Number.isFinite(n)));
+  const allNumbers = Array.from({length: 37}, (_, i) => i); // 0-36
+  const dormantNumbers = allNumbers.filter(n => !recentNumbers.has(n));
+  if (dormantNumbers.length >= 8 && dormantNumbers.length <= 15) { // Entre 8-15 números dormentes
+    // Escolher alguns números dormentes aleatoriamente
+    const selectedDormant = dormantNumbers.sort(() => Math.random() - 0.5).slice(0, Math.min(5, dormantNumbers.length));
+    patterns.push({ 
+      key: 'dormant_numbers', 
+      description: `${dormantNumbers.length} números dormentes detectados`, 
+      risk: 'high', 
+      targets: { type: 'numbers', numbers: selectedDormant } 
+    });
+  }
+
+  // Números repetidos recentemente
+  const last8 = results.slice(-8);
+  const recentFreq = {};
+  for (const r of last8) { 
+    const n = Number(r.number); 
+    if (Number.isFinite(n)) recentFreq[n] = (recentFreq[n] || 0) + 1; 
+  }
+  const repeatedNumbers = Object.entries(recentFreq)
+    .filter(([n, c]) => c >= 2 && Number(n) !== 0)
+    .map(([n, c]) => ({ number: Number(n), count: c }))
+    .sort((a, b) => b.count - a.count);
+  
+  if (repeatedNumbers.length > 0) {
+    const topRepeated = repeatedNumbers.slice(0, 3).map(r => r.number);
+    patterns.push({ 
+      key: 'repeated_numbers', 
+      description: `Números repetidos nos últimos 8: ${topRepeated.join(', ')}`, 
+      risk: 'medium', 
+      targets: { type: 'numbers', numbers: topRepeated } 
+    });
   }
 
   // Números quentes
@@ -309,8 +371,17 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
       case 'column_triple':
         candidates.push({ key: 'column_triple', type: 'column', column: p.targets.column, risk: p.risk });
         break;
+      case 'column_imbalance':
+        candidates.push({ key: 'column_imbalance', type: 'column', column: p.targets.column, risk: p.risk });
+        break;
+      case 'column_cold':
+        candidates.push({ key: 'column_cold', type: 'column', column: p.targets.column, risk: p.risk });
+        break;
       case 'dozen_imbalance':
         candidates.push({ key: 'dozen_imbalance', type: 'dozen', dozen: p.targets.dozen, risk: p.risk });
+        break;
+      case 'dozen_cold':
+        candidates.push({ key: 'dozen_cold', type: 'dozen', dozen: p.targets.dozen, risk: p.risk });
         break;
       case 'highlow_streak':
         candidates.push({ key: 'highlow_streak', type: 'highlow', value: p.targets.value, risk: p.risk });
@@ -320,6 +391,12 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
         break;
       case 'hot_numbers':
         candidates.push({ key: 'hot_numbers', type: 'numbers', numbers: p.targets.numbers, risk: p.risk });
+        break;
+      case 'dormant_numbers':
+        candidates.push({ key: 'dormant_numbers', type: 'numbers', numbers: p.targets.numbers, risk: p.risk });
+        break;
+      case 'repeated_numbers':
+        candidates.push({ key: 'repeated_numbers', type: 'numbers', numbers: p.targets.numbers, risk: p.risk });
         break;
       case 'red_black_balance':
         candidates.push({ key: 'red_black_balance', type: 'color', color: p.targets.color, risk: p.risk });
@@ -343,23 +420,38 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
   if (candidates.length === 0) return null;
 
   if (strategy === 'priority') {
-    const order = ['column_triple', 'dozen_imbalance', 'highlow_streak', 'parity_streak', 'hot_numbers', 'red_black_balance', 'zero_proximity', 'sector_voisins', 'sector_tiers', 'sector_orphelins', 'sector_jeu_zero', 'neighbors_cluster'];
+    const order = [
+      'column_triple', 'column_imbalance', 'column_cold',
+      'dozen_imbalance', 'dozen_cold', 
+      'highlow_streak', 'parity_streak', 
+      'repeated_numbers', 'hot_numbers', 'dormant_numbers',
+      'sector_voisins', 'sector_tiers', 'sector_orphelins', 'sector_jeu_zero', 
+      'neighbors_cluster', 'red_black_balance', 'zero_proximity'
+    ];
     const selected = order.map(k => candidates.find(c => c.key === k)).find(Boolean);
     return selected || null;
   }
 
   // Sistema de pontuação otimizado com múltiplos fatores
-  const riskWeight = (r) => (r === 'low' ? 3 : r === 'medium' ? 5 : r === 'high' ? 8 : 0);
+  const riskWeight = (r) => (r === 'low' ? 2 : r === 'medium' ? 4 : r === 'high' ? 7 : 0);
   
   const scored = candidates
     .map(advice => {
       const chance = computeRouletteSignalChance(advice, results);
       
-      // Penalidades por repetição (reduzidas para maior diversidade)
-      const penaltyKey = lastKey && advice.key === lastKey ? 2 : 0;
+      // Penalidades por repetição (aumentadas para forçar diversidade)
+      const penaltyKey = lastKey && advice.key === lastKey ? 4 : 0;
       const fp = adviceFingerprint(advice);
       const fullFp = `${advice.key || 'unknown'}:${fp}`;
-      const penaltyFingerprint = lastFingerprint && fullFp === lastFingerprint ? 5 : 0;
+      const penaltyFingerprint = lastFingerprint && fullFp === lastFingerprint ? 8 : 0;
+      
+      // Penalidade especial para vermelho/preto para reduzir dominância
+      let colorPenalty = 0;
+      if (advice.type === 'color' && ['red', 'black'].includes(advice.color)) {
+        colorPenalty = 3; // Penalidade base para cores simples
+        // Penalidade extra se foi usado recentemente
+        if (lastKey === 'red_black_balance') colorPenalty += 5;
+      }
       
       // Bônus baseado em métricas históricas (se disponível)
       let performanceBonus = 0;
@@ -373,24 +465,42 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
         else performanceBonus = -3;                          // Padrão ruim
       }
       
-      // Bônus por diversidade de tipos de aposta
+      // Bônus por diversidade de tipos de aposta (aumentados)
       let diversityBonus = 0;
-      if (advice.type === 'color' && advice.color === 'green') diversityBonus = 2; // Verde é raro
-      else if (advice.type === 'numbers' && advice.numbers?.length <= 8) diversityBonus = 3; // Apostas específicas
-      else if (['column', 'dozen'].includes(advice.type)) diversityBonus = 1; // Apostas intermediárias
+      if (advice.type === 'color' && advice.color === 'green') diversityBonus = 6; // Verde é raro e valioso
+      else if (advice.type === 'numbers' && advice.numbers?.length <= 8) diversityBonus = 5; // Apostas específicas
+      else if (advice.type === 'column') diversityBonus = 4; // Colunas
+      else if (advice.type === 'dozen') diversityBonus = 4; // Dúzias
+      else if (['highlow', 'parity'].includes(advice.type)) diversityBonus = 2; // Apostas simples alternativas
+      
+      // Bônus extra para padrões menos comuns
+      let rarityBonus = 0;
+      if (['sector_voisins', 'sector_tiers', 'sector_orphelins', 'sector_jeu_zero'].includes(advice.key)) {
+        rarityBonus = 3; // Setores são mais interessantes
+      } else if (['dormant_numbers', 'repeated_numbers'].includes(advice.key)) {
+        rarityBonus = 4; // Números específicos são valiosos
+      } else if (['column_cold', 'dozen_cold'].includes(advice.key)) {
+        rarityBonus = 3; // Padrões de ausência são interessantes
+      } else if (['column_imbalance', 'column_triple'].includes(advice.key)) {
+        rarityBonus = 2; // Padrões de coluna são bons
+      } else if (advice.key.startsWith('final_digit_')) {
+        rarityBonus = 2; // Finais são estratégias avançadas
+      } else if (advice.key === 'neighbors_cluster') {
+        rarityBonus = 4; // Clusters são raros e valiosos
+      }
       
       // Fator de estratégia
       let strategyMultiplier = 1;
       if (strategy === 'aggressive') {
-        strategyMultiplier = advice.risk === 'high' ? 1.3 : advice.risk === 'medium' ? 1.1 : 0.9;
+        strategyMultiplier = advice.risk === 'high' ? 1.4 : advice.risk === 'medium' ? 1.2 : 0.8;
       } else if (strategy === 'conservative') {
-        strategyMultiplier = advice.risk === 'low' ? 1.2 : advice.risk === 'medium' ? 1.0 : 0.8;
+        strategyMultiplier = advice.risk === 'low' ? 1.1 : advice.risk === 'medium' ? 1.0 : 0.7;
       }
       
       // Cálculo final da pontuação
-      const baseScore = chance + riskWeight(advice.risk) + performanceBonus + diversityBonus;
+      const baseScore = chance + riskWeight(advice.risk) + performanceBonus + diversityBonus + rarityBonus;
       const adjustedScore = baseScore * strategyMultiplier;
-      const finalScore = adjustedScore - penaltyKey - penaltyFingerprint;
+      const finalScore = adjustedScore - penaltyKey - penaltyFingerprint - colorPenalty;
       
       return { 
         advice, 
@@ -402,9 +512,11 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
           riskWeight: riskWeight(advice.risk),
           performanceBonus,
           diversityBonus,
+          rarityBonus,
           strategyMultiplier,
           penaltyKey,
-          penaltyFingerprint
+          penaltyFingerprint,
+          colorPenalty
         }
       };
     })
