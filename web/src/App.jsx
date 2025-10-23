@@ -36,6 +36,7 @@ function App() {
   const [rouletteSignalHistory, setRouletteSignalHistory] = useState([]);
   const [rouletteHistoryLimit, setRouletteHistoryLimit] = useState(5);
   const [lastRouletteAdviceStatus, setLastRouletteAdviceStatus] = useState(null);
++ const [blockAlertsWhileActive, setBlockAlertsWhileActive] = useState(true);
   const [enabledPatterns, _setEnabledPatterns] = useState({
     column_triple: true,
     dozen_imbalance: true,
@@ -231,7 +232,8 @@ function App() {
     const lastRes = results[results.length - 1];
     if (!lastRes || !autoBetEnabled) return;
     if (lastAutoBetRound && lastRes.round_id === lastAutoBetRound) return;
-    if (activeSignal) return; // não alertar se já há um sinal ativo aguardando
+-   if (activeSignal) return; // não alertar se já há um sinal ativo aguardando
++   if (blockAlertsWhileActive && activeSignal) return; // não alertar se já há um sinal ativo aguardando
     const s = computeStreaks(results);
     const p = detectSimplePatterns(results);
     function computeSignalChance(signal, results) {
@@ -283,7 +285,8 @@ function App() {
     setActiveSignal({ key: signal.key, color: signal.color, fromRound: lastRes.round_id, number: lastRes.number, chance });
     const colorPt = signal.color === 'red' ? 'vermelho' : signal.color === 'black' ? 'preto' : 'branco';
     setLastAutoBetStatus(`Após número ${lastRes.number} aposte ${colorPt} (${chance}% de chance)`);
-  }, [results, autoBetEnabled, lastAutoBetRound, lastPatternKey, activeSignal]);
+- }, [results, autoBetEnabled, lastAutoBetRound, lastPatternKey, activeSignal]);
++ }, [results, autoBetEnabled, lastAutoBetRound, lastPatternKey, activeSignal, blockAlertsWhileActive]);
 
   // Avalia o próximo resultado após um sinal e limpa o aviso
   useEffect(() => {
@@ -315,7 +318,8 @@ function App() {
   useEffect(() => {
     const lastRes = roulette[0];
     if (!lastRes || !autoRouletteEnabled) return;
-    if (activeRouletteSignal) return; // não alertar se já há um sinal ativo aguardando
+-   if (activeRouletteSignal) return; // não alertar se já há um sinal ativo aguardando
++   if (blockAlertsWhileActive && activeRouletteSignal) return; // não alertar se já há um sinal ativo aguardando
     // Usa ordem cronológica crescente para análises (mais recente no fim)
     const analysisResults = [...roulette].reverse();
     const patternsR = detectRouletteAdvancedPatterns(analysisResults, { 
@@ -578,6 +582,10 @@ function App() {
                   </select>
                   <span style={{ opacity: 0.8 }}>sinais</span>
                 </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="checkbox" checked={blockAlertsWhileActive} onChange={() => setBlockAlertsWhileActive(v => !v)} />
+                  <span style={{ opacity: 0.8 }}>Bloquear alertas com sinal ativo</span>
+                </label>
               </div>
               <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>
                 ⚠️ Você pode aplicar Martingale 2 (até duas entradas de recuperação),
@@ -593,6 +601,7 @@ function App() {
                        {colorLabelPt(activeSignal.color)}
                      </span>
                      <span style={{ opacity: 0.8, fontSize: 12 }}>chance {activeSignal.chance}%</span>
+                     <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: '#374151', color: '#fff', fontSize: 12 }}>aguardando resolução</span>
                    </div>
                  ) : null}
                  <p style={{ marginTop: 4, opacity: 0.85, color: activeSignal ? (activeSignal.color === 'black' ? '#ecf0f1' : colorHex[activeSignal.color]) : undefined }}>{lastAutoBetStatus}</p>
@@ -789,6 +798,7 @@ function App() {
                       </span>
                     )}
                     <span style={{ opacity: 0.8, fontSize: 12 }}>chance {activeRouletteSignal.chance}%</span>
+                    <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: '#374151', color: '#fff', fontSize: 12 }}>aguardando resolução</span>
                   </div>
                 ) : null}
                 <p style={{ marginTop: 4, opacity: 0.85 }}>{lastRouletteAdviceStatus}</p>
