@@ -320,6 +320,7 @@ function App() {
     if (!lastRes || !autoRouletteEnabled) return;
 
     if (blockAlertsWhileActive && activeRouletteSignal) return; // não alertar se já há um sinal ativo aguardando
+    if (blockAlertsWhileActive && rouletteMartingale?.active) return; // não alertar se Martingale (M1/M2) está ativo
     // Usa ordem cronológica crescente para análises (mais recente no fim)
     const analysisResults = [...roulette].reverse();
     const patternsR = detectRouletteAdvancedPatterns(analysisResults, { 
@@ -396,7 +397,7 @@ function App() {
       ? ` (${chance}% chance, ${enhancedSignal.performance.historicalHitRate}% histórico)`
       : ` (${chance}% chance)`;
     setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label}${performanceText}`);
-  }, [roulette, autoRouletteEnabled, aggressiveMode, lastPatternAbsentStreak, cooldownRounds, patternClearRounds, activeRouletteSignal, changeThreshold, enabledPatterns, lastRouletteAdviceFingerprint, lastRouletteAlertCount, lastRoulettePatternKey, maxHistorical, maxLookback, maxRecent, recentWeight, resetStrategy, windowSize]);
+  }, [roulette, autoRouletteEnabled, aggressiveMode, lastPatternAbsentStreak, cooldownRounds, patternClearRounds, blockAlertsWhileActive, changeThreshold, enabledPatterns, lastRouletteAdviceFingerprint, lastRouletteAlertCount, lastRoulettePatternKey, maxHistorical, maxLookback, maxRecent, recentWeight, resetStrategy, windowSize, rouletteMartingale]);
 
   useEffect(() => {
     if (!activeRouletteSignal) return;
