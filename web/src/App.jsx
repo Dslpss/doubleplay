@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
 import { status, connectWsBridge } from './services/api';
 import { createWsClient } from './services/wsClient';
@@ -36,7 +36,7 @@ function App() {
   const [rouletteSignalHistory, setRouletteSignalHistory] = useState([]);
   const [rouletteHistoryLimit, setRouletteHistoryLimit] = useState(5);
   const [lastRouletteAdviceStatus, setLastRouletteAdviceStatus] = useState(null);
-  const [enabledPatterns, setEnabledPatterns] = useState({
+  const [enabledPatterns, _setEnabledPatterns] = useState({
     column_triple: true,
     dozen_imbalance: true,
     highlow_streak: true,
@@ -76,8 +76,8 @@ function App() {
   const [maxRecent, setMaxRecent] = useState(15);
   const [maxHistorical, setMaxHistorical] = useState(35);
   const [lastRouletteAdviceFingerprint, setLastRouletteAdviceFingerprint] = useState(null);
-  const [cooldownRounds, setCooldownRounds] = useState(1); // Reduzido de 3 para 1
-  const [patternClearRounds, setPatternClearRounds] = useState(1); // Reduzido de 2 para 1
+  const [cooldownRounds] = useState(1); // Reduzido de 3 para 1
+  const [patternClearRounds] = useState(1); // Reduzido de 2 para 1
   const [lastRouletteAlertCount, setLastRouletteAlertCount] = useState(null);
   const [lastPatternAbsentStreak, setLastPatternAbsentStreak] = useState(0);
   const rouletteAdviceFingerprint = (adv) => {
@@ -99,17 +99,7 @@ function App() {
   };
 
   // Janela para contagem de Finales
-  const [finalesWindow] = useState(15);
-  const rouletteFinalCounts = useMemo(() => {
-    const counts = Array(10).fill(0);
-    const lastN = roulette.slice(-finalesWindow);
-    for (const r of lastN) {
-      const n = Number(r.number);
-      if (!Number.isFinite(n)) continue;
-      counts[n % 10]++;
-    }
-    return counts;
-  }, [roulette, finalesWindow]);
+  /* removed unused finalesWindow and rouletteFinalCounts memo */
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 430px)');
@@ -236,6 +226,7 @@ function App() {
     boxShadow: '0 1px 2px rgba(0,0,0,0.15)'
   });
 
+  /* removed unused eslint-disable directive */
   useEffect(() => {
     const lastRes = results[results.length - 1];
     if (!lastRes || !autoBetEnabled) return;
@@ -291,7 +282,7 @@ function App() {
     setActiveSignal({ key: signal.key, color: signal.color, fromRound: lastRes.round_id, number: lastRes.number, chance });
     const colorPt = signal.color === 'red' ? 'vermelho' : signal.color === 'black' ? 'preto' : 'branco';
     setLastAutoBetStatus(`Após número ${lastRes.number} aposte ${colorPt} (${chance}% de chance)`);
-  }, [results, autoBetEnabled]);
+  }, [results, autoBetEnabled, lastAutoBetRound, lastPatternKey]);
 
   // Avalia o próximo resultado após um sinal e limpa o aviso
   useEffect(() => {
@@ -319,6 +310,7 @@ function App() {
   }, [results, activeSignal]);
 
   // Sinais da Roleta (Pragmatic)
+  /* removed unused eslint-disable directive */
   useEffect(() => {
     const lastRes = roulette[0];
     if (!lastRes || !autoRouletteEnabled) return;
@@ -399,7 +391,7 @@ function App() {
       ? ` (${chance}% chance, ${enhancedSignal.performance.historicalHitRate}% histórico)`
       : ` (${chance}% chance)`;
     setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label}${performanceText}`);
-  }, [roulette, autoRouletteEnabled, aggressiveMode, lastPatternAbsentStreak, cooldownRounds, patternClearRounds]);
+  }, [roulette, autoRouletteEnabled, aggressiveMode, lastPatternAbsentStreak, cooldownRounds, patternClearRounds, activeRouletteSignal, changeThreshold, enabledPatterns, lastRouletteAdviceFingerprint, lastRouletteAlertCount, lastRoulettePatternKey, maxHistorical, maxLookback, maxRecent, recentWeight, resetStrategy, windowSize]);
 
   useEffect(() => {
     if (!activeRouletteSignal) return;

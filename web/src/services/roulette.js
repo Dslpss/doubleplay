@@ -562,7 +562,7 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
       let bestArc = null; // {start, len, count}
       for (let start = 0; start < N; start++) {
         for (let len = 5; len <= 7; len++) { // arcos pequenos de 5-7 números
-          const end = (start + len - 1) % N;
+          /* removed unused end variable */
           const count = idxs.filter(idx => {
             const d = (idx - start + N) % N;
             return d >= 0 && d < len;
