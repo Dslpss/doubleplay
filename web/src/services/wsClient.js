@@ -69,6 +69,17 @@ export function createWsClient(onMessage) {
   } catch {}
 
   if (!SERVER_URL) {
+    // Em desenvolvimento, sem SERVER_URL, evita conexão automática para não gerar erros de rede
+    if (import.meta.env.DEV) {
+      try { console.warn("[WSClient] DEV sem SERVER_URL; conexão desativada"); } catch {}
+      active = { type: "none", close: () => {} };
+      return {
+        close() {
+          active?.close?.();
+        },
+      };
+    }
+    // Em produção, tenta SSE relativo
     connectSSE();
     return {
       close() {
@@ -93,7 +104,9 @@ export function createWsClient(onMessage) {
   };
   ws.onclose = () => console.log("[WS] Desconectado do bridge");
   ws.onerror = (e) => {
-    console.error("[WS] Erro", e);
+    try {
+      console.warn("[WS] Erro, usando SSE fallback", e);
+    } catch {}
     try {
       ws.close();
     } catch {}

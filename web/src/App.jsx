@@ -36,7 +36,7 @@ function App() {
   const [rouletteSignalHistory, setRouletteSignalHistory] = useState([]);
   const [rouletteHistoryLimit, setRouletteHistoryLimit] = useState(5);
   const [lastRouletteAdviceStatus, setLastRouletteAdviceStatus] = useState(null);
-+ const [blockAlertsWhileActive, setBlockAlertsWhileActive] = useState(true);
+  const [blockAlertsWhileActive, setBlockAlertsWhileActive] = useState(true);
   const [enabledPatterns, _setEnabledPatterns] = useState({
     column_triple: true,
     dozen_imbalance: true,
@@ -232,8 +232,8 @@ function App() {
     const lastRes = results[results.length - 1];
     if (!lastRes || !autoBetEnabled) return;
     if (lastAutoBetRound && lastRes.round_id === lastAutoBetRound) return;
--   if (activeSignal) return; // não alertar se já há um sinal ativo aguardando
-+   if (blockAlertsWhileActive && activeSignal) return; // não alertar se já há um sinal ativo aguardando
+
+    if (blockAlertsWhileActive && activeSignal) return; // não alertar se já há um sinal ativo aguardando
     const s = computeStreaks(results);
     const p = detectSimplePatterns(results);
     function computeSignalChance(signal, results) {
@@ -285,8 +285,8 @@ function App() {
     setActiveSignal({ key: signal.key, color: signal.color, fromRound: lastRes.round_id, number: lastRes.number, chance });
     const colorPt = signal.color === 'red' ? 'vermelho' : signal.color === 'black' ? 'preto' : 'branco';
     setLastAutoBetStatus(`Após número ${lastRes.number} aposte ${colorPt} (${chance}% de chance)`);
-- }, [results, autoBetEnabled, lastAutoBetRound, lastPatternKey, activeSignal]);
-+ }, [results, autoBetEnabled, lastAutoBetRound, lastPatternKey, activeSignal, blockAlertsWhileActive]);
+
+}, [results, autoBetEnabled, lastAutoBetRound, lastPatternKey, activeSignal, blockAlertsWhileActive]);
 
   // Avalia o próximo resultado após um sinal e limpa o aviso
   useEffect(() => {
@@ -318,8 +318,8 @@ function App() {
   useEffect(() => {
     const lastRes = roulette[0];
     if (!lastRes || !autoRouletteEnabled) return;
--   if (activeRouletteSignal) return; // não alertar se já há um sinal ativo aguardando
-+   if (blockAlertsWhileActive && activeRouletteSignal) return; // não alertar se já há um sinal ativo aguardando
+
+    if (blockAlertsWhileActive && activeRouletteSignal) return; // não alertar se já há um sinal ativo aguardando
     // Usa ordem cronológica crescente para análises (mais recente no fim)
     const analysisResults = [...roulette].reverse();
     const patternsR = detectRouletteAdvancedPatterns(analysisResults, { 
