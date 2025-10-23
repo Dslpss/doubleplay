@@ -22,7 +22,7 @@ export const EU_WHEEL_ORDER = [
   0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
 ];
 
-export const SECTOR_VOISINS = [22, 18, 29, 7, 28, 12, 35, 3, 26, 0, 32, 15, 19, 4, 21, 2, 25];
+export const SECTOR_VOISINS = [22, 18, 29, 7, 28, 12, 35, 3, 26];
 export const SECTOR_TIERS = [27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33];
 export const SECTOR_ORPHELINS = [17, 34, 6, 1, 20, 14, 31, 9];
 export const SECTOR_JEU_ZERO = [12, 35, 3, 26, 0, 32, 15];
@@ -56,8 +56,8 @@ export function rouletteParity(num) {
 // Sistema de controle inteligente de sinais
 let lastSignalTimestamp = 0;
 let signalCooldownActive = false;
-const SIGNAL_COOLDOWN_MS = 30000; // 30 segundos entre sinais
-const MIN_RESULTS_AFTER_SIGNAL = 3; // Mínimo de resultados após um sinal
+const SIGNAL_COOLDOWN_MS = 10000; // Reduzido de 30 para 10 segundos entre sinais
+const MIN_RESULTS_AFTER_SIGNAL = 2; // Reduzido de 3 para 2 resultados mínimos
 
 export function setSignalCooldown(timestamp = Date.now()) {
   lastSignalTimestamp = timestamp;
@@ -89,8 +89,8 @@ export const ADAPTIVE_RESET_STRATEGIES = {
 export function getEffectiveResults(results, lastSignalIndex = -1, options = {}) {
   if (!Array.isArray(results) || results.length === 0) return [];
   
-  const strategy = options.strategy || ADAPTIVE_RESET_STRATEGIES.FULL_RESET;
-  const windowSize = options.windowSize || 50;
+  const strategy = options.strategy || ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW; // Mudado de FULL_RESET para SLIDING_WINDOW
+  const windowSize = options.windowSize || 30; // Aumentado de 50 para 30 (mais responsivo)
   const minResultsAfterSignal = options.minResultsAfterSignal || MIN_RESULTS_AFTER_SIGNAL;
   
   switch (strategy) {
@@ -107,7 +107,7 @@ export function getEffectiveResults(results, lastSignalIndex = -1, options = {})
       return getHybridResults(results, lastSignalIndex, options);
       
     default:
-      return getFullResetResults(results, lastSignalIndex, minResultsAfterSignal);
+      return getSlidingWindowResults(results, windowSize); // Mudado para SLIDING_WINDOW como fallback
   }
 }
 
@@ -120,8 +120,8 @@ function getFullResetResults(results, lastSignalIndex, minResultsAfterSignal) {
     return effectiveResults.length >= minResultsAfterSignal ? effectiveResults : [];
   }
   
-  // Se não há sinal recente, usar janela limitada
-  return results.slice(-20); // Janela menor para ser mais responsivo
+  // Se não há sinal recente, usar janela maior para ser mais responsivo
+  return results.slice(-30); // Aumentado de 20 para 30 para mais dados
 }
 
 // Estratégia 2: Janela deslizante fixa
@@ -301,23 +301,23 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   // Thresholds diferenciados: modo agressivo detecta padrões mais cedo/facilmente
   // Modo normal é mais conservador, exigindo evidências mais fortes
   const T = aggressive ? {
-    dozenMin: 4,        // Agressivo: detecta com menos ocorrências
+    dozenMin: 3,        // Agressivo: detecta com menos ocorrências (reduzido de 4)
     highlowStreak: 3,   // Agressivo: sequências menores
     parityStreak: 3,    // Agressivo: sequências menores
-    rbDiff: 3,          // Agressivo: menor diferença necessária
+    rbDiff: 2,          // Agressivo: menor diferença necessária (reduzido de 3)
     hotMin: 2,          // Agressivo: números ficam "quentes" mais rápido
-    sectorMin: 6,       // Agressivo: setores detectados com menos hits
-    finalsMin: 4,       // Agressivo: finales detectadas mais cedo
-    clusterArcMax: 9,   // Agressivo: clusters maiores aceitos
+    sectorMin: 5,       // Agressivo: setores detectados com menos hits (reduzido de 6)
+    finalsMin: 3,       // Agressivo: finales detectadas mais cedo (reduzido de 4)
+    clusterArcMax: 10,  // Agressivo: clusters maiores aceitos (aumentado de 9)
   } : {
-    dozenMin: 6,        // Normal: mais conservador, exige mais evidência
-    highlowStreak: 4,   // Normal: sequências maiores para confirmar padrão
-    parityStreak: 5,    // Normal: sequências maiores para confirmar padrão
-    rbDiff: 5,          // Normal: maior diferença necessária
-    hotMin: 4,          // Normal: números precisam aparecer mais para serem "quentes"
-    sectorMin: 9,       // Normal: setores precisam de mais hits
-    finalsMin: 6,       // Normal: finales precisam de mais evidência
-    clusterArcMax: 7,   // Normal: clusters menores, mais precisos
+    dozenMin: 4,        // Normal: mais permissivo (reduzido de 6)
+    highlowStreak: 3,   // Normal: sequências menores (reduzido de 4)
+    parityStreak: 4,    // Normal: sequências menores (reduzido de 5)
+    rbDiff: 3,          // Normal: menor diferença necessária (reduzido de 5)
+    hotMin: 3,          // Normal: números precisam aparecer menos (reduzido de 4)
+    sectorMin: 6,       // Normal: setores precisam de menos hits (reduzido de 9)
+    finalsMin: 4,       // Normal: finales precisam de menos evidência (reduzido de 6)
+    clusterArcMax: 8,   // Normal: clusters um pouco maiores (aumentado de 7)
   };
 
   // Trinca por coluna
@@ -550,6 +550,14 @@ function isBlack(number) {
   return blackNumbers.includes(Number(number));
 }
 
+// Configurações de qualidade de padrões - valores mais permissivos
+const PATTERN_QUALITY_CONFIG = {
+  minQualityScore: 1.5, // Reduzido de 3 para 1.5
+  minConfidence: 0.25,  // Reduzido de 0.4 para 0.25
+  maxSaturationPenalty: 0.3, // Reduzido de 0.5 para 0.3
+  recentSaturationWindow: 8  // Reduzido de 5 para 8 (mais tolerante)
+};
+
 // Filtro de qualidade de padrões
 function evaluatePatternQuality(pattern, results) {
   const quality = {
@@ -559,66 +567,90 @@ function evaluatePatternQuality(pattern, results) {
   };
   
   // Avaliar força do padrão baseado no tipo
-  switch (pattern.type) {
+  const patternType = pattern.targets?.type || pattern.type;
+  
+  // Adicionar valores padrão de confiança e raridade baseados no risco
+  const defaultConfidence = pattern.confidence || (
+    pattern.risk === 'high' ? 0.7 : 
+    pattern.risk === 'medium' ? 0.5 : 0.3
+  );
+  const defaultRarity = pattern.rarity || (
+    pattern.risk === 'high' ? 3 : 
+    pattern.risk === 'medium' ? 2 : 1
+  );
+  
+  switch (patternType) {
     case 'column':
     case 'dozen':
       // Padrões de coluna/dúzia são mais confiáveis
-      quality.score += 3;
+      quality.score += 2.5; // Reduzido de 3
       quality.confidence += 0.3;
       quality.reasons.push('Padrão estrutural forte');
       break;
     case 'number':
       // Números específicos precisam de mais validação
       quality.score += 2;
-      quality.confidence += 0.2;
+      quality.confidence += 0.25; // Aumentado de 0.2
       quality.reasons.push('Padrão numérico específico');
       break;
     case 'color':
       // Cores são menos confiáveis devido à alta frequência
-      quality.score += 1;
-      quality.confidence += 0.1;
+      quality.score += 1.5; // Aumentado de 1
+      quality.confidence += 0.15; // Aumentado de 0.1
       quality.reasons.push('Padrão básico de cor');
+      break;
+    case 'highlow':
+    case 'parity':
+      // Padrões de alto/baixo e par/ímpar
+      quality.score += 2;
+      quality.confidence += 0.2;
+      quality.reasons.push('Padrão de distribuição');
       break;
   }
   
   // Avaliar consistência histórica
-  if (pattern.confidence && pattern.confidence > 0.6) {
-    quality.score += 2;
+  if (defaultConfidence > 0.5) { // Reduzido de 0.6
+    quality.score += 1.5; // Reduzido de 2
     quality.confidence += 0.2;
     quality.reasons.push('Alta confiança histórica');
   }
   
   // Avaliar raridade (padrões mais raros são mais valiosos)
-  if (pattern.rarity && pattern.rarity > 3) {
+  if (defaultRarity > 2) { // Reduzido de 3
     quality.score += 1;
     quality.confidence += 0.15;
     quality.reasons.push('Padrão raro detectado');
   }
   
-  // Penalizar se há muitos resultados recentes do mesmo tipo
-  const last5 = results.slice(-5);
-  const sameTypeCount = last5.filter(r => {
-    if (pattern.type === 'color') {
-      return (pattern.bet === 'red' && isRed(r.number)) || 
-             (pattern.bet === 'black' && isBlack(r.number));
+  // Penalizar se há muitos resultados recentes do mesmo tipo (mais tolerante)
+  const recentWindow = results.slice(-PATTERN_QUALITY_CONFIG.recentSaturationWindow);
+  const sameTypeCount = recentWindow.filter(r => {
+    if (patternType === 'color') {
+      const targetColor = pattern.targets?.color;
+      return (targetColor === 'red' && isRed(r.number)) || 
+             (targetColor === 'black' && isBlack(r.number));
     }
     return false;
   }).length;
   
-  if (sameTypeCount >= 3) {
-    quality.score -= 2;
-    quality.confidence -= 0.2;
+  if (sameTypeCount >= 4) { // Aumentado de 3 para 4
+    quality.score -= PATTERN_QUALITY_CONFIG.maxSaturationPenalty;
+    quality.confidence -= 0.15; // Reduzido de 0.2
     quality.reasons.push('Saturação recente do padrão');
   }
   
   return quality;
 }
 
-function shouldEmitSignal(pattern, results, minQualityScore = 3, minConfidence = 0.4) {
+function shouldEmitSignal(pattern, results, minQualityScore = null, minConfidence = null) {
+  // Usar configurações mais permissivas por padrão
+  const qualityThreshold = minQualityScore || PATTERN_QUALITY_CONFIG.minQualityScore;
+  const confidenceThreshold = minConfidence || PATTERN_QUALITY_CONFIG.minConfidence;
+  
   const quality = evaluatePatternQuality(pattern, results);
   
-  return quality.score >= minQualityScore && 
-         quality.confidence >= minConfidence &&
+  return quality.score >= qualityThreshold && 
+         quality.confidence >= confidenceThreshold &&
          quality.reasons.length > 0;
 }
 
@@ -630,9 +662,9 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
     return null;
   }
   
-  // Filtrar padrões por qualidade
+  // Filtrar padrões por qualidade usando configurações mais permissivas
   const qualityPatterns = patterns.filter(pattern => 
-    shouldEmitSignal(pattern, results, options.minQualityScore || 3, options.minConfidence || 0.4)
+    shouldEmitSignal(pattern, results, options.minQualityScore, options.minConfidence)
   );
   
   if (qualityPatterns.length === 0) {
@@ -845,7 +877,7 @@ export function computeRouletteSignalChance(advice, results) {
 
   switch (advice?.type) {
     case 'color': {
-      const color = advice.color || 'red';
+      const color = advice.color || 'green';
       // CORRIGIDO: Probabilidades base mais precisas
       const baseFallback = color === 'green' ? 3 : 49; // Verde: 1/37≈2.7%, Vermelho/Preto: 18/37≈48.6%
       base = pct(s.color[color], baseFallback);
