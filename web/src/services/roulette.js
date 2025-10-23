@@ -441,6 +441,49 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     patterns.push({ key: 'hot_numbers', description: `Números quentes: ${hot.join(', ')}`, risk: 'medium', targets: { type: 'numbers', numbers: hot } });
   }
 
+  // Vizinhos do último número (Neighbors bet)
+  if (analysisResults.length >= 3) {
+    const window5 = analysisResults.slice(-5);
+    const lastNum = Number(window5[window5.length - 1]?.number);
+    if (Number.isFinite(lastNum) && lastNum !== 0) {
+      const neigh = neighborsOf(lastNum, 2);
+      const prevNums = window5.slice(0, -1).map(r => Number(r.number)).filter(n => Number.isFinite(n));
+      const recentHitsInNeighbors = prevNums.filter(n => neigh.includes(n)).length;
+      if (recentHitsInNeighbors >= 2) {
+        patterns.push({
+          key: 'neighbors_last',
+          description: `Vizinhos do último número ${lastNum} (concentração recente)`,
+          risk: 'medium',
+          targets: { type: 'numbers', numbers: neigh }
+        });
+      }
+    }
+  }
+
+  // Número pivô (Pivot number)
+  if (analysisResults.length >= 20) {
+    const freqPivot = {};
+    for (const r of last50) {
+      const n = Number(r?.number);
+      if (Number.isFinite(n) && n !== 0) freqPivot[n] = (freqPivot[n] || 0) + 1;
+    }
+    const sortedPivots = Object.entries(freqPivot).sort((a, b) => b[1] - a[1]);
+    const topPivot = sortedPivots[0];
+    if (topPivot && topPivot[1] >= 3) {
+      const pivotNum = Number(topPivot[0]);
+      const appearsRecently = analysisResults.slice(-12).some(r => Number(r.number) === pivotNum);
+      if (appearsRecently) {
+        const neigh = neighborsOf(pivotNum, 2);
+        patterns.push({
+          key: 'pivot_number',
+          description: `Número pivô ${pivotNum} frequente (${topPivot[1]}x nos últimos 50)`,
+          risk: 'medium',
+          targets: { type: 'numbers', numbers: neigh }
+        });
+      }
+    }
+  }
+
   // Setores da roda (Voisins/Tiers/Orphelins/Jeu Zéro) nos últimos 24
   const sectorCounts = { voisins: 0, tiers: 0, orphelins: 0, jeu_zero: 0 };
   for (const r of last24) {
@@ -506,6 +549,40 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
         risk: 'medium', 
         targets: { type: 'numbers', numbers: neigh } 
       });
+    }
+  }
+
+  // 3) Drift de setor: últimos 12 concentrados em um arco pequeno da roda
+  if (analysisResults.length >= 12) {
+    const win = analysisResults.slice(-12);
+    const idxs = win.map(r => wheelIndexOf(r.number)).filter(i => i >= 0);
+    if (idxs.length >= 8) {
+      const N = EU_WHEEL_ORDER.length;
+      // Tentar encontrar o menor arco que contenha pelo menos 5 ocorrências
+      let bestArc = null; // {start, len, count}
+      for (let start = 0; start < N; start++) {
+        for (let len = 5; len <= 7; len++) { // arcos pequenos de 5-7 números
+          const end = (start + len - 1) % N;
+          const count = idxs.filter(idx => {
+            const d = (idx - start + N) % N;
+            return d >= 0 && d < len;
+          }).length;
+          if (count >= 5 && (!bestArc || len < bestArc.len || (len === bestArc.len && count > bestArc.count))) {
+            bestArc = { start, len, count };
+          }
+        }
+      }
+      if (bestArc) {
+        const centerPos = (bestArc.start + Math.floor(bestArc.len / 2)) % N;
+        const centerNum = EU_WHEEL_ORDER[centerPos];
+        const neigh = neighborsOf(centerNum, 2);
+        patterns.push({
+          key: 'wheel_cluster_drift',
+          description: `Concentração em arco pequeno da roda (len ${bestArc.len}, hits ${bestArc.count})`,
+          risk: 'medium',
+          targets: { type: 'numbers', numbers: neigh }
+        });
+      }
     }
   }
 
@@ -744,7 +821,8 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
       'highlow_streak', 'parity_streak', 
       'repeated_numbers', 'hot_numbers', 'dormant_numbers',
       'sector_voisins', 'sector_tiers', 'sector_orphelins', 'sector_jeu_zero', 
-      'neighbors_cluster', 'red_black_balance', 'zero_proximity'
+      'neighbors_last', 'pivot_number', 'wheel_cluster_drift', 'neighbors_cluster', 
+      'red_black_balance', 'zero_proximity'
     ];
     const selected = order.map(k => candidates.find(c => c.key === k)).find(Boolean);
     return selected || null;
@@ -931,7 +1009,7 @@ export function computeRouletteSignalChance(advice, results) {
 }
 
 /**
- * Sistema de métricas de performance para rastrear eficácia dos padrões
+ * Sistema de métricas de performance para rastrear eficácia dos padões
  */
 export class RoulettePatternMetrics {
   constructor() {
