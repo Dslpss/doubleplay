@@ -53,6 +53,46 @@ export function rouletteParity(num) {
   return num % 2 === 0 ? 'even' : 'odd';
 }
 
+// Sistema de controle inteligente de sinais
+let lastSignalTimestamp = 0;
+let lastSignalResult = null;
+let signalCooldownActive = false;
+const SIGNAL_COOLDOWN_MS = 30000; // 30 segundos entre sinais
+const MIN_RESULTS_AFTER_SIGNAL = 3; // Mínimo de resultados após um sinal
+
+export function setSignalCooldown(timestamp = Date.now()) {
+  lastSignalTimestamp = timestamp;
+  signalCooldownActive = true;
+}
+
+export function clearSignalCooldown() {
+  signalCooldownActive = false;
+}
+
+export function isSignalCooldownActive() {
+  if (!signalCooldownActive) return false;
+  const timePassed = Date.now() - lastSignalTimestamp;
+  if (timePassed >= SIGNAL_COOLDOWN_MS) {
+    signalCooldownActive = false;
+    return false;
+  }
+  return true;
+}
+
+export function getEffectiveResults(results, lastSignalIndex = -1) {
+  if (!Array.isArray(results) || results.length === 0) return [];
+  
+  // Se há um sinal recente, usar apenas resultados após ele
+  if (lastSignalIndex >= 0 && lastSignalIndex < results.length - MIN_RESULTS_AFTER_SIGNAL) {
+    const effectiveResults = results.slice(lastSignalIndex + 1);
+    // Garantir que temos dados suficientes para análise
+    return effectiveResults.length >= MIN_RESULTS_AFTER_SIGNAL ? effectiveResults : [];
+  }
+  
+  // Caso contrário, usar janela limitada dos resultados mais recentes
+  return results.slice(-50); // Máximo 50 resultados para evitar ruído
+}
+
 export function buildRouletteStats(results = []) {
   const stats = {
     total: 0,
@@ -108,13 +148,25 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   const patterns = [];
   if (!Array.isArray(results) || results.length < 3) return patterns;
   
+  // Verificar cooldown de sinais
+  if (isSignalCooldownActive()) {
+    return []; // Não detectar padrões durante cooldown
+  }
+  
+  // Usar resultados efetivos baseados no último sinal
+  const effectiveResults = getEffectiveResults(results, options.lastSignalIndex);
+  if (effectiveResults.length < 3) return patterns;
+  
+  // Usar resultados efetivos para análise
+  const analysisResults = effectiveResults;
+  
   // Janelas de análise otimizadas para diferentes tipos de padrões
-  const last10 = results.slice(-10);   // Para padrões de curto prazo
-  const last12 = results.slice(-12);   // Para análise de dúzias (12 números por dúzia)
-  const last15 = results.slice(-15);   // Para análise de finales
-  const last18 = results.slice(-18);   // Para análise de dúzias frias
-  const last20 = results.slice(-20);   // Para equilíbrio vermelho/preto
-  const last24 = results.slice(-24);   // Para setores da roda
+  const last10 = analysisResults.slice(-10);   // Para padrões de curto prazo
+  const last12 = analysisResults.slice(-12);   // Para análise de dúzias (12 números por dúzia)
+  const last15 = analysisResults.slice(-15);   // Para análise de finales
+  const last18 = analysisResults.slice(-18);   // Para análise de dúzias frias
+  const last20 = analysisResults.slice(-20);   // Para equilíbrio vermelho/preto
+  const last24 = analysisResults.slice(-24);   // Para setores da roda
 
   const aggressive = Boolean(options.aggressive);
   
@@ -204,7 +256,7 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   }
 
   // Números dormentes (frios) - números que não saíram há muito tempo
-  const last50 = results.slice(-50);
+  const last50 = analysisResults.slice(-50);
   const recentNumbers = new Set(last50.map(r => Number(r.number)).filter(n => Number.isFinite(n)));
   const allNumbers = Array.from({length: 37}, (_, i) => i); // 0-36
   const dormantNumbers = allNumbers.filter(n => !recentNumbers.has(n));
@@ -220,7 +272,7 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   }
 
   // Números repetidos recentemente
-  const last8 = results.slice(-8);
+  const last8 = analysisResults.slice(-8);
   const recentFreq = {};
   for (const r of last8) { 
     const n = Number(r.number); 
@@ -242,7 +294,7 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   }
 
   // Números quentes
-  const last30 = results.slice(-30);
+  const last30 = analysisResults.slice(-30);
   const freq = {};
   for (const r of last30) { const n = Number(r.number); if (Number.isFinite(n)) freq[n] = (freq[n] || 0) + 1; }
   const hot = Object.entries(freq)
@@ -292,7 +344,7 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   }
 
   // Cluster de vizinhos na roda com últimos 7 - SIMPLIFICADO
-  const last7 = results.slice(-7);
+  const last7 = analysisResults.slice(-7);
   const positions = last7.map(r => wheelIndexOf(r.number)).filter(p => p >= 0);
   if (positions.length >= 4) { // Reduzido de 5 para 4
     // Verificar se há concentração em um setor específico
@@ -359,15 +411,102 @@ export function adviceFingerprint(advice) {
  * - Penalidades por repetição de padrão ou fingerprint
  * - Randomização entre candidatos com pontuação similar
  */
+// Filtro de qualidade de padrões
+function evaluatePatternQuality(pattern, results) {
+  const quality = {
+    score: 0,
+    confidence: 0,
+    reasons: []
+  };
+  
+  // Avaliar força do padrão baseado no tipo
+  switch (pattern.type) {
+    case 'column':
+    case 'dozen':
+      // Padrões de coluna/dúzia são mais confiáveis
+      quality.score += 3;
+      quality.confidence += 0.3;
+      quality.reasons.push('Padrão estrutural forte');
+      break;
+    case 'number':
+      // Números específicos precisam de mais validação
+      quality.score += 2;
+      quality.confidence += 0.2;
+      quality.reasons.push('Padrão numérico específico');
+      break;
+    case 'color':
+      // Cores são menos confiáveis devido à alta frequência
+      quality.score += 1;
+      quality.confidence += 0.1;
+      quality.reasons.push('Padrão básico de cor');
+      break;
+  }
+  
+  // Avaliar consistência histórica
+  if (pattern.confidence && pattern.confidence > 0.6) {
+    quality.score += 2;
+    quality.confidence += 0.2;
+    quality.reasons.push('Alta confiança histórica');
+  }
+  
+  // Avaliar raridade (padrões mais raros são mais valiosos)
+  if (pattern.rarity && pattern.rarity > 3) {
+    quality.score += 1;
+    quality.confidence += 0.15;
+    quality.reasons.push('Padrão raro detectado');
+  }
+  
+  // Penalizar se há muitos resultados recentes do mesmo tipo
+  const last5 = results.slice(-5);
+  const sameTypeCount = last5.filter(r => {
+    if (pattern.type === 'color') {
+      return (pattern.bet === 'red' && isRed(r.number)) || 
+             (pattern.bet === 'black' && isBlack(r.number));
+    }
+    return false;
+  }).length;
+  
+  if (sameTypeCount >= 3) {
+    quality.score -= 2;
+    quality.confidence -= 0.2;
+    quality.reasons.push('Saturação recente do padrão');
+  }
+  
+  return quality;
+}
+
+function shouldEmitSignal(pattern, results, minQualityScore = 3, minConfidence = 0.4) {
+  const quality = evaluatePatternQuality(pattern, results);
+  
+  return quality.score >= minQualityScore && 
+         quality.confidence >= minConfidence &&
+         quality.reasons.length > 0;
+}
+
 export function chooseRouletteBetSignal(patterns, stats, streaks, results, options = {}) {
   if (!patterns || patterns.length === 0) return null;
+  
+  // Verificar cooldown antes de escolher sinal
+  if (isSignalCooldownActive()) {
+    return null;
+  }
+  
+  // Filtrar padrões por qualidade
+  const qualityPatterns = patterns.filter(pattern => 
+    shouldEmitSignal(pattern, results, options.minQualityScore || 3, options.minConfidence || 0.4)
+  );
+  
+  if (qualityPatterns.length === 0) {
+    return null; // Nenhum padrão atende aos critérios de qualidade
+  }
+  
   const strategy = options.strategy || 'balanced';
   const lastKey = options.lastKey || null;
   const lastFingerprint = options.lastFingerprint || null;
   const randomizeTopDelta = Number(options.randomizeTopDelta ?? 5); // Aumentado para maior variação
 
   const candidates = [];
-  for (const p of patterns) {
+  for (const p of qualityPatterns) {
     switch (p.key) {
       case 'column_triple':
         candidates.push({ key: 'column_triple', type: 'column', column: p.targets.column, risk: p.risk });
@@ -526,7 +665,12 @@ export function chooseRouletteBetSignal(patterns, stats, streaks, results, optio
   const topScore = scored[0].score;
   const nearTop = scored.filter(s => (topScore - s.score) <= randomizeTopDelta);
   const pick = nearTop[Math.floor(Math.random() * nearTop.length)] || scored[0];
-  return { ...pick.advice };
+  const selectedSignal = { ...pick.advice };
+  
+  // Ativar cooldown após escolher sinal
+  setSignalCooldown();
+  
+  return selectedSignal;
 }
 
 /**
