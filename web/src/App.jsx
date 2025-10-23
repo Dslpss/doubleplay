@@ -318,7 +318,9 @@ function App() {
     const lastRes = roulette[0];
     if (!lastRes || !autoRouletteEnabled) return;
     if (activeRouletteSignal && lastRes.timestamp === activeRouletteSignal.fromTs) return;
-    const patternsR = detectRouletteAdvancedPatterns(roulette, { 
+    // Usa ordem cronológica crescente para análises (mais recente no fim)
+    const analysisResults = [...roulette].reverse();
+    const patternsR = detectRouletteAdvancedPatterns(analysisResults, { 
       aggressive: aggressiveMode,
       resetOptions: {
         strategy: resetStrategy,
@@ -350,8 +352,15 @@ function App() {
       allowedPatterns,
       summarizeRoulette(roulette),
       streaksR,
-      roulette,
-      { strategy: 'balanced', lastKey: lastRoulettePatternKey?.key, lastFingerprint: lastRouletteAdviceFingerprint, randomizeTopDelta: 5 } // Aumentado de 3 para 5
+      analysisResults,
+      { 
+        strategy: 'balanced', 
+        lastKey: lastRoulettePatternKey?.key, 
+        lastFingerprint: lastRouletteAdviceFingerprint, 
+        randomizeTopDelta: 5,
+        minQualityScore: aggressiveMode ? 2 : 3,
+        minConfidence: aggressiveMode ? 0.3 : 0.4
+      }
     );
     if (!signalR) { if (lastRoulettePatternKey) setLastRoulettePatternKey(null); return; }
     if (lastRoulettePatternKey?.key === signalR.key && lastRoulettePatternKey?.fromTs === lastRes.timestamp) return;
@@ -371,7 +380,7 @@ function App() {
       return;
     }
 
-    const chance = computeRouletteSignalChance(signalR, roulette);
+    const chance = computeRouletteSignalChance(signalR, analysisResults);
     
     // Integra métricas de performance no sinal
     const enhancedSignal = integrateSignalMetrics({ ...signalR, chance });

@@ -151,21 +151,19 @@ function getConditionalResetResults(results, lastSignalIndex, options) {
 
 // Estratégia 4: Híbrida - combina diferentes abordagens
 function getHybridResults(results, lastSignalIndex, options) {
-  const recentWeight = options.recentWeight || 0.7; // 70% peso para dados recentes
   const maxRecent = options.maxRecent || 15;
-  const maxHistorical = options.maxHistorical || 35;
-  
+
   let recentResults = [];
-  
+
   if (lastSignalIndex >= 0 && lastSignalIndex < results.length - MIN_RESULTS_AFTER_SIGNAL) {
     // Dados recentes: após o último sinal
     recentResults = results.slice(lastSignalIndex + 1, lastSignalIndex + 1 + maxRecent);
   } else {
-    // Se não há sinal recente, dividir os dados
+    // Sem sinal recente: usar janela dos últimos maxRecent
     recentResults = results.slice(-maxRecent);
   }
-  
-  // Combinar com pesos (implementação simplificada - retorna dados recentes prioritariamente)
+
+  // Garantir mínimo de resultados para análise
   return recentResults.length >= MIN_RESULTS_AFTER_SIGNAL ? recentResults : results.slice(-maxRecent);
 }
 
@@ -272,15 +270,16 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   }
   
   // Usar resultados efetivos baseados no último sinal com estratégia configurável
+  const ro = options.resetOptions || {};
   const resetOptions = {
-    strategy: options.resetStrategy || ADAPTIVE_RESET_STRATEGIES.FULL_RESET,
-    windowSize: options.windowSize || 50,
-    changeThreshold: options.changeThreshold || 0.3,
-    maxLookback: options.maxLookback || 100,
-    recentWeight: options.recentWeight || 0.7,
-    maxRecent: options.maxRecent || 15,
-    maxHistorical: options.maxHistorical || 35,
-    minResultsAfterSignal: options.minResultsAfterSignal || MIN_RESULTS_AFTER_SIGNAL
+    strategy: ro.strategy ?? options.resetStrategy ?? ADAPTIVE_RESET_STRATEGIES.FULL_RESET,
+    windowSize: ro.windowSize ?? options.windowSize ?? 50,
+    changeThreshold: ro.changeThreshold ?? options.changeThreshold ?? 0.3,
+    maxLookback: ro.maxLookback ?? options.maxLookback ?? 100,
+    recentWeight: ro.recentWeight ?? options.recentWeight ?? 0.7,
+    maxRecent: ro.maxRecent ?? options.maxRecent ?? 15,
+    maxHistorical: ro.maxHistorical ?? options.maxHistorical ?? 35,
+    minResultsAfterSignal: ro.minResultsAfterSignal ?? options.minResultsAfterSignal ?? MIN_RESULTS_AFTER_SIGNAL
   };
   
   const effectiveResults = getEffectiveResults(results, options.lastSignalIndex, resetOptions);
@@ -945,6 +944,10 @@ export class RoulettePatternMetrics {
     if (this.metrics.history.length > 1000) {
       this.metrics.history = this.metrics.history.slice(-1000);
     }
+
+    // Retorna o índice do registro recém-adicionado
+    const index = this.metrics.history.length - 1;
+    return index;
   }
 
   /**
@@ -1069,7 +1072,7 @@ export function integrateSignalMetrics(signal) {
     signalIndex,
     historicalHitRate: patternMetrics ? Math.round(patternMetrics.hitRate * 100) : null,
     totalSignals: patternMetrics ? patternMetrics.signals : 0,
-    confidence: signal.chance ? Math.round(signal.chance * 100) : 50
+    confidence: typeof signal.chance === 'number' ? Math.round(signal.chance) : 50
   };
   
   return {
@@ -1092,35 +1095,31 @@ export function processSignalResult(signalIndex, actualResult, originalSignal) {
   let isHit = false;
   
   switch (originalSignal.type) {
-    case 'color':
-      if (actualResult === 0) {
-        isHit = originalSignal.color === 'green';
-      } else {
-        const resultColor = actualResult % 2 === 0 ? 'black' : 'red';
-        isHit = originalSignal.color === resultColor;
-      }
+    case 'color': {
+      const resultColor = (actualResult === 0) ? 'green' : (typeof isRed === 'function' && isRed(actualResult) ? 'red' : 'black');
+      isHit = originalSignal.color === resultColor;
       break;
-      
+    }
     case 'numbers':
-      isHit = originalSignal.numbers?.includes(actualResult) || false;
+      isHit = Array.isArray(originalSignal.numbers) ? originalSignal.numbers.includes(actualResult) : false;
       break;
-      
+    
     case 'column':
       isHit = rouletteColumn(actualResult) === originalSignal.column;
       break;
-      
+    
     case 'dozen':
       isHit = rouletteDozen(actualResult) === originalSignal.dozen;
       break;
-      
+    
     case 'highlow':
-      isHit = rouletteHighLow(actualResult) === originalSignal.range;
+      isHit = rouletteHighLow(actualResult) === originalSignal.value;
       break;
-      
+    
     case 'parity':
-      isHit = rouletteParity(actualResult) === originalSignal.parity;
+      isHit = rouletteParity(actualResult) === originalSignal.value;
       break;
-      
+    
     default:
       isHit = false;
   }
