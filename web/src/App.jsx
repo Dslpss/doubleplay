@@ -30,7 +30,7 @@ function App() {
   const [historyLimit, setHistoryLimit] = useState(5);
   const [isNarrow, setIsNarrow] = useState(false);
   const [route, setRoute] = useState(window.location.hash || '#/');
-  const [autoRouletteEnabled, setAutoRouletteEnabled] = useState(false);
+  const [autoRouletteEnabled, setAutoRouletteEnabled] = useState(true);
   const [lastRoulettePatternKey, setLastRoulettePatternKey] = useState(null);
   const [activeRouletteSignal, setActiveRouletteSignal] = useState(null);
   const [rouletteSignalHistory, setRouletteSignalHistory] = useState([]);
@@ -61,7 +61,7 @@ function App() {
     final_digit_8: true,
     final_digit_9: true,
   });
-  const [aggressiveMode, setAggressiveMode] = useState(false);
+  const [aggressiveMode, setAggressiveMode] = useState(true);
   const [rouletteMartingale, setRouletteMartingale] = useState(null);
   
   // Configurações de Reset Adaptativo
@@ -360,8 +360,8 @@ function App() {
         lastKey: lastRoulettePatternKey?.key, 
         lastFingerprint: lastRouletteAdviceFingerprint, 
         randomizeTopDelta: 5,
-        minQualityScore: aggressiveMode ? 2 : 3,
-        minConfidence: aggressiveMode ? 0.3 : 0.4
+        minQualityScore: 1.0,
+        minConfidence: 0.20
       }
     );
     if (!signalR) { if (lastRoulettePatternKey) setLastRoulettePatternKey(null); return; }
