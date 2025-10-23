@@ -493,6 +493,7 @@ function App() {
       return {
         ...h,
         [isM1 ? 'm1' : 'm2']: hit ? 'acerto' : 'erro',
+        result: hit ? 'acerto' : h.result,
       };
     }));
 
