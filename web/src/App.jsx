@@ -9,7 +9,6 @@ import PatternsPanel from './components/PatternsPanel';
 import RouletteStatsPanel from './components/RouletteStatsPanel';
 import RoulettePatternsPanel from './components/RoulettePatternsPanel';
 import { detectRouletteAdvancedPatterns, chooseRouletteBetSignal, computeRouletteSignalChance, adviceLabelPt, rouletteColumn, rouletteDozen, rouletteHighLow, rouletteParity, integrateSignalMetrics, processSignalResult, ADAPTIVE_RESET_STRATEGIES } from './services/roulette';
-import { testRoulettePatterns } from './test-roulette-patterns';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
@@ -178,11 +177,7 @@ function App() {
     };
   }, []);
 
-  // Teste dos padrões da roleta
-  useEffect(() => {
-    console.log('🧪 Executando teste dos padrões da roleta...');
-    testRoulettePatterns();
-  }, []);
+
 
   const handleConnectWs = async () => {
     await connectWsBridge();
