@@ -9,6 +9,7 @@ import PatternsPanel from './components/PatternsPanel';
 import RouletteStatsPanel from './components/RouletteStatsPanel';
 import RoulettePatternsPanel from './components/RoulettePatternsPanel';
 import { detectRouletteAdvancedPatterns, chooseRouletteBetSignal, computeRouletteSignalChance, adviceLabelPt, rouletteColumn, rouletteDozen, rouletteHighLow, rouletteParity, integrateSignalMetrics, processSignalResult, ADAPTIVE_RESET_STRATEGIES } from './services/roulette';
+import RouletteEmbedPanel from './components/RouletteEmbedPanel';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
@@ -858,6 +859,12 @@ function App() {
           ))}
         </div>
       </div>
+
+      {route === '#/roulette' && (
+        <div style={{ marginTop: 24 }}>
+          <RouletteEmbedPanel />
+        </div>
+      )}
 
     </div>
   );
