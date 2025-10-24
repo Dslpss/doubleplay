@@ -9,6 +9,7 @@ import PatternsPanel from './components/PatternsPanel';
 import RouletteStatsPanel from './components/RouletteStatsPanel';
 import RoulettePatternsPanel from './components/RoulettePatternsPanel';
 import { detectRouletteAdvancedPatterns, chooseRouletteBetSignal, computeRouletteSignalChance, adviceLabelPt, rouletteColumn, rouletteDozen, rouletteHighLow, rouletteParity, integrateSignalMetrics, processSignalResult, ADAPTIVE_RESET_STRATEGIES } from './services/roulette';
+import DoubleEmbedPanel from './components/DoubleEmbedPanel';
 import RouletteEmbedPanel from './components/RouletteEmbedPanel';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
@@ -548,6 +549,8 @@ function App() {
         </div>
       )}
 
+
+
       <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
         <a href="#/" style={{ textDecoration: 'none' }}>
           <button style={{ padding: '6px 12px', borderRadius: 6, background: route !== '#/roulette' ? '#2c3e50' : '#1f2937', color: '#fff', border: '1px solid #374151' }}>Double</button>
@@ -657,6 +660,12 @@ function App() {
       <div style={{ marginTop: 24, display: route !== '#/roulette' ? 'block' : 'none' }}>
         <PatternsPanel patterns={patterns} />
       </div>
+
+      {route !== '#/roulette' && (
+        <div style={{ marginTop: 24 }}>
+          <DoubleEmbedPanel />
+        </div>
+      )}
 
       <div style={{ marginTop: 24, display: route === '#/roulette' ? 'block' : 'none' }}>
         <RouletteStatsPanel stats={rouletteStats} streaks={rouletteStreaks} />
