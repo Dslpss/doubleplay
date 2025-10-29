@@ -399,7 +399,28 @@ function App() {
       ? ` (${chance}% chance, ${enhancedSignal.performance.historicalHitRate}% histórico)`
       : ` (${chance}% chance)`;
     setLastRouletteAdviceStatus(`Após número ${lastRes.number} aposte ${label}${performanceText}`);
-  }, [roulette, autoRouletteEnabled, aggressiveMode, lastPatternAbsentStreak, cooldownRounds, patternClearRounds, blockAlertsWhileActive, changeThreshold, enabledPatterns, lastRouletteAdviceFingerprint, lastRouletteAlertCount, lastRoulettePatternKey, maxHistorical, maxLookback, maxRecent, recentWeight, resetStrategy, windowSize, rouletteMartingale]);
+  }, [
+    roulette,
+    autoRouletteEnabled,
+    aggressiveMode,
+    lastPatternAbsentStreak,
+    cooldownRounds,
+    patternClearRounds,
+    blockAlertsWhileActive,
+    changeThreshold,
+    enabledPatterns,
+    lastRouletteAdviceFingerprint,
+    lastRouletteAlertCount,
+    lastRoulettePatternKey,
+    maxHistorical,
+    maxLookback,
+    maxRecent,
+    recentWeight,
+    resetStrategy,
+    windowSize,
+    rouletteMartingale,
+    activeRouletteSignal // Adicionado para corrigir o erro
+  ]);
 
   useEffect(() => {
     if (!activeRouletteSignal) return;
@@ -529,34 +550,16 @@ function App() {
 
   return (
     <div className="App" style={{ padding: 24 }}>
-      <h1 style={{ fontSize: isNarrow ? 24 : undefined }}>
-        {route === '#/roulette' ? 'Análise da Roleta (Pragmatic)' : 'Análise do Double (Play na Bet)'}
+      <h1 style={{ fontSize: isNarrow ? 24 : undefined, textAlign: 'center' }}>
+        {route === '#/roulette' ? 'Análise da Roleta' : 'Análise do Double'}
       </h1>
-      <p>Servidor: {connected ? 'WS conectado' : 'WS desconectado'}{hasToken ? ' | Token: Ativo' : ''}</p>
-
-      {route === '#/roulette' && (
-        <div style={{ marginTop: 12, textAlign: 'center' }}>
-          <a
-            href="https://playnabets.com/live-casino/pragmatic/237"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration: 'none' }}
-          >
-            <button style={{ padding: '6px 12px', borderRadius: 6, background: '#1f2937', color: '#fff', border: '1px solid #374151' }}>
-              Abrir roleta na Play na Bets
-            </button>
-          </a>
-        </div>
-      )}
-
-
-
-      <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
+      
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '12px', marginBottom: '16px' }}>
         <a href="#/" style={{ textDecoration: 'none' }}>
-          <button style={{ padding: '6px 12px', borderRadius: 6, background: route !== '#/roulette' ? '#2c3e50' : '#1f2937', color: '#fff', border: '1px solid #374151' }}>Double</button>
+          <button style={{ padding: '4px 8px', borderRadius: 4, background: route !== '#/roulette' ? '#2c3e50' : '#1f2937', color: '#fff', border: '1px solid #374151', fontSize: '14px' }}>Double</button>
         </a>
         <a href="#/roulette" style={{ textDecoration: 'none' }}>
-          <button style={{ padding: '6px 12px', borderRadius: 6, background: route === '#/roulette' ? '#2c3e50' : '#1f2937', color: '#fff', border: '1px solid #374151' }}>Roleta</button>
+          <button style={{ padding: '4px 8px', borderRadius: 4, background: route === '#/roulette' ? '#2c3e50' : '#1f2937', color: '#fff', border: '1px solid #374151', fontSize: '14px' }}>Roleta</button>
         </a>
       </div>
 

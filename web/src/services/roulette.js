@@ -586,6 +586,57 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     }
   }
 
+  // Integração dos novos padrões
+
+  // Análise de finais
+  const finals = analyzeFinals(analysisResults, T.finalsMin);
+  for (const [finalDigit, count] of finals) {
+    patterns.push({
+      key: `final_digit_${finalDigit}`,
+      description: `Dígito final ${finalDigit} detectado ${count} vezes`,
+      risk: 'low',
+      targets: { type: 'final', digit: Number(finalDigit) }
+    });
+  }
+
+  // Análise de setores
+  const sectors = analyzeSectors(analysisResults, {
+    voisins: SECTOR_VOISINS,
+    tiers: SECTOR_TIERS,
+    orphelins: SECTOR_ORPHELINS,
+    jeu_zero: SECTOR_JEU_ZERO
+  }, T.sectorMin);
+  for (const [sector, count] of sectors) {
+    patterns.push({
+      key: `sector_${sector}`,
+      description: `Setor ${sector} detectado ${count} vezes`,
+      risk: 'medium',
+      targets: { type: 'sector', sector }
+    });
+  }
+
+  // Análise de clusters de vizinhos
+  const clusters = analyzeNeighborClusters(analysisResults, T.clusterArcMax);
+  if (clusters.length > 0) {
+    patterns.push({
+      key: 'neighbors_cluster',
+      description: `Clusters de vizinhos detectados (${clusters.length} clusters)`,
+      risk: 'medium',
+      targets: { type: 'clusters', clusters }
+    });
+  }
+
+  // Análise de números quentes
+  const hotNumbers = analyzeHotNumbers(analysisResults, T.hotMin);
+  for (const [hotNumber, count] of hotNumbers) {
+    patterns.push({
+      key: 'hot_numbers',
+      description: `Número quente ${hotNumber} detectado ${count} vezes`,
+      risk: 'medium',
+      targets: { type: 'numbers', numbers: [Number(hotNumber)] }
+    });
+  }
+
   return patterns;
 }
 
@@ -1257,3 +1308,73 @@ export function adviceLabelPt(advice) {
     default: return 'Desconhecido';
   }
 }
+
+// Padrões adicionais para análise de roleta
+
+// Finais: Concentração em dígitos finais
+function analyzeFinals(results, minOccurrences = 3) {
+  const finals = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 };
+  for (const r of results) {
+    const num = Number(r.number);
+    if (Number.isFinite(num)) {
+      const finalDigit = num % 10;
+      finals[finalDigit]++;
+    }
+  }
+  return Object.entries(finals).filter(([, count]) => count >= minOccurrences);
+}
+
+// Setores da roda: Voisins, Tiers, Orphelins, Jeu Zero
+function analyzeSectors(results, sectorMap, minOccurrences = 5) {
+  const sectorHits = {};
+  for (const sector in sectorMap) {
+    sectorHits[sector] = 0;
+  }
+  for (const r of results) {
+    const num = Number(r.number);
+    if (Number.isFinite(num)) {
+      for (const [sector, numbers] of Object.entries(sectorMap)) {
+        if (numbers.includes(num)) {
+          sectorHits[sector]++;
+        }
+      }
+    }
+  }
+  return Object.entries(sectorHits).filter(([, count]) => count >= minOccurrences);
+}
+
+// Números quentes: Identificação de números frequentes
+function analyzeHotNumbers(results, minOccurrences = 3) {
+  const numberCounts = {};
+  for (const r of results) {
+    const num = Number(r.number);
+    if (Number.isFinite(num)) {
+      numberCounts[num] = (numberCounts[num] || 0) + 1;
+    }
+  }
+  return Object.entries(numberCounts).filter(([, count]) => count >= minOccurrences);
+}
+
+// Redefinindo a função analyzeNeighborClusters para garantir que seja reconhecida
+function analyzeNeighborClusters(results, maxArcSize = 10) {
+  const clusters = [];
+  for (let i = 0; i < results.length; i++) {
+    const num = Number(results[i].number);
+    if (!Number.isFinite(num)) continue;
+
+    const neighbors = neighborsOf(num, Math.floor(maxArcSize / 2));
+    const cluster = results.slice(i, i + neighbors.length).map(r => Number(r.number));
+    if (cluster.every(n => neighbors.includes(n))) {
+      clusters.push(cluster);
+    }
+  }
+  return clusters;
+}
+
+// Garantindo que a função seja exportada corretamente
+export {
+  analyzeFinals,
+  analyzeSectors,
+  analyzeNeighborClusters,
+  analyzeHotNumbers
+};
