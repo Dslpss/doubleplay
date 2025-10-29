@@ -1145,8 +1145,30 @@ export function chooseRouletteBetSignal(
       case "sector_orphelins":
       case "sector_jeu_zero":
       case "neighbors_cluster":
-      default:
         if (p.targets?.type === "numbers") {
+          candidates.push({
+            key: p.key,
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
+        break;
+      default:
+        if (p.key.startsWith("final_digit_")) {
+          // Processar padrões de finais
+          const finalsNumbers = {
+            0: [0, 10, 20, 30], 1: [1, 11, 21, 31], 2: [2, 12, 22, 32], 3: [3, 13, 23, 33],
+            4: [4, 14, 24, 34], 5: [5, 15, 25, 35], 6: [6, 16, 26, 36], 7: [7, 17, 27], 8: [8, 18, 28], 9: [9, 19, 29]
+          };
+          const digit = p.key.replace("final_digit_", "");
+          candidates.push({
+            key: p.key,
+            type: "numbers",
+            numbers: finalsNumbers[digit] || [],
+            risk: p.risk,
+          });
+        } else if (p.targets?.type === "numbers") {
           candidates.push({
             key: p.key,
             type: "numbers",
@@ -1180,6 +1202,16 @@ export function chooseRouletteBetSignal(
       "pivot_number",
       "wheel_cluster_drift",
       "neighbors_cluster",
+      "final_digit_0",
+      "final_digit_1",
+      "final_digit_2",
+      "final_digit_3",
+      "final_digit_4",
+      "final_digit_5",
+      "final_digit_6",
+      "final_digit_7",
+      "final_digit_8",
+      "final_digit_9",
       "red_black_balance",
       "zero_proximity",
     ];
