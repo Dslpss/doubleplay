@@ -28,6 +28,8 @@ import {
   integrateSignalMetrics,
   processSignalResult,
   ADAPTIVE_RESET_STRATEGIES,
+  setSignalCooldown,
+  logSignal,
 } from "./services/roulette";
 import DoubleEmbedPanel from "./components/DoubleEmbedPanel";
 import RouletteEmbedPanel from "./components/RouletteEmbedPanel";
@@ -86,6 +88,24 @@ function App() {
     final_digit_7: true,
     final_digit_8: true,
     final_digit_9: true,
+    // novos padrões adicionados
+    color_streak: true,
+    color_alternation: true,
+    mirrored_numbers: true,
+    brother_numbers: true,
+    zero_then_multiple10: true,
+    sector_exclusion_voisins: true,
+    sector_exclusion_tiers: true,
+    sector_exclusion_orphelins: true,
+    sector_exclusion_jeu_zero: true,
+    alternating_opposite_sectors: true,
+    quick_repeat: true,
+    // padrões adicionados recentemente
+    cobra_bet: true,
+    sequential_numbers: true,
+    neighbors_bet: true,
+    multiples_of_last: true,
+    opposite_sector: true,
   });
   const [aggressiveMode, setAggressiveMode] = useState(true);
   const [rouletteMartingale, setRouletteMartingale] = useState(null);
@@ -235,7 +255,6 @@ function App() {
   };
 
   const connected = Boolean(serverStatus?.wsConnected);
-  const hasToken = Boolean(serverStatus?.hasToken);
   const stats = summarizeResults(results);
   const streaks = computeStreaks(results);
   const patterns = detectSimplePatterns(results);
@@ -496,6 +515,22 @@ function App() {
 
     // Integra métricas de performance no sinal
     const enhancedSignal = integrateSignalMetrics({ ...signalR, chance });
+    // ativar cooldown e log somente após o App aceitar o sinal
+    try {
+      setSignalCooldown(Date.now());
+    } catch (e) {
+      void e;
+    }
+
+    try {
+      logSignal({
+        key: signalR.key,
+        signal: enhancedSignal,
+        chance,
+      });
+    } catch (e) {
+      void e;
+    }
 
     setLastRoulettePatternKey({ key: signalR.key, fromTs: lastRes.timestamp });
     setActiveRouletteSignal({

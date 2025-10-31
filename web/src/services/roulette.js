@@ -54,6 +54,92 @@ export function rouletteParity(num) {
   return num % 2 === 0 ? "even" : "odd";
 }
 
+// --- Helpers estatísticos/temporais ---
+// Contagens ponderadas por recência (decay exponencial)
+export function computeWeightedCounts(results, alpha = 0.25) {
+  // alpha: peso do mais recente (0..1). Quanto maior, mais peso no recente.
+  const weights = [];
+  const n = results.length;
+  // t = 0 mais recente (end of array) => we'll iterate from end-1..0
+  let totalWeight = 0;
+  for (let i = n - 1; i >= 0; i--) {
+    const t = n - 1 - i;
+    const w = alpha * Math.pow(1 - alpha, t);
+    weights[i] = w;
+    totalWeight += w;
+  }
+
+  const counts = {
+    numbers: {},
+    colors: { red: 0, black: 0, green: 0 },
+    columns: { 1: 0, 2: 0, 3: 0 },
+    dozens: { 1: 0, 2: 0, 3: 0 },
+    finals: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 },
+  };
+
+  for (let i = 0; i < n; i++) {
+    const r = results[i];
+    const w = weights[i] || 0;
+    if (!r) continue;
+    const num = Number(r.number);
+    const col =
+      r.color || (num === 0 ? "green" : num % 2 === 0 ? "black" : "red");
+    counts.colors[col] = (counts.colors[col] || 0) + w;
+    if (Number.isFinite(num)) {
+      counts.numbers[num] = (counts.numbers[num] || 0) + w;
+      const c = rouletteColumn(num);
+      const d = rouletteDozen(num);
+      if (c) counts.columns[c] = (counts.columns[c] || 0) + w;
+      if (d) counts.dozens[d] = (counts.dozens[d] || 0) + w;
+      counts.finals[num % 10] = (counts.finals[num % 10] || 0) + w;
+    }
+  }
+
+  // normalize by totalWeight to keep values comparable
+  if (totalWeight > 0) {
+    for (const k of Object.keys(counts.colors)) counts.colors[k] /= totalWeight;
+    for (const k of Object.keys(counts.columns))
+      counts.columns[k] /= totalWeight;
+    for (const k of Object.keys(counts.dozens)) counts.dozens[k] /= totalWeight;
+    for (const k of Object.keys(counts.finals)) counts.finals[k] /= totalWeight;
+    for (const k of Object.keys(counts.numbers))
+      counts.numbers[k] /= totalWeight;
+  }
+
+  return counts;
+}
+
+// Matriz de transição simples P(next | current) estimada a partir do histórico
+export function buildTransitionMatrix(results, smoothing = 1) {
+  const N = 37;
+  const counts = Array.from({ length: N }, () => Array(N).fill(0));
+  for (let i = 0; i < results.length - 1; i++) {
+    const a = Number(results[i].number);
+    const b = Number(results[i + 1].number);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+    counts[a][b] = (counts[a][b] || 0) + 1;
+  }
+  // normalize rows with smoothing (Laplace)
+  const mat = counts.map((row) => {
+    const s = row.reduce((x, y) => x + y, 0) + smoothing * N;
+    return row.map((c) => (c + smoothing) / s);
+  });
+  return mat; // mat[current][next]
+}
+
+// Em memória: log de sinais para backtest e análises
+const _signalLog = [];
+export function logSignal(entry) {
+  try {
+    _signalLog.push({ ts: Date.now(), ...entry });
+  } catch {
+    // ignore
+  }
+}
+export function getSignalLog() {
+  return _signalLog.slice();
+}
+
 // Sistema de controle inteligente de sinais
 let lastSignalTimestamp = 0;
 let signalCooldownActive = false;
@@ -817,6 +903,273 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     });
   }
 
+  // --- Novos detectores solicitados (cor, alternância, espelhados, irmãos, zero->múltiplos de 10, exclusão de setor, alternância oposta, repetição próxima)
+
+  // 1) Sequência de mesma cor (ex.: 5 vermelhos seguidos)
+  const colorWindow = analysisResults.slice(-10);
+  const colorSeqLen = 5;
+  const lastColors = colorWindow.map((r) => r.color).filter(Boolean);
+  if (
+    lastColors.length >= colorSeqLen &&
+    lastColors.slice(-colorSeqLen).every((c) => c === lastColors.slice(-1)[0]) &&
+    (lastColors.slice(-1)[0] === "red" || lastColors.slice(-1)[0] === "black")
+  ) {
+    patterns.push({
+      key: "color_streak",
+      description: `Sequência de mesma cor detectada: ${lastColors
+        .slice(-colorSeqLen)
+        .join(", ")}`,
+      risk: "medium",
+      targets: { type: "color", color: lastColors.slice(-1)[0] },
+    });
+  }
+
+  // 2) Alternância de cores (ex.: Preto, Vermelho, Preto, Vermelho)
+  const altLen = 4;
+  const altColors = colorWindow.map((r) => r.color).filter((c) => c !== "green");
+  if (altColors.length >= altLen) {
+    const lastAlt = altColors.slice(-altLen);
+    const alternates = lastAlt.every((c, i, arr) => {
+      if (i === 0) return true;
+      return c !== arr[i - 1];
+    });
+    if (alternates) {
+      patterns.push({
+        key: "color_alternation",
+        description: `Alternância de cores detectada: ${lastAlt.join(", ")}`,
+        risk: "low",
+        targets: { type: "pattern", pattern: "color_alternation" },
+      });
+    }
+  }
+
+  // 3) Espelhados (12 -> 21)
+  function isMirror(a, b) {
+    try {
+      const sa = String(Number(a));
+      const sb = String(Number(b));
+      return sa.split("").reverse().join("") === sb;
+    } catch {
+      return false;
+    }
+  }
+  for (let i = analysisResults.length - 1; i >= Math.max(0, analysisResults.length - 12); i--) {
+    for (let j = i - 1; j >= Math.max(0, i - 6); j--) {
+      const a = Number(analysisResults[j].number);
+      const b = Number(analysisResults[i].number);
+      if (Number.isFinite(a) && Number.isFinite(b) && a !== 0 && b !== 0 && isMirror(a, b)) {
+        patterns.push({
+          key: "mirrored_numbers",
+          description: `Números espelhados detectados: ${a} -> ${b}`,
+          risk: "low",
+          targets: { type: "numbers", numbers: [a, b] },
+        });
+        i = Math.max(-1, i - 12); // sair do loop externo após detectar um par
+        break;
+      }
+    }
+  }
+
+  // 4) Números irmãos (mesmo final aparecem juntos)
+  const recentForBro = analysisResults.slice(-10).map((r) => Number(r.number));
+  const finalsMap = {};
+  recentForBro.forEach((n, idx) => {
+    if (!Number.isFinite(n) || n === 0) return;
+    const f = n % 10;
+    finalsMap[f] = finalsMap[f] || [];
+    finalsMap[f].push({ n, idx });
+  });
+  for (const [f, arr] of Object.entries(finalsMap)) {
+    if (arr.length >= 2) {
+      patterns.push({
+        key: "brother_numbers",
+        description: `Números irmãos (final ${f}) detectados: ${arr
+          .map((x) => x.n)
+          .join(", ")}`,
+        risk: "low",
+        targets: { type: "final", digit: Number(f) },
+      });
+      break;
+    }
+  }
+
+  // 5) Zero seguido de múltiplos de 10 (0 -> 10/20/30)
+  for (let i = analysisResults.length - 1; i >= Math.max(0, analysisResults.length - 8); i--) {
+    const a = Number(analysisResults[i].number);
+    if (a === 0) {
+      // olhar próximos 3 resultados (mais recentes que o zero)
+      for (let j = i + 1; j <= Math.min(analysisResults.length - 1, i + 3); j++) {
+        const b = Number(analysisResults[j]?.number);
+        if (Number.isFinite(b) && b !== 0 && b % 10 === 0) {
+          patterns.push({
+            key: "zero_then_multiple10",
+            description: `Zero seguido por múltiplo de 10 (${b}) detectado`,
+            risk: "low",
+            targets: { type: "numbers", numbers: [0, b] },
+          });
+          i = -1; // sair
+          break;
+        }
+      }
+    }
+  }
+
+  // 6) Exclusão de setor (setor sem ocorrências nas últimas N jogadas)
+  const sectorLook = analysisResults.slice(-24);
+  const sectorHitCounts = { voisins: 0, tiers: 0, orphelins: 0, jeu_zero: 0 };
+  for (const r of sectorLook) {
+    const n = Number(r.number);
+    if (!Number.isFinite(n)) continue;
+    if (SECTOR_VOISINS.includes(n)) sectorHitCounts.voisins++;
+    if (SECTOR_TIERS.includes(n)) sectorHitCounts.tiers++;
+    if (SECTOR_ORPHELINS.includes(n)) sectorHitCounts.orphelins++;
+    if (SECTOR_JEU_ZERO.includes(n)) sectorHitCounts.jeu_zero++;
+  }
+  for (const [k, v] of Object.entries(sectorHitCounts)) {
+    if (v === 0) {
+      patterns.push({
+        key: `sector_exclusion_${k}`,
+        description: `Exclusão de setor ${k} detectada (0 ocorrências nas últimas ${sectorLook.length})`,
+        risk: "medium",
+        targets: { type: "sector", sector: k },
+      });
+    }
+  }
+
+  // 7) Alternância de setores opostos (ex.: posições opostas na roda)
+  // Verifica se nos últimos 6 resultados existe alternância entre posições com distância ~N/2
+  const last6 = analysisResults.slice(-6);
+  if (last6.length >= 4) {
+    const idxs = last6.map((r) => wheelIndexOf(r.number)).filter((i) => i >= 0);
+    const N = EU_WHEEL_ORDER.length;
+    let altOpp = true;
+    for (let i = 1; i < idxs.length; i++) {
+      const d = Math.abs(idxs[i] - idxs[i - 1]);
+      const dist = Math.min(d, N - d);
+      if (Math.abs(dist - Math.floor(N / 2)) > 3) {
+        altOpp = false;
+        break;
+      }
+    }
+    if (altOpp) {
+      patterns.push({
+        key: "alternating_opposite_sectors",
+        description: `Alternância entre setores opostos detectada nos últimos ${last6.length}`,
+        risk: "low",
+        targets: { type: "pattern", pattern: "alternating_opposite_sectors" },
+      });
+    }
+  }
+
+  // 8) Repetição de número próximo (mesmo número reaparece em até 5 rodadas)
+  const look = analysisResults.slice(-12).map((r) => Number(r.number));
+  for (let i = look.length - 1; i >= 0; i--) {
+    const n = look[i];
+    if (!Number.isFinite(n) || n === 0) continue;
+    for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
+      if (look[j] === n) {
+        patterns.push({
+          key: "quick_repeat",
+          description: `Número ${n} repetido dentro de ${i - j} rodadas`,
+          risk: "medium",
+          targets: { type: "numbers", numbers: [n] },
+        });
+        i = -1;
+        break;
+      }
+    }
+  }
+
+  // --- Padrões adicionais solicitados ---
+
+  // Cobra bet (números específicos formam 'S' no tapete)
+  const COBRA_NUMS = [1, 5, 9, 12, 14, 16, 19, 23, 27, 30, 32, 34];
+  const last30nums = analysisResults.slice(-30).map((r) => Number(r.number));
+  const cobraHits = COBRA_NUMS.filter((n) => last30nums.includes(n)).length;
+  if (cobraHits >= 2) {
+    patterns.push({
+      key: "cobra_bet",
+      description: `Padrão Cobra detectado (${cobraHits} dos números do padrão saíram recentemente)` ,
+      risk: "low",
+      targets: { type: "numbers", numbers: COBRA_NUMS },
+    });
+  }
+
+  // Números sequenciais: se últimos 2 forem consecutivos, sugerir continuação
+  const seqWin = analysisResults.slice(-3).map((r) => Number(r.number)).filter((n) => Number.isFinite(n));
+  if (seqWin.length >= 2) {
+    const a = seqWin[seqWin.length - 2];
+    const b = seqWin[seqWin.length - 1];
+    if (b === a + 1) {
+      patterns.push({
+        key: "sequential_numbers",
+        description: `Sequência crescente detectada (${a} -> ${b}), sugerindo ${b + 1}`,
+        risk: "low",
+        targets: { type: "numbers", numbers: [b + 1].filter((n) => n >= 0 && n <= 36) },
+      });
+    } else if (b === a - 1) {
+      patterns.push({
+        key: "sequential_numbers",
+        description: `Sequência decrescente detectada (${a} -> ${b}), sugerindo ${b - 1}`,
+        risk: "low",
+        targets: { type: "numbers", numbers: [b - 1].filter((n) => n >= 0 && n <= 36) },
+      });
+    }
+  }
+
+  // Vizinhos do último número (aposta em número + vizinhos diretos)
+  if (analysisResults.length >= 1) {
+    const lastNum = Number(analysisResults[analysisResults.length - 1].number);
+    if (Number.isFinite(lastNum) && lastNum !== 0) {
+      const neigh = neighborsOf(lastNum, 2);
+      patterns.push({
+        key: "neighbors_bet",
+        description: `Vizinhos de ${lastNum} (aposta em número + vizinhos)`,
+        risk: "low",
+        targets: { type: "numbers", numbers: neigh },
+      });
+    }
+  }
+
+  // Múltiplos do último número (se último >1)
+  if (analysisResults.length >= 1) {
+    const lastN = Number(analysisResults[analysisResults.length - 1].number);
+    if (Number.isFinite(lastN) && lastN > 1) {
+      const mults = [];
+      for (let m = 2; m <= Math.floor(36 / lastN); m++) {
+        mults.push(lastN * m);
+      }
+      if (mults.length > 0) {
+        patterns.push({
+          key: "multiples_of_last",
+          description: `Múltiplos de ${lastN} sugeridos: ${mults.join(", ")}`,
+          risk: "low",
+          targets: { type: "numbers", numbers: mults },
+        });
+      }
+    }
+  }
+
+  // Setor oposto: números no lado oposto da roda ao último número
+  if (analysisResults.length >= 1) {
+    const lastN2 = Number(analysisResults[analysisResults.length - 1].number);
+    if (Number.isFinite(lastN2)) {
+      const idx = wheelIndexOf(lastN2);
+      if (idx >= 0) {
+        const N = EU_WHEEL_ORDER.length;
+        const oppIdx = (idx + Math.floor(N / 2)) % N;
+        const oppNum = EU_WHEEL_ORDER[oppIdx];
+        const oppNeighbors = neighborsOf(oppNum, 2);
+        patterns.push({
+          key: "opposite_sector",
+          description: `Setor oposto de ${lastN2} detectado (centro ${oppNum})`,
+          risk: "low",
+          targets: { type: "numbers", numbers: oppNeighbors },
+        });
+      }
+    }
+  }
+
   // Análise de números quentes
   const hotNumbers = analyzeHotNumbers(analysisResults, T.hotMin);
   for (const [hotNumber, count] of hotNumbers) {
@@ -1108,13 +1461,157 @@ export function chooseRouletteBetSignal(
           risk: p.risk,
         });
         break;
-      case "dormant_numbers":
-        candidates.push({
-          key: "dormant_numbers",
-          type: "numbers",
-          numbers: p.targets.numbers,
-          risk: p.risk,
-        });
+      case "color_streak":
+        if (p.targets?.type === "color") {
+          candidates.push({
+            key: "color_streak",
+            type: "color",
+            color: p.targets.color,
+            risk: p.risk,
+          });
+        }
+        break;
+      case "color_alternation": {
+        // apostar na cor oposta ao último resultado (heurística simples)
+        const lastColorAlt = results.slice().reverse().find((r) => r.color && r.color !== "green");
+        if (lastColorAlt) {
+          const opp = lastColorAlt.color === "red" ? "black" : "red";
+          candidates.push({
+            key: "color_alternation",
+            type: "color",
+            color: opp,
+            risk: p.risk,
+          });
+        }
+        break;
+      }
+      case "mirrored_numbers":
+        if (p.targets?.numbers) {
+          candidates.push({
+            key: "mirrored_numbers",
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
+        break;
+      case "brother_numbers": {
+        // usar os números correspondentes ao dígito final
+        if (p.targets?.type === "final") {
+          const d = Number(p.targets.digit);
+          const finalsNumbersMap = {
+            0: [0, 10, 20, 30],
+            1: [1, 11, 21, 31],
+            2: [2, 12, 22, 32],
+            3: [3, 13, 23, 33],
+            4: [4, 14, 24, 34],
+            5: [5, 15, 25, 35],
+            6: [6, 16, 26, 36],
+            7: [7, 17, 27],
+            8: [8, 18, 28],
+            9: [9, 19, 29],
+          };
+          candidates.push({
+            key: "brother_numbers",
+            type: "numbers",
+            numbers: finalsNumbersMap[d] || [],
+            risk: p.risk,
+          });
+        }
+        break;
+      }
+      case "zero_then_multiple10":
+        if (p.targets?.numbers) {
+          candidates.push({
+            key: "zero_then_multiple10",
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
+        break;
+      case "alternating_opposite_sectors": {
+        // tentar mapear para números próximos ao último e seu oposto
+        try {
+          const last = results && results.length ? Number(results[results.length - 1].number) : null;
+          if (Number.isFinite(last)) {
+            const idx = wheelIndexOf(last);
+            const N = EU_WHEEL_ORDER.length;
+            const oppIdx = (idx + Math.floor(N / 2)) % N;
+            const center1 = EU_WHEEL_ORDER[idx];
+            const center2 = EU_WHEEL_ORDER[oppIdx];
+            const nums = Array.from(new Set([...neighborsOf(center1, 2), ...neighborsOf(center2, 2)]));
+            candidates.push({
+              key: "alternating_opposite_sectors",
+              type: "numbers",
+              numbers: nums,
+              risk: p.risk,
+            });
+          }
+        } catch (e) {
+          void e;
+        }
+        break;
+      }
+      case "quick_repeat":
+        if (p.targets?.numbers) {
+          candidates.push({
+            key: "quick_repeat",
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
+        break;
+      case "cobra_bet":
+        if (p.targets?.numbers) {
+          candidates.push({
+            key: "cobra_bet",
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
+        break;
+      case "sequential_numbers":
+        if (p.targets?.numbers) {
+          candidates.push({
+            key: "sequential_numbers",
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
+        break;
+      case "neighbors_bet":
+        if (p.targets?.numbers) {
+          candidates.push({
+            key: "neighbors_bet",
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
+        break;
+      case "multiples_of_last":
+        if (p.targets?.numbers) {
+          candidates.push({
+            key: "multiples_of_last",
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
+        break;
+      case "opposite_sector":
+        if (p.targets?.numbers) {
+          candidates.push({
+            key: "opposite_sector",
+            type: "numbers",
+            numbers: p.targets.numbers,
+            risk: p.risk,
+          });
+        }
         break;
       case "repeated_numbers":
         candidates.push({
@@ -1158,8 +1655,16 @@ export function chooseRouletteBetSignal(
         if (p.key.startsWith("final_digit_")) {
           // Processar padrões de finais
           const finalsNumbers = {
-            0: [0, 10, 20, 30], 1: [1, 11, 21, 31], 2: [2, 12, 22, 32], 3: [3, 13, 23, 33],
-            4: [4, 14, 24, 34], 5: [5, 15, 25, 35], 6: [6, 16, 26, 36], 7: [7, 17, 27], 8: [8, 18, 28], 9: [9, 19, 29]
+            0: [0, 10, 20, 30],
+            1: [1, 11, 21, 31],
+            2: [2, 12, 22, 32],
+            3: [3, 13, 23, 33],
+            4: [4, 14, 24, 34],
+            5: [5, 15, 25, 35],
+            6: [6, 16, 26, 36],
+            7: [7, 17, 27],
+            8: [8, 18, 28],
+            9: [9, 19, 29],
           };
           const digit = p.key.replace("final_digit_", "");
           candidates.push({
@@ -1335,8 +1840,24 @@ export function chooseRouletteBetSignal(
   const pick = nearTop[Math.floor(Math.random() * nearTop.length)] || scored[0];
   const selectedSignal = { ...pick.advice };
 
+  // Normalizar confiança baseada no intervalo de scores
+  const scores = scored.map((s) => s.score);
+  const minScore = Math.min(...scores);
+  const maxScore = Math.max(...scores);
+  let confidence = 1;
+  if (maxScore > minScore) {
+    confidence = (pick.score - minScore) / (maxScore - minScore);
+  }
+  // calibrar para 0.2..0.98 para evitar extremos
+  confidence = Math.max(0.02, Math.min(0.98, confidence));
+
+  // anexar metadados
+  selectedSignal.confidence = Math.round(confidence * 100) / 100;
+  selectedSignal._score = pick.score;
+
   // Ativar cooldown após escolher sinal
-  setSignalCooldown();
+  // NOTE: cooldown/logging moved to the caller (UI) to avoid reserving cooldown
+  // for signals that may be rejected later by higher-level policies.
 
   return selectedSignal;
 }
