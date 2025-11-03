@@ -16,21 +16,9 @@ import PatternsPanel from "./components/PatternsPanel";
 import RouletteStatsPanel from "./components/RouletteStatsPanel";
 import RoulettePatternsPanel from "./components/RoulettePatternsPanel";
 import {
-  detectRouletteAdvancedPatterns,
   detectBestRouletteSignal,
   validateSignalOutcome,
-  chooseRouletteBetSignal,
-  computeRouletteSignalChance,
-  adviceLabelPt,
-  rouletteColumn,
-  rouletteDozen,
-  rouletteHighLow,
-  rouletteParity,
-  integrateSignalMetrics,
-  processSignalResult,
   ADAPTIVE_RESET_STRATEGIES,
-  setSignalCooldown,
-  logSignal,
 } from "./services/roulette";
 import DoubleEmbedPanel from "./components/DoubleEmbedPanel";
 import RouletteEmbedPanel from "./components/RouletteEmbedPanel";
@@ -55,67 +43,16 @@ function App() {
   const [isNarrow, setIsNarrow] = useState(false);
   const [route, setRoute] = useState(window.location.hash || "#/");
   const [autoRouletteEnabled, setAutoRouletteEnabled] = useState(true);
-  const [lastRoulettePatternKey, setLastRoulettePatternKey] = useState(null);
-  const [activeRouletteSignal, setActiveRouletteSignal] = useState(null);
-  const [rouletteSignalHistory, setRouletteSignalHistory] = useState([]);
+  const [rouletteSignalHistory] = useState([]);
   const [rouletteHistoryLimit, setRouletteHistoryLimit] = useState(5);
-  const [lastRouletteAdviceStatus, setLastRouletteAdviceStatus] =
-    useState(null);
-  const [blockAlertsWhileActive, setBlockAlertsWhileActive] = useState(true);
 
   // Novo sistema de sinais inteligente
   const [bestRouletteSignal, setBestRouletteSignal] = useState(null);
   const [signalValidFor, setSignalValidFor] = useState(3);
   const [resultsCountSinceSignal, setResultsCountSinceSignal] = useState(0);
   const lastValidatedResultRef = useRef(null); // Rastrear último resultado validado
-  const [enabledPatterns, _setEnabledPatterns] = useState({
-    column_triple: true,
-    dozen_imbalance: true,
-    highlow_streak: true,
-    parity_streak: true,
-    zero_proximity: true,
-    red_black_balance: true,
-    hot_numbers: true,
-    sector_voisins: true,
-    sector_tiers: true,
-    sector_orphelins: true,
-    sector_jeu_zero: true,
-    neighbors_cluster: true,
-    neighbors_last: true,
-    pivot_number: true,
-    wheel_cluster_drift: true,
-    final_digit: true,
-    final_digit_0: true,
-    final_digit_1: true,
-    final_digit_2: true,
-    final_digit_3: true,
-    final_digit_4: true,
-    final_digit_5: true,
-    final_digit_6: true,
-    final_digit_7: true,
-    final_digit_8: true,
-    final_digit_9: true,
-    // novos padrões adicionados
-    color_streak: true,
-    color_alternation: true,
-    mirrored_numbers: true,
-    brother_numbers: true,
-    zero_then_multiple10: true,
-    sector_exclusion_voisins: true,
-    sector_exclusion_tiers: true,
-    sector_exclusion_orphelins: true,
-    sector_exclusion_jeu_zero: true,
-    alternating_opposite_sectors: true,
-    quick_repeat: true,
-    // padrões adicionados recentemente
-    cobra_bet: true,
-    sequential_numbers: true,
-    neighbors_bet: true,
-    multiples_of_last: true,
-    opposite_sector: true,
-  });
+
   const [aggressiveMode, setAggressiveMode] = useState(true);
-  const [rouletteMartingale, setRouletteMartingale] = useState(null);
 
   // Configurações de Reset Adaptativo
   const [resetStrategy, setResetStrategy] = useState(
@@ -127,39 +64,6 @@ function App() {
   const [recentWeight, setRecentWeight] = useState(0.7);
   const [maxRecent, setMaxRecent] = useState(15);
   const [maxHistorical, setMaxHistorical] = useState(35);
-  const [lastRouletteAdviceFingerprint, setLastRouletteAdviceFingerprint] =
-    useState(null);
-  const [cooldownRounds] = useState(1); // Reduzido de 3 para 1
-  const [patternClearRounds] = useState(1); // Reduzido de 2 para 1
-  const [lastRouletteAlertCount, setLastRouletteAlertCount] = useState(null);
-  const [lastPatternAbsentStreak, setLastPatternAbsentStreak] = useState(0);
-  const rouletteAdviceFingerprint = (adv) => {
-    if (!adv) return null;
-    // Incluir a chave do padrão no fingerprint para maior especificidade
-    const baseFingerprint = (() => {
-      switch (adv.type) {
-        case "color":
-          return `color:${adv.color}`;
-        case "column":
-          return `column:${adv.column}`;
-        case "dozen":
-          return `dozen:${adv.dozen}`;
-        case "highlow":
-          return `highlow:${adv.value}`;
-        case "parity":
-          return `parity:${adv.value}`;
-        case "numbers":
-          return `numbers:${(Array.isArray(adv.numbers)
-            ? adv.numbers
-            : []
-          ).join("-")}`;
-        default:
-          return adv.type;
-      }
-    })();
-    // Adicionar a chave do padrão para maior especificidade
-    return `${adv.key || "unknown"}:${baseFingerprint}`;
-  };
 
   // Janela para contagem de Finales
   /* removed unused finalesWindow and rouletteFinalCounts memo */
@@ -323,7 +227,7 @@ function App() {
     if (!lastRes || !autoBetEnabled) return;
     if (lastAutoBetRound && lastRes.round_id === lastAutoBetRound) return;
 
-    if (blockAlertsWhileActive && activeSignal) return; // não alertar se já há um sinal ativo aguardando
+    if (activeSignal) return; // não alertar se já há um sinal ativo aguardando
     const s = computeStreaks(results);
     const p = detectSimplePatterns(results);
     function computeSignalChance(signal, results) {
@@ -398,7 +302,6 @@ function App() {
     lastAutoBetRound,
     lastPatternKey,
     activeSignal,
-    blockAlertsWhileActive,
   ]);
 
   // Avalia o próximo resultado após um sinal e limpa o aviso
@@ -428,153 +331,13 @@ function App() {
     return () => clearTimeout(t);
   }, [results, activeSignal]);
 
-  // Sinais da Roleta (Pragmatic)
-  /* removed unused eslint-disable directive */
+  // SISTEMA ANTIGO DE SINAIS - DESABILITADO
+  // Agora usando apenas o sistema inteligente de sinais (detectBestRouletteSignal)
+  /* 
   useEffect(() => {
-    const lastRes = roulette[0];
-    if (!lastRes || !autoRouletteEnabled) return;
-
-    if (blockAlertsWhileActive && activeRouletteSignal) return; // não alertar se já há um sinal ativo aguardando
-    if (blockAlertsWhileActive && rouletteMartingale?.active) return; // não alertar se Martingale (M1/M2) está ativo
-    // Usa ordem cronológica crescente para análises (mais recente no fim)
-    const analysisResults = [...roulette].reverse();
-    const patternsR = detectRouletteAdvancedPatterns(analysisResults, {
-      aggressive: aggressiveMode,
-      resetOptions: {
-        strategy: resetStrategy,
-        windowSize,
-        changeThreshold,
-        maxLookback,
-        recentWeight,
-        maxRecent,
-        maxHistorical,
-      },
-    });
-    const streaksR = computeRouletteStreaks(roulette);
-    const isEnabled = (p) => {
-      if (enabledPatterns[p.key] !== undefined) return enabledPatterns[p.key];
-      if (p.key.startsWith("final_digit_")) {
-        return enabledPatterns[p.key] ?? enabledPatterns["final_digit"];
-      }
-      return false;
-    };
-    const allowedPatterns = patternsR.filter(isEnabled);
-    // Atualiza streak de ausência do último padrão
-    setLastPatternAbsentStreak((prev) => {
-      if (!lastRoulettePatternKey?.key) return 0;
-      const stillDetected = allowedPatterns.some(
-        (p) => p.key === lastRoulettePatternKey.key
-      );
-      return stillDetected ? 0 : Math.min(prev + 1, 999);
-    });
-
-    const signalR = chooseRouletteBetSignal(
-      allowedPatterns,
-      summarizeRoulette(roulette),
-      streaksR,
-      analysisResults,
-      {
-        strategy: "balanced",
-        lastKey: lastRoulettePatternKey?.key,
-        lastFingerprint: lastRouletteAdviceFingerprint,
-        randomizeTopDelta: 5,
-        minQualityScore: 1.0,
-        minConfidence: 0.2,
-      }
-    );
-    if (!signalR) {
-      if (lastRoulettePatternKey) setLastRoulettePatternKey(null);
-      return;
-    }
-    if (
-      lastRoulettePatternKey?.key === signalR.key &&
-      lastRoulettePatternKey?.fromTs === lastRes.timestamp
-    )
-      return;
-
-    const roundsSinceAlert =
-      lastRouletteAlertCount == null
-        ? Infinity
-        : roulette.length - lastRouletteAlertCount;
-    const fpNew = rouletteAdviceFingerprint(signalR);
-
-    // Verificação de cooldown para o mesmo fingerprint
-    if (
-      lastRouletteAdviceFingerprint &&
-      fpNew === lastRouletteAdviceFingerprint &&
-      roundsSinceAlert < cooldownRounds
-    ) {
-      // Resfriamento: aguarda X rodadas antes de re-alertar mesmo fingerprint
-      return;
-    }
-
-    // Verificação de pattern clear apenas para o mesmo padrão (não bloqueia padrões diferentes)
-    if (
-      lastRoulettePatternKey?.key === signalR.key &&
-      lastPatternAbsentStreak < patternClearRounds
-    ) {
-      // Exige que o MESMO padrão anterior esteja ausente por Y rodadas consecutivas
-      return;
-    }
-
-    const chance = computeRouletteSignalChance(signalR, analysisResults);
-
-    // Integra métricas de performance no sinal
-    const enhancedSignal = integrateSignalMetrics({ ...signalR, chance });
-    // ativar cooldown e log somente após o App aceitar o sinal
-    try {
-      setSignalCooldown(Date.now());
-    } catch (e) {
-      void e;
-    }
-
-    try {
-      logSignal({
-        key: signalR.key,
-        signal: enhancedSignal,
-        chance,
-      });
-    } catch (e) {
-      void e;
-    }
-
-    setLastRoulettePatternKey({ key: signalR.key, fromTs: lastRes.timestamp });
-    setActiveRouletteSignal({
-      ...enhancedSignal,
-      fromTs: lastRes.timestamp,
-      number: lastRes.number,
-    });
-    setLastRouletteAdviceFingerprint(fpNew);
-    setLastRouletteAlertCount(roulette.length);
-    const label = adviceLabelPt(signalR);
-    const performanceText = enhancedSignal.performance?.historicalHitRate
-      ? ` (${chance}% chance, ${enhancedSignal.performance.historicalHitRate}% histórico)`
-      : ` (${chance}% chance)`;
-    setLastRouletteAdviceStatus(
-      `Após número ${lastRes.number} aposte ${label}${performanceText}`
-    );
-  }, [
-    roulette,
-    autoRouletteEnabled,
-    aggressiveMode,
-    lastPatternAbsentStreak,
-    cooldownRounds,
-    patternClearRounds,
-    blockAlertsWhileActive,
-    changeThreshold,
-    enabledPatterns,
-    lastRouletteAdviceFingerprint,
-    lastRouletteAlertCount,
-    lastRoulettePatternKey,
-    maxHistorical,
-    maxLookback,
-    maxRecent,
-    recentWeight,
-    resetStrategy,
-    windowSize,
-    rouletteMartingale,
-    activeRouletteSignal, // Adicionado para corrigir o erro
-  ]);
+    // ... código do sistema antigo removido ...
+  }, []);
+  */
 
   // ============================================================================
   // Sistema Inteligente de Sinais - detecta APENAS O MELHOR sinal
@@ -665,22 +428,6 @@ function App() {
         .join(", ")}...]`
     );
 
-    // Atualizar UI com feedback
-    if (hit) {
-      setLastRouletteAdviceStatus(
-        `✅ Acerto! Número ${resultNum} estava nos targets (${newCount}/${signalValidFor})`
-      );
-    } else {
-      setLastRouletteAdviceStatus(
-        `❌ Erro. Número ${resultNum} não estava nos targets (${newCount}/${signalValidFor})`
-      );
-    }
-
-    // Limpar status após 5 segundos
-    const timeout = setTimeout(() => {
-      setLastRouletteAdviceStatus(null);
-    }, 5000);
-
     // Limpar sinal se passou o prazo de validade
     if (newCount >= signalValidFor) {
       console.log("[Signal] Sinal expirado após", newCount, "resultados");
@@ -688,154 +435,23 @@ function App() {
       setResultsCountSinceSignal(0);
       lastValidatedResultRef.current = null; // Reset para próximo sinal
     }
-
-    return () => clearTimeout(timeout);
   }, [roulette, bestRouletteSignal, resultsCountSinceSignal, signalValidFor]);
 
+  // SISTEMA ANTIGO DE VALIDAÇÃO - DESABILITADO
+  // Agora usando apenas o sistema inteligente de validação
+  /*
   useEffect(() => {
-    if (!activeRouletteSignal) return;
-    const lastRes = roulette[0];
-    if (!lastRes) return;
-    if (lastRes.timestamp === activeRouletteSignal.fromTs) return;
-    const num = Number(lastRes.number);
-    let hit = false;
-    switch (activeRouletteSignal.type) {
-      case "color":
-        hit =
-          (lastRes.color === "green" ? "green" : lastRes.color) ===
-          activeRouletteSignal.color;
-        break;
-      case "column":
-        hit = rouletteColumn(num) === activeRouletteSignal.column;
-        break;
-      case "dozen":
-        hit = rouletteDozen(num) === activeRouletteSignal.dozen;
-        break;
-      case "highlow":
-        hit = rouletteHighLow(num) === activeRouletteSignal.value;
-        break;
-      case "parity":
-        hit = rouletteParity(num) === activeRouletteSignal.value;
-        break;
-      case "numbers":
-        hit =
-          Array.isArray(activeRouletteSignal.numbers) &&
-          activeRouletteSignal.numbers.includes(num);
-        break;
-      default:
-        hit = false;
-    }
-
-    // Processa o resultado para atualizar métricas de performance
-    if (activeRouletteSignal.performance?.signalIndex !== undefined) {
-      processSignalResult(
-        activeRouletteSignal.performance.signalIndex,
-        num,
-        activeRouletteSignal
-      );
-    }
-
-    setLastRouletteAdviceStatus(hit ? "Acerto" : "Erro");
-    setRouletteSignalHistory((prev) =>
-      [
-        {
-          number: activeRouletteSignal.number ?? lastRes.number,
-          type: activeRouletteSignal.type,
-          value: adviceLabelPt(activeRouletteSignal),
-          result: hit ? "acerto" : "erro",
-          time: Date.now(),
-          chance: activeRouletteSignal.chance,
-          historicalHitRate:
-            activeRouletteSignal.performance?.historicalHitRate,
-          m1: null,
-          m2: null,
-        },
-        ...prev,
-      ].slice(0, 50)
-    );
-    if (!hit) {
-      setRouletteMartingale({
-        active: true,
-        target: activeRouletteSignal,
-        attemptsLeft: 2,
-        index: 0,
-        lastCheckedTs: lastRes.timestamp,
-      });
-    }
-    setActiveRouletteSignal(null);
-    const t = setTimeout(() => setLastRouletteAdviceStatus(null), 3000);
-    return () => clearTimeout(t);
+    // ... código do sistema antigo de validação removido ...
   }, [roulette, activeRouletteSignal]);
+  */
 
+  // SISTEMA DE MARTINGALE - DESABILITADO
+  // Funcionalidade removida temporariamente
+  /*
   useEffect(() => {
-    if (!rouletteMartingale?.active) return;
-    const lastRes = roulette[0];
-    if (!lastRes) return;
-    if (lastRes.timestamp === rouletteMartingale.lastCheckedTs) return;
-    const num = Number(lastRes.number);
-    let hit = false;
-    switch (rouletteMartingale.target.type) {
-      case "color":
-        hit =
-          (lastRes.color === "green" ? "green" : lastRes.color) ===
-          rouletteMartingale.target.color;
-        break;
-      case "column":
-        hit = rouletteColumn(num) === rouletteMartingale.target.column;
-        break;
-      case "dozen":
-        hit = rouletteDozen(num) === rouletteMartingale.target.dozen;
-        break;
-      case "highlow":
-        hit = rouletteHighLow(num) === rouletteMartingale.target.value;
-        break;
-      case "parity":
-        hit = rouletteParity(num) === rouletteMartingale.target.value;
-        break;
-      case "numbers":
-        hit =
-          Array.isArray(rouletteMartingale.target.numbers) &&
-          rouletteMartingale.target.numbers.includes(num);
-        break;
-      default:
-        hit = false;
-    }
-
-    const isM1 = rouletteMartingale.attemptsLeft === 2;
-    setRouletteSignalHistory((prev) =>
-      prev.map((h, idx) => {
-        if (idx !== rouletteMartingale.index) return h;
-        return {
-          ...h,
-          [isM1 ? "m1" : "m2"]: hit ? "acerto" : "erro",
-          result: hit ? "acerto" : h.result,
-        };
-      })
-    );
-
-    if (hit) {
-      setLastRouletteAdviceStatus(
-        isM1 ? "Recuperado (Martingale M1)" : "Recuperado (Martingale M2)"
-      );
-      setRouletteMartingale(null);
-      const t = setTimeout(() => setLastRouletteAdviceStatus(null), 3000);
-      return () => clearTimeout(t);
-    } else {
-      const attemptsLeft = rouletteMartingale.attemptsLeft - 1;
-      if (attemptsLeft <= 0) {
-        setLastRouletteAdviceStatus("Falha (Martingale M2)");
-        setRouletteMartingale(null);
-        const t = setTimeout(() => setLastRouletteAdviceStatus(null), 3000);
-        return () => clearTimeout(t);
-      } else {
-        setRouletteMartingale({
-          ...rouletteMartingale,
-          attemptsLeft,
-          lastCheckedTs: lastRes.timestamp,
-        });
-      }
-    }
+    // ... código do Martingale removido ...
   }, [roulette, rouletteMartingale]);
+  */
 
   return (
     <div className="App" style={{ padding: 24 }}>
@@ -961,16 +577,6 @@ function App() {
                   ))}
                 </select>
                 <span style={{ opacity: 0.8 }}>sinais</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="checkbox"
-                  checked={blockAlertsWhileActive}
-                  onChange={() => setBlockAlertsWhileActive((v) => !v)}
-                />
-                <span style={{ opacity: 0.8 }}>
-                  Bloquear alertas com sinal ativo
-                </span>
               </label>
             </div>
             <div style={{ marginTop: 8, fontSize: 12, color: "#c0392b" }}>
@@ -1407,53 +1013,8 @@ function App() {
               </div>
             </div>
             <div style={{ marginTop: 8, fontSize: 12, color: "#c0392b" }}>
-              ⚠️ Os sinais são visuais e sugerem cor/coluna/dúzia/números com
-              base em padrões. Use por sua conta e risco.
+              ⚠️ Os sinais são visuais e sugerem números com base em padrões inteligentes. Use por sua conta e risco.
             </div>
-
-            {lastRouletteAdviceStatus ? (
-              <div style={{ marginTop: 8 }}>
-                {activeRouletteSignal ? (
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {activeRouletteSignal.type === "color" ? (
-                      <span
-                        style={colorSquareStyle(activeRouletteSignal.color)}
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          background: "#374151",
-                          color: "#fff",
-                          fontSize: 12,
-                        }}>
-                        {adviceLabelPt(activeRouletteSignal)}
-                      </span>
-                    )}
-                    <span style={{ opacity: 0.8, fontSize: 12 }}>
-                      chance {activeRouletteSignal.chance}%
-                    </span>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "2px 6px",
-                        borderRadius: 4,
-                        background: "#374151",
-                        color: "#fff",
-                        fontSize: 12,
-                      }}>
-                      aguardando resolução
-                    </span>
-                  </div>
-                ) : null}
-                <p style={{ marginTop: 4, opacity: 0.85 }}>
-                  {lastRouletteAdviceStatus}
-                </p>
-              </div>
-            ) : null}
 
             <div style={{ marginTop: 12 }}>
               <div style={{ fontWeight: 600 }}>Histórico</div>

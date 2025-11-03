@@ -1538,7 +1538,10 @@ export function detectBestRouletteSignal(results = [], options = {}) {
     type: getSignalType(bestPattern.confidence),
     patternKey: bestPattern.key,
     confidence: Number(bestPattern.confidence.toFixed(1)),
-    description: getFriendlyDescription(bestPattern.key, bestPattern.description),
+    description: getFriendlyDescription(
+      bestPattern.key,
+      bestPattern.description
+    ),
     targets,
     color: getSignalColor(bestPattern.confidence),
     suggestedBet: {
@@ -1664,12 +1667,16 @@ function getSignalColor(confidence) {
 function getFriendlyDescription(patternKey, originalDescription) {
   // Mapeamento de descrições amigáveis por tipo de padrão
   const friendlyDescriptions = {
-    neighbors_cluster: "🎯 Números vizinhos na roda estão quentes! Aposte nessa região.",
-    sector_voisins: "🔥 Região Vizinhos do Zero está ativa! Grande área de cobertura.",
+    neighbors_cluster:
+      "🎯 Números vizinhos na roda estão quentes! Aposte nessa região.",
+    sector_voisins:
+      "🔥 Região Vizinhos do Zero está ativa! Grande área de cobertura.",
     sector_tiers: "🎰 Região Terço do Cilindro está quente! Boa oportunidade.",
-    sector_orphelins: "✨ Região dos Órfãos está favorável! Números dispersos mas conectados.",
+    sector_orphelins:
+      "✨ Região dos Órfãos está favorável! Números dispersos mas conectados.",
     sector_jeu_zero: "🎲 Região Jogo Zero está em alta! Próximo ao zero.",
-    hot_numbers_trio: "🔥 Números quentes identificados! Eles estão caindo muito.",
+    hot_numbers_trio:
+      "🔥 Números quentes identificados! Eles estão caindo muito.",
     column_cold: "❄️ Uma coluna está fria demais! Hora dela voltar.",
     dozen_cold: "❄️ Uma dúzia não cai há muito tempo! Boa chance de sair.",
     finals_concentration: "🎯 Números com mesma terminação estão em sequência!",
