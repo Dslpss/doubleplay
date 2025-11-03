@@ -468,9 +468,15 @@ function App() {
       ].slice(0, 50)
     ); // Manter últimos 50
 
-    // Limpar sinal se passou o prazo de validade
-    if (newCount >= signalValidFor) {
-      console.log("[Signal] Sinal expirado após", newCount, "resultados");
+    // Limpar sinal IMEDIATAMENTE quando acerta OU quando expira
+    if (hit) {
+      console.log("[Signal] ✅ ACERTOU! Limpando sinal imediatamente.");
+      setBestRouletteSignal(null);
+      setResultsCountSinceSignal(0);
+      lastValidatedResultRef.current = null; // Reset para próximo sinal
+    } else if (newCount >= signalValidFor) {
+      // Se errou e passou o prazo de validade
+      console.log("[Signal] ❌ Sinal expirado após", newCount, "tentativas sem acerto");
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
       lastValidatedResultRef.current = null; // Reset para próximo sinal
