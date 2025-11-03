@@ -437,8 +437,8 @@ function App() {
     const newCount = resultsCountSinceSignal + 1;
     setResultsCountSinceSignal(newCount);
 
-    // Validar resultado
-    const hit = validateSignalOutcome(bestRouletteSignal, resultNum);
+    // Validar resultado (SEM registrar aprendizado ainda)
+    const hit = bestRouletteSignal.targets.includes(resultNum);
 
     console.log(
       `[Validation] Resultado #${newCount}: ${resultNum} - ${
@@ -464,6 +464,10 @@ function App() {
     // Limpar sinal IMEDIATAMENTE quando acerta OU quando expira
     if (hit) {
       console.log("[Signal] ✅ ACERTOU! Limpando sinal imediatamente.");
+      console.log(`[Learning] Registrando ACERTO para padrão ${bestRouletteSignal.patternKey} no giro ${newCount}`);
+
+      // ✅ REGISTRAR APRENDIZADO: Acertou em algum dos 3 giros
+      validateSignalOutcome(bestRouletteSignal, resultNum);
 
       // Adicionar ao histórico com TODAS as tentativas
       setRouletteSignalsHistory((prev) =>
@@ -494,6 +498,11 @@ function App() {
         newCount,
         "tentativas sem acerto"
       );
+      console.log(`[Learning] Registrando ERRO para padrão ${bestRouletteSignal.patternKey} - perdeu todas as 3 tentativas`);
+
+      // ❌ REGISTRAR APRENDIZADO: Perdeu todas as 3 tentativas
+      // Usar o resultado do último giro para registrar o erro
+      validateSignalOutcome(bestRouletteSignal, resultNum);
 
       // Adicionar ao histórico com TODAS as tentativas (perdeu todas)
       setRouletteSignalsHistory((prev) =>
