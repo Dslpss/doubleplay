@@ -13,29 +13,39 @@ export const PATTERN_PRIORITIES = {
   // APENAS PADRÕES POPULARES E COMPROVADOS DA ROLETA
   // Mantidos apenas os padrões baseados em física da roleta e estatística real
   // ============================================================================
-  
+
   // Padrões de SETORES CLÁSSICOS (mais confiáveis - baseados na roda física)
   sector_voisins: 10, // Voisins du Zero - 17 números ao redor do zero
   sector_tiers: 10, // Tiers du Cylindre - 12 números opostos ao zero
   sector_orphelins: 10, // Orphelins - 8 números "órfãos"
   neighbors_cluster: 9, // Agrupamento geográfico na roda
-  
+
   // Padrões de VIZINHANÇA (muito populares)
   neighbors_bet: 8, // Vizinhos diretos do último número
   neighbors_last: 8, // Região vizinha ao último
-  
+
   // Padrões de NÚMEROS QUENTES (estatística simples)
   hot_numbers: 8, // Números que estão caindo muito
-  
+
   // Padrões de COLUNAS e DÚZIAS (apostas populares)
   column_cold: 7, // Coluna que não cai há muito tempo
   dozen_cold: 7, // Dúzia ausente
   column_triple: 6, // Mesma coluna 3x seguidas
-  
+  dozen_triple: 6, // Mesma dúzia 3x seguidas
+
   // Padrões de CORES (mais simples e populares)
   red_black_balance: 6, // Desequilíbrio vermelho/preto
   color_streak: 5, // Sequência de mesma cor (5+ vezes)
-};/**
+  
+  // Padrões de APOSTAS EXTERNAS (Par/Ímpar, Alto/Baixo)
+  parity_imbalance: 5, // Desequilíbrio par/ímpar
+  highlow_imbalance: 5, // Desequilíbrio alto (19-36) / baixo (1-18)
+  even_streak: 5, // Sequência de pares
+  odd_streak: 5, // Sequência de ímpares
+  high_streak: 5, // Sequência de altos (19-36)
+  low_streak: 5, // Sequência de baixos (1-18)
+};
+/**
  * Configuração de sinais inteligentes
  */
 export const SIGNAL_CONFIG = {
@@ -1189,6 +1199,122 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     }
   }
 
+  // ============================================================================
+  // NOVOS PADRÕES: Apostas Externas Populares (Dúzias, Par/Ímpar, Alto/Baixo)
+  // ============================================================================
+
+  // 3) Sequência de mesma dúzia (3x seguidas - padrão popular)
+  const dozenSeq = last10
+    .slice(-3)
+    .map((r) => rouletteDozen(r.number))
+    .filter(Boolean);
+  if (dozenSeq.length === 3 && dozenSeq.every((d) => d === dozenSeq[0])) {
+    patterns.push({
+      key: "dozen_triple",
+      description: `Dúzia ${dozenSeq[0]} caiu 3x seguidas`,
+      risk: "medium",
+      targets: { type: "dozen", dozen: dozenSeq[0] },
+    });
+  }
+
+  // 4) Desequilíbrio Par/Ímpar (padrão muito popular em cassinos)
+  const last20Parity = analysisResults.slice(-20);
+  const evenCount = last20Parity.filter(
+    (r) => rouletteParity(r.number) === "even"
+  ).length;
+  const oddCount = last20Parity.filter(
+    (r) => rouletteParity(r.number) === "odd"
+  ).length;
+  const parityDiff = Math.abs(evenCount - oddCount);
+  
+  if (parityDiff >= 6) {
+    // Diferença de 6+ em 20 jogadas
+    const dominant = evenCount > oddCount ? "even" : "odd";
+    patterns.push({
+      key: "parity_imbalance",
+      description: `${
+        dominant === "even" ? "Pares" : "Ímpares"
+      } dominando: ${
+        dominant === "even" ? evenCount : oddCount
+      } vs ${dominant === "even" ? oddCount : evenCount}`,
+      risk: "low",
+      targets: { type: "parity", value: dominant },
+    });
+  }
+
+  // 5) Sequência de Pares (4+ pares seguidos)
+  const paritySeq = last10
+    .slice(-4)
+    .map((r) => rouletteParity(r.number))
+    .filter(Boolean);
+  if (paritySeq.length === 4 && paritySeq.every((p) => p === "even")) {
+    patterns.push({
+      key: "even_streak",
+      description: `Sequência de 4+ números PARES`,
+      risk: "medium",
+      targets: { type: "parity", value: "even" },
+    });
+  }
+
+  // 6) Sequência de Ímpares (4+ ímpares seguidos)
+  if (paritySeq.length === 4 && paritySeq.every((p) => p === "odd")) {
+    patterns.push({
+      key: "odd_streak",
+      description: `Sequência de 4+ números ÍMPARES`,
+      risk: "medium",
+      targets: { type: "parity", value: "odd" },
+    });
+  }
+
+  // 7) Desequilíbrio Alto/Baixo (1-18 vs 19-36 - padrão clássico)
+  const last20HighLow = analysisResults.slice(-20);
+  const highCount = last20HighLow.filter(
+    (r) => rouletteHighLow(r.number) === "high"
+  ).length;
+  const lowCount = last20HighLow.filter(
+    (r) => rouletteHighLow(r.number) === "low"
+  ).length;
+  const highLowDiff = Math.abs(highCount - lowCount);
+
+  if (highLowDiff >= 6) {
+    // Diferença de 6+ em 20 jogadas
+    const dominant = highCount > lowCount ? "high" : "low";
+    patterns.push({
+      key: "highlow_imbalance",
+      description: `${
+        dominant === "high" ? "Altos (19-36)" : "Baixos (1-18)"
+      } dominando: ${
+        dominant === "high" ? highCount : lowCount
+      } vs ${dominant === "high" ? lowCount : highCount}`,
+      risk: "low",
+      targets: { type: "highlow", value: dominant },
+    });
+  }
+
+  // 8) Sequência de Altos (4+ altos seguidos: 19-36)
+  const highLowSeq = last10
+    .slice(-4)
+    .map((r) => rouletteHighLow(r.number))
+    .filter(Boolean);
+  if (highLowSeq.length === 4 && highLowSeq.every((h) => h === "high")) {
+    patterns.push({
+      key: "high_streak",
+      description: `Sequência de 4+ números ALTOS (19-36)`,
+      risk: "medium",
+      targets: { type: "highlow", value: "high" },
+    });
+  }
+
+  // 9) Sequência de Baixos (4+ baixos seguidos: 1-18)
+  if (highLowSeq.length === 4 && highLowSeq.every((h) => h === "low")) {
+    patterns.push({
+      key: "low_streak",
+      description: `Sequência de 4+ números BAIXOS (1-18)`,
+      risk: "medium",
+      targets: { type: "highlow", value: "low" },
+    });
+  }
+
   // 3) Espelhados (12 -> 21)
   function isMirror(a, b) {
     try {
@@ -1739,36 +1865,38 @@ function getFriendlyDescription(patternKey, originalDescription) {
     // Setores clássicos da roleta (mais populares)
     sector_voisins:
       "🔥 Vizinhos do Zero! Aposta clássica em 17 números ao redor do zero.",
-    sector_tiers: 
-      "🎰 Terço do Cilindro! 12 números no lado oposto do zero.",
-    sector_orphelins:
-      "✨ Órfãos! 8 números não cobertos pelos outros setores.",
+    sector_tiers: "🎰 Terço do Cilindro! 12 números no lado oposto do zero.",
+    sector_orphelins: "✨ Órfãos! 8 números não cobertos pelos outros setores.",
     neighbors_cluster:
       "🎯 Cluster na roda! Números vizinhos estão caindo muito.",
 
     // Vizinhança (muito populares)
     neighbors_bet:
       "🎯 Vizinhos do último! Aposte nos números adjacentes na roda.",
-    neighbors_last: 
-      "🎯 Região quente! Vizinhos do último estão ativos.",
+    neighbors_last: "🎯 Região quente! Vizinhos do último estão ativos.",
 
     // Números quentes
-    hot_numbers: 
-      "🔥 Número quente! Este número está caindo muito.",
+    hot_numbers: "🔥 Número quente! Este número está caindo muito.",
 
     // Colunas e dúzias (apostas populares)
-    column_cold: 
-      "❄️ Coluna fria! Não cai há muito tempo, hora de voltar.",
-    dozen_cold: 
-      "❄️ Dúzia ausente! Está atrasada para sair.",
-    column_triple: 
-      "📊 Coluna em sequência! Mesma coluna caiu 3x seguidas.",
+    column_cold: "❄️ Coluna fria! Não cai há muito tempo, hora de voltar.",
+    dozen_cold: "❄️ Dúzia ausente! Está atrasada para sair.",
+    column_triple: "📊 Coluna em sequência! Mesma coluna caiu 3x seguidas.",
+    dozen_triple: "📊 Dúzia em sequência! Mesma dúzia caiu 3x seguidas.",
 
     // Cores (mais simples e populares)
-    red_black_balance: 
-      "🔴⚫ Cores desbalanceadas! Uma cor está dominando.",
-    color_streak: 
-      "🔴⚫ Sequência de cor! Mesma cor caindo muito.",
+    red_black_balance: "🔴⚫ Cores desbalanceadas! Uma cor está dominando.",
+    color_streak: "🔴⚫ Sequência de cor! Mesma cor caindo muito.",
+    
+    // Apostas externas - Par/Ímpar
+    parity_imbalance: "🔢 Par/Ímpar desbalanceado! Um dos dois está dominando.",
+    even_streak: "2️⃣4️⃣6️⃣ Sequência de PARES! Números pares caindo muito.",
+    odd_streak: "1️⃣3️⃣5️⃣ Sequência de ÍMPARES! Números ímpares caindo muito.",
+    
+    // Apostas externas - Alto/Baixo
+    highlow_imbalance: "⬆️⬇️ Alto/Baixo desbalanceado! Uma faixa está dominando.",
+    high_streak: "⬆️ Sequência de ALTOS (19-36)! Números altos caindo muito.",
+    low_streak: "⬇️ Sequência de BAIXOS (1-18)! Números baixos caindo muito.",
   };
 
   // Verificar se há mapeamento direto

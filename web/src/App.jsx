@@ -476,7 +476,11 @@ function App() {
       lastValidatedResultRef.current = null; // Reset para próximo sinal
     } else if (newCount >= signalValidFor) {
       // Se errou e passou o prazo de validade
-      console.log("[Signal] ❌ Sinal expirado após", newCount, "tentativas sem acerto");
+      console.log(
+        "[Signal] ❌ Sinal expirado após",
+        newCount,
+        "tentativas sem acerto"
+      );
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
       lastValidatedResultRef.current = null; // Reset para próximo sinal
@@ -1203,9 +1207,9 @@ function App() {
                 </div>
                 {/* Lista de Sinais com Scroll */}
                 <div
-                  style={{ 
-                    display: "flex", 
-                    flexDirection: "column", 
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
                     gap: 16,
                     maxHeight: "600px", // Altura máxima
                     overflowY: "auto", // Scroll vertical
@@ -1216,8 +1220,7 @@ function App() {
                     scrollbarColor: "#3498db #2a2a2a", // Firefox
                   }}
                   // Estilo da scrollbar webkit
-                  className="custom-scrollbar"
-                  >
+                  className="custom-scrollbar">
                   {rouletteSignalsHistory.slice(0, 20).map((h) => (
                     <div
                       key={h.id}
