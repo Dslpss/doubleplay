@@ -605,7 +605,12 @@ function App() {
     });
 
     if (signal) {
-      console.log('[Signal] Novo sinal emitido:', signal.patternKey, 'Confiança:', signal.confidence);
+      console.log(
+        "[Signal] Novo sinal emitido:",
+        signal.patternKey,
+        "Confiança:",
+        signal.confidence
+      );
       setBestRouletteSignal(signal);
       setSignalValidFor(signal.validFor);
       setResultsCountSinceSignal(0);
@@ -649,8 +654,16 @@ function App() {
     // Validar resultado
     const hit = validateSignalOutcome(bestRouletteSignal, resultNum);
 
-    console.log(`[Validation] Resultado #${newCount}: ${resultNum} - ${hit ? 'HIT ✅' : 'MISS ❌'}`);
-    console.log(`[Validation] Targets: [${bestRouletteSignal.targets.slice(0, 5).join(', ')}...]`);
+    console.log(
+      `[Validation] Resultado #${newCount}: ${resultNum} - ${
+        hit ? "HIT ✅" : "MISS ❌"
+      }`
+    );
+    console.log(
+      `[Validation] Targets: [${bestRouletteSignal.targets
+        .slice(0, 5)
+        .join(", ")}...]`
+    );
 
     // Atualizar UI com feedback
     if (hit) {
@@ -670,7 +683,7 @@ function App() {
 
     // Limpar sinal se passou o prazo de validade
     if (newCount >= signalValidFor) {
-      console.log('[Signal] Sinal expirado após', newCount, 'resultados');
+      console.log("[Signal] Sinal expirado após", newCount, "resultados");
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
       lastValidatedResultRef.current = null; // Reset para próximo sinal
@@ -1136,20 +1149,22 @@ function App() {
           }}>
           {/* Card de Auto Aposta */}
           <div
-            style={{ 
-              border: "1px solid #ccc", 
-              padding: 16, 
+            style={{
+              border: "1px solid #ccc",
+              padding: 16,
               borderRadius: 8,
               flex: "1 1 400px",
-              maxWidth: "600px"
+              maxWidth: "600px",
             }}>
             <h2>Auto aposta (sinal) - Roleta</h2>
-            
+
             {/* Card de Sinais Inteligente */}
             <div style={{ marginBottom: 16 }}>
               <RoulettePatternsPanel
                 signal={bestRouletteSignal}
-                nextSignalIn={bestRouletteSignal ? null : 3 - (roulette.length % 3)}
+                nextSignalIn={
+                  bestRouletteSignal ? null : 3 - (roulette.length % 3)
+                }
               />
             </div>
             <p>Estado: {autoRouletteEnabled ? "Ativa" : "Desativada"}</p>

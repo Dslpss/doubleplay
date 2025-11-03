@@ -11,8 +11,11 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
   if (!signal) {
     return (
       <div style={box}>
-        <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>Sinais de Roleta</h3>
-        <div style={{ textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
+        <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
+          Sinais de Roleta
+        </h3>
+        <div
+          style={{ textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
           <p style={{ fontSize: 16, marginBottom: 8 }}>
             🔍 Analisando padrões...
           </p>
@@ -101,7 +104,9 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
 
   return (
     <div style={box}>
-      <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>Sinais de Roleta</h3>
+      <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
+        Sinais de Roleta
+      </h3>
 
       <div style={getSignalStyles()}>
         {/* Header */}
@@ -128,7 +133,9 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
 
         {/* Targets */}
         <div>
-          <strong style={{ fontSize: 14, color: "#ecf0f1" }}>Apostar em:</strong>
+          <strong style={{ fontSize: 14, color: "#ecf0f1" }}>
+            Apostar em:
+          </strong>
           <div style={targetGridStyle}>
             {signal.targets.slice(0, 20).map((num) => (
               <ResultChip key={num} value={num} size="large" highlight />
