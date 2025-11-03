@@ -34,14 +34,15 @@ export const PATTERN_PRIORITIES = {
  * Configuração de sinais inteligentes
  */
 export const SIGNAL_CONFIG = {
-  MIN_CONFIDENCE: 7.0, // Confiança mínima para emitir sinal (0-10)
+  MIN_CONFIDENCE: 6.5, // Confiança mínima para emitir sinal (0-10)
   COOLDOWN_AFTER_WIN: 10000, // 10s após acerto
   COOLDOWN_AFTER_LOSS: 5000, // 5s após erro
   MIN_RESULTS_BETWEEN: 2, // Mínimo 2 resultados novos
   MAX_SIGNALS_PER_MINUTE: 6, // Máximo 6 sinais/minuto
   PATTERN_MIN_OCCURRENCE: 3, // Padrão precisa aparecer 3x mínimo
-  LEARNING_THRESHOLD: 5, // Tentativas mínimas para aprender
-  MIN_ACCURACY: 55, // Acurácia mínima % para continuar emitindo
+  LEARNING_THRESHOLD: 10, // Tentativas mínimas para aprender (dá mais chances)
+  MIN_ACCURACY: 50, // Acurácia mínima % para continuar emitindo
+  RESET_THRESHOLD: 20, // Após 20 tentativas, dá segunda chance
 };
 
 /**
@@ -129,6 +130,14 @@ class PatternLearner {
 
     // Fase de aprendizado (primeiras tentativas)
     if (attempts < SIGNAL_CONFIG.LEARNING_THRESHOLD) {
+      return baseConfidence >= SIGNAL_CONFIG.MIN_CONFIDENCE;
+    }
+
+    // Segunda chance: após muitas tentativas, reseta bloqueio
+    if (attempts >= SIGNAL_CONFIG.RESET_THRESHOLD && accuracy < SIGNAL_CONFIG.MIN_ACCURACY) {
+      console.log(`[PatternLearner] ${patternKey}: Segunda chance após ${attempts} tentativas (acc: ${accuracy.toFixed(1)}%)`);
+      // Reset stats para dar nova oportunidade
+      this.patternStats[patternKey] = { hits: 0, misses: 0 };
       return baseConfidence >= SIGNAL_CONFIG.MIN_CONFIDENCE;
     }
 
@@ -1453,15 +1462,21 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
 export function detectBestRouletteSignal(results = [], options = {}) {
   // Verificar se pode emitir sinal
   if (!patternLearner.canEmitSignal()) {
+    console.log("[PatternLearner] Limite de sinais por minuto atingido");
     return null;
   }
 
   // Detectar todos os padrões possíveis
   const allPatterns = detectRouletteAdvancedPatterns(results, options);
 
+  console.log(`[PatternDetection] ${allPatterns.length} padrões detectados:`, allPatterns.map(p => p.key));
+
   if (allPatterns.length === 0) {
+    console.log("[PatternDetection] Nenhum padrão detectado pela análise");
     return null;
   }
+
+  console.log(`[PatternScoring] Calculando confiança para ${allPatterns.length} padrões...`);
 
   // Pontuar cada padrão
   const scoredPatterns = allPatterns.map((pattern) => {
@@ -1497,12 +1512,19 @@ export function detectBestRouletteSignal(results = [], options = {}) {
     };
   });
 
+  console.log(`[PatternScoring] Padrões pontuados:`, 
+    scoredPatterns.map(p => `${p.key}(conf:${p.confidence.toFixed(1)}, acc:${p.accuracy ? p.accuracy.toFixed(1) : 'N/A'}%)`));
+
   // Filtrar padrões que podem ser emitidos
   const validPatterns = scoredPatterns.filter((p) =>
     patternLearner.shouldEmitPattern(p.key, p.confidence)
   );
 
+  console.log(`[PatternFiltering] ${validPatterns.length} padrões válidos após filtro:`, 
+    validPatterns.map(p => `${p.key}(${p.confidence.toFixed(1)})`));
+
   if (validPatterns.length === 0) {
+    console.log("[PatternFiltering] Nenhum padrão passou no filtro de confiança");
     return null;
   }
 
@@ -1511,8 +1533,11 @@ export function detectBestRouletteSignal(results = [], options = {}) {
     current.confidence > best.confidence ? current : best
   );
 
+  console.log(`[PatternSelection] Melhor padrão: ${bestPattern.key} com confiança ${bestPattern.confidence.toFixed(1)}`);
+
   // Verificar se atinge confiança mínima
   if (bestPattern.confidence < SIGNAL_CONFIG.MIN_CONFIDENCE) {
+    console.log(`[PatternSelection] Confiança ${bestPattern.confidence.toFixed(1)} < mínimo ${SIGNAL_CONFIG.MIN_CONFIDENCE}`);
     return null;
   }
 

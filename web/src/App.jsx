@@ -353,6 +353,9 @@ function App() {
 
     const analysisResults = [...roulette].reverse();
 
+    console.log("[Signal Detection] Analisando", analysisResults.length, "resultados da roleta");
+    console.log("[Signal Detection] Últimos 5:", analysisResults.slice(-5).map(r => r.number));
+
     // Detectar melhor sinal
     const signal = detectBestRouletteSignal(analysisResults, {
       aggressive: aggressiveMode,
@@ -366,6 +369,8 @@ function App() {
         maxHistorical,
       },
     });
+
+    console.log("[Signal Detection] Resultado:", signal ? `Sinal encontrado (${signal.patternKey})` : "Nenhum sinal forte");
 
     if (signal) {
       console.log(
