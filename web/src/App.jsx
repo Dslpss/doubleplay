@@ -49,6 +49,7 @@ function App() {
   const [signalValidFor, setSignalValidFor] = useState(3);
   const [resultsCountSinceSignal, setResultsCountSinceSignal] = useState(0);
   const lastValidatedResultRef = useRef(null); // Rastrear último resultado validado
+  const [rouletteSignalsHistory, setRouletteSignalsHistory] = useState([]); // Histórico de sinais da roleta
 
   const [aggressiveMode, setAggressiveMode] = useState(true);
 
@@ -425,6 +426,22 @@ function App() {
         .slice(0, 5)
         .join(", ")}...]`
     );
+
+    // Adicionar ao histórico
+    setRouletteSignalsHistory((prev) => [
+      {
+        id: resultId,
+        patternKey: bestRouletteSignal.patternKey,
+        description: bestRouletteSignal.description,
+        confidence: bestRouletteSignal.confidence,
+        targets: bestRouletteSignal.targets,
+        resultNumber: resultNum,
+        hit,
+        timestamp: Date.now(),
+        validationCount: newCount,
+      },
+      ...prev,
+    ].slice(0, 50)); // Manter últimos 50
 
     // Limpar sinal se passou o prazo de validade
     if (newCount >= signalValidFor) {
@@ -1039,6 +1056,118 @@ function App() {
       {route === "#/roulette" && (
         <div style={{ marginTop: 24 }}>
           <RouletteEmbedPanel />
+        </div>
+      )}
+
+      {/* Card de Histórico de Sinais - Final da Página */}
+      {route === "#/roulette" && (
+        <div style={{ marginTop: 24 }}>
+          <div
+            style={{
+              border: "1px solid #3a3a3a",
+              padding: 16,
+              borderRadius: 8,
+              backgroundColor: "#1f1f1f",
+            }}>
+            <h2 style={{ marginTop: 0, color: "#ecf0f1" }}>Histórico de Sinais</h2>
+            {rouletteSignalsHistory.length === 0 ? (
+              <p style={{ opacity: 0.7, textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
+                Nenhum sinal validado ainda. Os sinais aparecerão aqui após serem testados.
+              </p>
+            ) : (
+              <div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 12, fontSize: 14, flexWrap: "wrap" }}>
+                  <div style={{ fontWeight: 600, color: "#ecf0f1" }}>
+                    Total: {rouletteSignalsHistory.length} sinais
+                  </div>
+                  <div style={{ color: "#2ecc71", fontWeight: 600 }}>
+                    ✅ {rouletteSignalsHistory.filter(h => h.hit).length} acertos
+                  </div>
+                  <div style={{ color: "#e74c3c", fontWeight: 600 }}>
+                    ❌ {rouletteSignalsHistory.filter(h => !h.hit).length} erros
+                  </div>
+                  <div style={{ fontWeight: 600, marginLeft: "auto", color: "#ecf0f1" }}>
+                    Taxa: {rouletteSignalsHistory.length > 0 
+                      ? ((rouletteSignalsHistory.filter(h => h.hit).length / rouletteSignalsHistory.length) * 100).toFixed(1)
+                      : 0}%
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {rouletteSignalsHistory.slice(0, 20).map((h) => (
+                    <div
+                      key={h.id}
+                      style={{
+                        padding: 12,
+                        borderRadius: 8,
+                        backgroundColor: "#2a2a2a",
+                        border: `2px solid ${h.hit ? "#2ecc71" : "#e74c3c"}`,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 20 }}>{h.hit ? "✅" : "❌"}</span>
+                        <span style={{ fontWeight: 600, fontSize: 14, color: "#ecf0f1" }}>{h.description}</span>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "2px 8px",
+                            borderRadius: 12,
+                            backgroundColor: h.hit ? "#2ecc71" : "#e74c3c",
+                            color: "#fff",
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}>
+                          {h.hit ? "ACERTO" : "ERRO"}
+                        </span>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "2px 8px",
+                            borderRadius: 12,
+                            backgroundColor: "#3498db",
+                            color: "#fff",
+                            fontSize: 12,
+                          }}>
+                          Confiança: {h.confidence}/10
+                        </span>
+                        <span style={{ marginLeft: "auto", fontSize: 12, opacity: 0.7, color: "#c0c0c0" }}>
+                          {new Date(h.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, display: "flex", gap: 8, alignItems: "center", color: "#c0c0c0" }}>
+                        <span style={{ opacity: 0.7 }}>Resultado:</span>
+                        <ResultChip value={h.resultNumber} size="small" />
+                        <span style={{ opacity: 0.7 }}>|</span>
+                        <span style={{ opacity: 0.7 }}>Targets:</span>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {h.targets.slice(0, 10).map((num) => (
+                            <ResultChip 
+                              key={num} 
+                              value={num} 
+                              size="small"
+                              highlight={num === h.resultNumber}
+                            />
+                          ))}
+                          {h.targets.length > 10 && (
+                            <span style={{ 
+                              padding: "4px 8px", 
+                              backgroundColor: "#3a3a3a", 
+                              borderRadius: 4,
+                              fontSize: 11,
+                              color: "#c0c0c0",
+                            }}>
+                              +{h.targets.length - 10}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
