@@ -761,16 +761,6 @@ function App() {
               maxWidth: "600px",
             }}>
             <h2>Auto aposta (sinal) - Roleta</h2>
-
-            {/* Card de Sinais Inteligente */}
-            <div style={{ marginBottom: 16 }}>
-              <RoulettePatternsPanel
-                signal={bestRouletteSignal}
-                nextSignalIn={
-                  bestRouletteSignal ? null : 3 - (roulette.length % 3)
-                }
-              />
-            </div>
             <p>Estado: {autoRouletteEnabled ? "Ativa" : "Desativada"}</p>
             <div
               style={{
@@ -997,6 +987,16 @@ function App() {
             </div>
             <div style={{ marginTop: 8, fontSize: 12, color: "#c0392b" }}>
               ⚠️ Os sinais são visuais e sugerem números com base em padrões inteligentes. Use por sua conta e risco.
+            </div>
+
+            {/* Card de Sinais Inteligente */}
+            <div style={{ marginTop: 16 }}>
+              <RoulettePatternsPanel
+                signal={bestRouletteSignal}
+                nextSignalIn={
+                  bestRouletteSignal ? null : 3 - (roulette.length % 3)
+                }
+              />
             </div>
           </div>
         </div>
