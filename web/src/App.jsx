@@ -9,7 +9,6 @@ import {
   detectSimplePatterns,
   summarizeRoulette,
   computeRouletteStreaks,
-  detectRoulettePatterns,
 } from "./services/parser";
 import ResultChip from "./components/ResultChip";
 import StatsPanel from "./components/StatsPanel";
@@ -18,6 +17,8 @@ import RouletteStatsPanel from "./components/RouletteStatsPanel";
 import RoulettePatternsPanel from "./components/RoulettePatternsPanel";
 import {
   detectRouletteAdvancedPatterns,
+  detectBestRouletteSignal,
+  validateSignalOutcome,
   chooseRouletteBetSignal,
   computeRouletteSignalChance,
   adviceLabelPt,
@@ -61,6 +62,11 @@ function App() {
   const [lastRouletteAdviceStatus, setLastRouletteAdviceStatus] =
     useState(null);
   const [blockAlertsWhileActive, setBlockAlertsWhileActive] = useState(true);
+  
+  // Novo sistema de sinais inteligente
+  const [bestRouletteSignal, setBestRouletteSignal] = useState(null);
+  const [signalValidFor, setSignalValidFor] = useState(3);
+  const [resultsCountSinceSignal, setResultsCountSinceSignal] = useState(0);
   const [enabledPatterns, _setEnabledPatterns] = useState({
     column_triple: true,
     dozen_imbalance: true,
@@ -260,7 +266,6 @@ function App() {
   const patterns = detectSimplePatterns(results);
   const rouletteStats = summarizeRoulette(roulette);
   const rouletteStreaks = computeRouletteStreaks(roulette);
-  const roulettePatterns = detectRoulettePatterns(roulette);
 
   // limitar exibição a 4 pilhas (linhas), 16 resultados por linha
   const ROWS = 4;
@@ -569,6 +574,83 @@ function App() {
     rouletteMartingale,
     activeRouletteSignal, // Adicionado para corrigir o erro
   ]);
+
+  // ============================================================================
+  // Sistema Inteligente de Sinais - detecta APENAS O MELHOR sinal
+  // ============================================================================
+  useEffect(() => {
+    if (!roulette || roulette.length < 3) return;
+    
+    const analysisResults = [...roulette].reverse();
+    
+    // Detectar melhor sinal
+    const signal = detectBestRouletteSignal(analysisResults, {
+      aggressive: aggressiveMode,
+      resetOptions: {
+        strategy: resetStrategy,
+        windowSize,
+        changeThreshold,
+        maxLookback,
+        recentWeight,
+        maxRecent,
+        maxHistorical,
+      },
+    });
+    
+    if (signal) {
+      setBestRouletteSignal(signal);
+      setSignalValidFor(signal.validFor);
+      setResultsCountSinceSignal(0);
+    }
+  }, [
+    roulette,
+    aggressiveMode,
+    resetStrategy,
+    windowSize,
+    changeThreshold,
+    maxLookback,
+    recentWeight,
+    maxRecent,
+    maxHistorical,
+  ]);
+
+  // Validação de sinais - verifica se acertou ou errou
+  useEffect(() => {
+    if (!bestRouletteSignal || !roulette || roulette.length === 0) return;
+    
+    const latestResult = roulette[0];
+    const resultNum = Number(latestResult.number);
+    
+    // Verificar se é um resultado novo (posterior ao sinal)
+    if (latestResult.timestamp <= bestRouletteSignal.timestamp) return;
+    
+    // Incrementar contador de resultados desde o sinal
+    const newCount = resultsCountSinceSignal + 1;
+    setResultsCountSinceSignal(newCount);
+    
+    // Validar resultado
+    const hit = validateSignalOutcome(bestRouletteSignal, resultNum);
+    
+    // Atualizar UI com feedback
+    if (hit) {
+      setLastRouletteAdviceStatus(`✅ Acerto! Número ${resultNum} estava nos targets`);
+    } else {
+      setLastRouletteAdviceStatus(`❌ Erro. Número ${resultNum} não estava nos targets`);
+    }
+    
+    // Limpar status após 5 segundos
+    const timeout = setTimeout(() => {
+      setLastRouletteAdviceStatus(null);
+    }, 5000);
+    
+    // Limpar sinal se passou o prazo de validade
+    if (newCount >= signalValidFor) {
+      setBestRouletteSignal(null);
+      setResultsCountSinceSignal(0);
+    }
+    
+    return () => clearTimeout(timeout);
+  }, [roulette, bestRouletteSignal, resultsCountSinceSignal, signalValidFor]);
 
   useEffect(() => {
     if (!activeRouletteSignal) return;
@@ -1044,7 +1126,10 @@ function App() {
           display: route === "#/roulette" ? "block" : "none",
         }}
       >
-        <RoulettePatternsPanel patterns={roulettePatterns} />
+        <RoulettePatternsPanel 
+          signal={bestRouletteSignal} 
+          nextSignalIn={bestRouletteSignal ? null : (3 - (roulette.length % 3))}
+        />
       </div>
 
       <div
