@@ -464,7 +464,7 @@ function App() {
     // Limpar sinal IMEDIATAMENTE quando acerta OU quando expira
     if (hit) {
       console.log("[Signal] ✅ ACERTOU! Limpando sinal imediatamente.");
-      
+
       // Adicionar ao histórico com TODAS as tentativas
       setRouletteSignalsHistory((prev) =>
         [
@@ -518,7 +518,13 @@ function App() {
       setCurrentSignalAttempts([]); // Limpar tentativas
       lastValidatedResultRef.current = null; // Reset para próximo sinal
     }
-  }, [roulette, bestRouletteSignal, resultsCountSinceSignal, signalValidFor, currentSignalAttempts]);
+  }, [
+    roulette,
+    bestRouletteSignal,
+    resultsCountSinceSignal,
+    signalValidFor,
+    currentSignalAttempts,
+  ]);
 
   // SISTEMA ANTIGO DE VALIDAÇÃO - DESABILITADO
   // Agora usando apenas o sistema inteligente de validação
@@ -1083,6 +1089,7 @@ function App() {
                   bestRouletteSignal ? null : 3 - (roulette.length % 3)
                 }
                 noSignalMessage={noSignalMessage}
+                lastNumber={roulette.length > 0 ? roulette[0].number : null}
               />
             </div>
           </div>
@@ -1171,11 +1178,16 @@ function App() {
                   color: "#c0c0c0",
                   lineHeight: 1.6,
                 }}>
-                Cada sinal possui <strong style={{ color: "#ffd700" }}>3 tentativas</strong> de acerto:
+                Cada sinal possui{" "}
+                <strong style={{ color: "#ffd700" }}>3 tentativas</strong> de
+                acerto:
                 <div style={{ marginTop: 6, marginLeft: 12 }}>
-                  • <strong style={{ color: "#3498db" }}>Giro 1</strong>: Aposta Principal<br />
-                  • <strong style={{ color: "#9b59b6" }}>Giro 2</strong>: Gale 1 (recuperação)<br />
-                  • <strong style={{ color: "#e67e22" }}>Giro 3</strong>: Gale 2 (última chance)
+                  • <strong style={{ color: "#3498db" }}>Giro 1</strong>: Aposta
+                  Principal
+                  <br />• <strong style={{ color: "#9b59b6" }}>Giro 2</strong>:
+                  Gale 1 (recuperação)
+                  <br />• <strong style={{ color: "#e67e22" }}>Giro 3</strong>:
+                  Gale 2 (última chance)
                 </div>
               </div>
             </div>
@@ -1424,10 +1436,9 @@ function App() {
                                     alignItems: "center",
                                     gap: 10,
                                     padding: 10,
-                                    backgroundColor:
-                                      attempt.hit
-                                        ? "rgba(46, 204, 113, 0.15)"
-                                        : "rgba(231, 76, 60, 0.1)",
+                                    backgroundColor: attempt.hit
+                                      ? "rgba(46, 204, 113, 0.15)"
+                                      : "rgba(231, 76, 60, 0.1)",
                                     borderRadius: 8,
                                     border: `2px solid ${
                                       attempt.hit ? "#2ecc71" : "#e74c3c"
@@ -1437,7 +1448,9 @@ function App() {
                                     style={{
                                       fontSize: 12,
                                       fontWeight: 600,
-                                      color: attempt.hit ? "#2ecc71" : "#e74c3c",
+                                      color: attempt.hit
+                                        ? "#2ecc71"
+                                        : "#e74c3c",
                                       minWidth: 140,
                                     }}>
                                     {attemptLabels[idx]}
@@ -1462,53 +1475,56 @@ function App() {
                         )}
 
                         {/* Fallback se não houver attempts (sinais antigos) */}
-                        {(!h.attempts || h.attempts.length === 0) && h.resultNumber !== undefined && (
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                            }}>
-                            <span
+                        {(!h.attempts || h.attempts.length === 0) &&
+                          h.resultNumber !== undefined && (
+                            <div
                               style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#ffd700",
-                                minWidth: 70,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
                               }}>
-                              🎯 Resultado:
-                            </span>
-                            {(() => {
-                              const redNumbers = [
-                                1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27,
-                                30, 32, 34, 36,
-                              ];
-                              const resColor =
-                                h.resultNumber === 0
-                                  ? "green"
-                                  : redNumbers.includes(h.resultNumber)
-                                  ? "red"
-                                  : "black";
-                              return (
-                                <div
-                                  style={{
-                                    padding: 4,
-                                    backgroundColor: h.hit
-                                      ? "rgba(46, 204, 113, 0.2)"
-                                      : "transparent",
-                                    borderRadius: 8,
-                                    border: h.hit ? "2px solid #2ecc71" : "none",
-                                  }}>
-                                  <ResultChip
-                                    number={h.resultNumber}
-                                    color={resColor}
-                                    compact
-                                  />
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: "#ffd700",
+                                  minWidth: 70,
+                                }}>
+                                🎯 Resultado:
+                              </span>
+                              {(() => {
+                                const redNumbers = [
+                                  1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25,
+                                  27, 30, 32, 34, 36,
+                                ];
+                                const resColor =
+                                  h.resultNumber === 0
+                                    ? "green"
+                                    : redNumbers.includes(h.resultNumber)
+                                    ? "red"
+                                    : "black";
+                                return (
+                                  <div
+                                    style={{
+                                      padding: 4,
+                                      backgroundColor: h.hit
+                                        ? "rgba(46, 204, 113, 0.2)"
+                                        : "transparent",
+                                      borderRadius: 8,
+                                      border: h.hit
+                                        ? "2px solid #2ecc71"
+                                        : "none",
+                                    }}>
+                                    <ResultChip
+                                      number={h.resultNumber}
+                                      color={resColor}
+                                      compact
+                                    />
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
 
                         {/* Targets */}
                         <div

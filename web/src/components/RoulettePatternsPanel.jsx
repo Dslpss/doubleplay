@@ -27,6 +27,7 @@ export default function RoulettePatternsPanel({
   signal,
   nextSignalIn = null,
   noSignalMessage = null,
+  lastNumber = null, // Último número que saiu
 }) {
   const box = {
     border: "1px solid #3a3a3a",
@@ -175,6 +176,51 @@ export default function RoulettePatternsPanel({
         <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>
           {signal.description}
         </h4>
+
+        {/* Referência ao jogador - Aposte após número X */}
+        {lastNumber !== null && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: 12,
+              backgroundColor: "#2a2a2a",
+              borderRadius: 8,
+              border: "2px solid #ffd700",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}>
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: "#ffd700",
+              }}>
+              🎯 Aposte após o número:
+            </span>
+            {(() => {
+              const redNumbers = [
+                1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34,
+                36,
+              ];
+              const color =
+                lastNumber === 0
+                  ? "green"
+                  : redNumbers.includes(lastNumber)
+                  ? "red"
+                  : "black";
+              return <ResultChip number={lastNumber} color={color} />;
+            })()}
+            <span
+              style={{
+                fontSize: 13,
+                color: "#c0c0c0",
+                fontStyle: "italic",
+              }}>
+              (faça sua aposta agora!)
+            </span>
+          </div>
+        )}
 
         {/* Bet Type Label */}
         {signal.suggestedBet.type &&
