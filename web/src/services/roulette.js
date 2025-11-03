@@ -1544,7 +1544,11 @@ export function detectBestRouletteSignal(results = [], options = {}) {
   // Extrair números específicos para apostar
   const targets = extractTargetNumbers(bestPattern.targets);
 
+  console.log(`[PatternSelection] Targets extraídos:`, targets);
+
   if (targets.length === 0) {
+    console.log(`[PatternSelection] BLOQUEADO: Nenhum número alvo extraído para ${bestPattern.key}`);
+    console.log(`[PatternSelection] bestPattern.targets:`, bestPattern.targets);
     return null;
   }
 
@@ -1645,7 +1649,10 @@ function extractTargetNumbers(targets) {
     case "clusters":
       // Pegar números dos clusters
       if (Array.isArray(targets.clusters)) {
-        return targets.clusters.flatMap((c) => c.numbers || []);
+        return targets.clusters.flatMap((c) => {
+          // Suporta tanto array simples [1,2,3] quanto objeto {numbers: [1,2,3]}
+          return Array.isArray(c) ? c : (c.numbers || []);
+        });
       }
       break;
 
