@@ -1538,7 +1538,7 @@ export function detectBestRouletteSignal(results = [], options = {}) {
     type: getSignalType(bestPattern.confidence),
     patternKey: bestPattern.key,
     confidence: Number(bestPattern.confidence.toFixed(1)),
-    description: bestPattern.description,
+    description: getFriendlyDescription(bestPattern.key, bestPattern.description),
     targets,
     color: getSignalColor(bestPattern.confidence),
     suggestedBet: {
@@ -1656,6 +1656,60 @@ function getSignalColor(confidence) {
   if (confidence >= 7.5) return "#90ee90"; // Verde claro
   if (confidence >= 7.0) return "#ffff00"; // Amarelo
   return "#ffa500"; // Laranja
+}
+
+/**
+ * Converte descrições técnicas em linguagem amigável para usuários
+ */
+function getFriendlyDescription(patternKey, originalDescription) {
+  // Mapeamento de descrições amigáveis por tipo de padrão
+  const friendlyDescriptions = {
+    neighbors_cluster: "🎯 Números vizinhos na roda estão quentes! Aposte nessa região.",
+    sector_voisins: "🔥 Região Vizinhos do Zero está ativa! Grande área de cobertura.",
+    sector_tiers: "🎰 Região Terço do Cilindro está quente! Boa oportunidade.",
+    sector_orphelins: "✨ Região dos Órfãos está favorável! Números dispersos mas conectados.",
+    sector_jeu_zero: "🎲 Região Jogo Zero está em alta! Próximo ao zero.",
+    hot_numbers_trio: "🔥 Números quentes identificados! Eles estão caindo muito.",
+    column_cold: "❄️ Uma coluna está fria demais! Hora dela voltar.",
+    dozen_cold: "❄️ Uma dúzia não cai há muito tempo! Boa chance de sair.",
+    finals_concentration: "🎯 Números com mesma terminação estão em sequência!",
+    neighbors_last: "🎯 Vizinhos do último número! Região quente na roda.",
+    pivot_number: "⭐ Número pivô detectado! Ele está caindo frequentemente.",
+    wheel_cluster_drift: "🌀 Roleta está favorecendo uma região específica!",
+    column_triple: "📊 Coluna em sequência! Padrão raro e forte.",
+    column_heavy: "📊 Uma coluna está dominando! Continue nela.",
+    dozen_imbalance: "📊 Dúzia desbalanceada! Compensação esperada.",
+    highlow_streak: "⬆️⬇️ Números altos/baixos em sequência! Padrão claro.",
+    parity_streak: "🔢 Par/Ímpar em padrão! Sequência detectada.",
+    red_black_balance: "🔴⚫ Cores desbalanceadas! Uma está dominando.",
+    zero_proximity: "🟢 Zero saiu recentemente! Atenção aos vizinhos.",
+    dormant_numbers: "💤 Números dormentes! Hora de acordarem.",
+    repeated_numbers: "🔄 Números repetindo! Padrão de repetição ativo.",
+    color_streak: "🔴⚫ Sequência de cor forte! Continue na tendência.",
+    color_alternation: "🔴⚫ Cores alternando perfeitamente! Padrão claro.",
+  };
+
+  // Verificar se há mapeamento direto
+  if (friendlyDescriptions[patternKey]) {
+    return friendlyDescriptions[patternKey];
+  }
+
+  // Padrões com números finais (final_digit_X)
+  if (patternKey.startsWith("final_digit_")) {
+    const digit = patternKey.split("_")[2];
+    return `🎯 Números terminados em ${digit} estão quentes! Aposte neles.`;
+  }
+
+  // Se não houver mapeamento, tentar simplificar a descrição original
+  return originalDescription
+    .replace("Cluster na roda detectado", "Região da roda está quente")
+    .replace("(setor", "- área")
+    .replace("frequente nos últimos", "está ativa nos últimos")
+    .replace("detectado", "identificado")
+    .replace("ausente", "não aparece há muito tempo")
+    .replace("mais frequente", "está dominando")
+    .replace("Sequência de", "Padrão forte em")
+    .replace("Desequilíbrio recente favorece", "Tendência forte para");
 }
 
 /**
