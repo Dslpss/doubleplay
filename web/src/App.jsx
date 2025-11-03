@@ -1085,101 +1085,187 @@ function App() {
           <div
             style={{
               border: "1px solid #3a3a3a",
-              padding: 16,
-              borderRadius: 8,
+              padding: 20,
+              borderRadius: 12,
               backgroundColor: "#1f1f1f",
             }}>
-            <h2 style={{ marginTop: 0, color: "#ecf0f1" }}>Histórico de Sinais</h2>
+            <h2 style={{ marginTop: 0, marginBottom: 20, color: "#ecf0f1", fontSize: 20 }}>
+              📊 Histórico de Sinais
+            </h2>
             {rouletteSignalsHistory.length === 0 ? (
-              <p style={{ opacity: 0.7, textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
+              <p style={{ opacity: 0.7, textAlign: "center", padding: "30px 0", color: "#c0c0c0", fontSize: 14 }}>
                 Nenhum sinal validado ainda. Os sinais aparecerão aqui após serem testados.
               </p>
             ) : (
               <div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 12, fontSize: 14, flexWrap: "wrap" }}>
-                  <div style={{ fontWeight: 600, color: "#ecf0f1" }}>
-                    Total: {rouletteSignalsHistory.length} sinais
+                {/* Estatísticas */}
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", 
+                  gap: 12, 
+                  marginBottom: 20,
+                  padding: 16,
+                  backgroundColor: "#2a2a2a",
+                  borderRadius: 8,
+                }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#3498db" }}>
+                      {rouletteSignalsHistory.length}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>Total de sinais</div>
                   </div>
-                  <div style={{ color: "#2ecc71", fontWeight: 600 }}>
-                    ✅ {rouletteSignalsHistory.filter(h => h.hit).length} acertos
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#2ecc71" }}>
+                      {rouletteSignalsHistory.filter(h => h.hit).length}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>✅ Acertos</div>
                   </div>
-                  <div style={{ color: "#e74c3c", fontWeight: 600 }}>
-                    ❌ {rouletteSignalsHistory.filter(h => !h.hit).length} erros
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#e74c3c" }}>
+                      {rouletteSignalsHistory.filter(h => !h.hit).length}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>❌ Erros</div>
                   </div>
-                  <div style={{ fontWeight: 600, marginLeft: "auto", color: "#ecf0f1" }}>
-                    Taxa: {rouletteSignalsHistory.length > 0 
-                      ? ((rouletteSignalsHistory.filter(h => h.hit).length / rouletteSignalsHistory.length) * 100).toFixed(1)
-                      : 0}%
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#ffd700" }}>
+                      {rouletteSignalsHistory.length > 0 
+                        ? ((rouletteSignalsHistory.filter(h => h.hit).length / rouletteSignalsHistory.length) * 100).toFixed(1)
+                        : 0}%
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>Taxa de acerto</div>
                   </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Lista de Sinais */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {rouletteSignalsHistory.slice(0, 20).map((h) => (
                     <div
                       key={h.id}
                       style={{
-                        padding: 12,
-                        borderRadius: 8,
+                        padding: 16,
+                        borderRadius: 10,
                         backgroundColor: "#2a2a2a",
                         border: `2px solid ${h.hit ? "#2ecc71" : "#e74c3c"}`,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
+                        boxShadow: h.hit ? "0 0 10px rgba(46, 204, 113, 0.2)" : "0 0 10px rgba(231, 76, 60, 0.2)",
+                        transition: "all 0.2s ease",
                       }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 20 }}>{h.hit ? "✅" : "❌"}</span>
-                        <span style={{ fontWeight: 600, fontSize: 14, color: "#ecf0f1" }}>{h.description}</span>
+                      {/* Header */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 24 }}>{h.hit ? "✅" : "❌"}</span>
+                        <span style={{ fontWeight: 600, fontSize: 15, color: "#ecf0f1", flex: 1 }}>
+                          {h.description}
+                        </span>
                         <span
                           style={{
-                            display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: 12,
+                            padding: "4px 10px",
+                            borderRadius: 16,
                             backgroundColor: h.hit ? "#2ecc71" : "#e74c3c",
                             color: "#fff",
-                            fontSize: 12,
-                            fontWeight: 600,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: 0.5,
                           }}>
                           {h.hit ? "ACERTO" : "ERRO"}
                         </span>
                         <span
                           style={{
-                            display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: 12,
+                            padding: "4px 10px",
+                            borderRadius: 16,
                             backgroundColor: "#3498db",
                             color: "#fff",
-                            fontSize: 12,
+                            fontSize: 11,
+                            fontWeight: 600,
                           }}>
-                          Confiança: {h.confidence}/10
+                          {h.confidence}/10
                         </span>
-                        <span style={{ marginLeft: "auto", fontSize: 12, opacity: 0.7, color: "#c0c0c0" }}>
+                        <span style={{ fontSize: 11, opacity: 0.6, color: "#c0c0c0" }}>
                           {new Date(h.timestamp).toLocaleTimeString()}
                         </span>
                       </div>
-                      <div style={{ fontSize: 12, display: "flex", gap: 8, alignItems: "center", color: "#c0c0c0" }}>
-                        <span style={{ opacity: 0.7 }}>Resultado:</span>
-                        <ResultChip value={h.resultNumber} size="small" />
-                        <span style={{ opacity: 0.7 }}>|</span>
-                        <span style={{ opacity: 0.7 }}>Targets:</span>
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                          {h.targets.slice(0, 10).map((num) => (
-                            <ResultChip 
-                              key={num} 
-                              value={num} 
-                              size="small"
-                              highlight={num === h.resultNumber}
-                            />
-                          ))}
-                          {h.targets.length > 10 && (
-                            <span style={{ 
-                              padding: "4px 8px", 
-                              backgroundColor: "#3a3a3a", 
-                              borderRadius: 4,
-                              fontSize: 11,
-                              color: "#c0c0c0",
-                            }}>
-                              +{h.targets.length - 10}
-                            </span>
-                          )}
+
+                      {/* Resultado e Targets */}
+                      <div style={{ 
+                        display: "flex", 
+                        flexDirection: "column", 
+                        gap: 10,
+                        padding: 12,
+                        backgroundColor: "#1f1f1f",
+                        borderRadius: 8,
+                      }}>
+                        {/* Resultado */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "#ffd700", minWidth: 70 }}>
+                            🎯 Resultado:
+                          </span>
+                          {(() => {
+                            const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+                            const resColor = h.resultNumber === 0 ? 'green' : (redNumbers.includes(h.resultNumber) ? 'red' : 'black');
+                            return (
+                              <div style={{ 
+                                padding: 4, 
+                                backgroundColor: h.hit ? "rgba(46, 204, 113, 0.2)" : "transparent",
+                                borderRadius: 8,
+                                border: h.hit ? "2px solid #2ecc71" : "none",
+                              }}>
+                                <ResultChip number={h.resultNumber} color={resColor} compact />
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Targets */}
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "#3498db", minWidth: 70, paddingTop: 4 }}>
+                            🎲 Apostas:
+                          </span>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
+                            {h.targets.slice(0, 10).map((num) => {
+                              const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+                              const color = num === 0 ? 'green' : (redNumbers.includes(num) ? 'red' : 'black');
+                              const isHit = num === h.resultNumber;
+                              return (
+                                <div 
+                                  key={num} 
+                                  style={{ 
+                                    padding: isHit ? 4 : 0, 
+                                    backgroundColor: isHit ? "rgba(46, 204, 113, 0.2)" : "transparent",
+                                    borderRadius: 8,
+                                    border: isHit ? "2px solid #2ecc71" : "none",
+                                    position: "relative",
+                                  }}>
+                                  <ResultChip number={num} color={color} compact />
+                                  {isHit && (
+                                    <div style={{
+                                      position: "absolute",
+                                      top: -6,
+                                      right: -6,
+                                      backgroundColor: "#2ecc71",
+                                      borderRadius: "50%",
+                                      width: 16,
+                                      height: 16,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: 10,
+                                    }}>
+                                      ✓
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {h.targets.length > 10 && (
+                              <span style={{ 
+                                padding: "6px 10px", 
+                                backgroundColor: "#3a3a3a", 
+                                borderRadius: 6,
+                                fontSize: 11,
+                                color: "#c0c0c0",
+                                fontWeight: 500,
+                              }}>
+                                +{h.targets.length - 10} números
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

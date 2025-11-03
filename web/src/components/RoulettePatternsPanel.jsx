@@ -1,5 +1,28 @@
 import ResultChip from "./ResultChip";
 
+// Função auxiliar para converter tipo de aposta em texto amigável
+function getBetTypeLabel(type) {
+  const labels = {
+    straight_up: "Pleno (número único)",
+    split: "Cavalo (2 números)",
+    street: "Transversal (3 números)",
+    corner: "Quadra (4 números)",
+    line: "Linha (6 números)",
+    column: "Coluna (12 números)",
+    dozen: "Dúzia (12 números)",
+    red: "Vermelho (18 números)",
+    black: "Preto (18 números)",
+    even: "Par (18 números)",
+    odd: "Ímpar (18 números)",
+    low: "Baixo 1-18",
+    high: "Alto 19-36",
+    numbers: "Números específicos",
+    sector: "Setor da roda",
+    clusters: "Clusters de vizinhos",
+  };
+  return labels[type] || type;
+}
+
 export default function RoulettePatternsPanel({ signal, nextSignalIn = null, noSignalMessage = null }) {
   const box = {
     border: "1px solid #3a3a3a",
@@ -147,15 +170,37 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null, noS
           {signal.description}
         </h4>
 
+        {/* Bet Type Label */}
+        {signal.suggestedBet.type && signal.suggestedBet.type !== "straight_up" && (
+          <div style={{ marginBottom: 8 }}>
+            <span
+              style={{
+                display: "inline-block",
+                padding: "4px 12px",
+                backgroundColor: "#2a2a2a",
+                borderRadius: 16,
+                fontSize: 12,
+                color: "#ffd700",
+                border: "1px solid #3a3a3a",
+                fontWeight: "500",
+              }}>
+              📍 Tipo: {getBetTypeLabel(signal.suggestedBet.type)}
+            </span>
+          </div>
+        )}
+
         {/* Targets */}
         <div>
           <strong style={{ fontSize: 14, color: "#ecf0f1" }}>
             Apostar em:
           </strong>
           <div style={targetGridStyle}>
-            {signal.targets.slice(0, 20).map((num) => (
-              <ResultChip key={num} value={num} size="large" highlight />
-            ))}
+            {signal.targets.slice(0, 20).map((num) => {
+              // Determinar cor do número
+              const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+              const color = num === 0 ? 'green' : redNumbers.includes(num) ? 'red' : 'black';
+              return <ResultChip key={num} number={num} color={color} />;
+            })}
             {signal.targets.length > 20 && (
               <span
                 style={{
