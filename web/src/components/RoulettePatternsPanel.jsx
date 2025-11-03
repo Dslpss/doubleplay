@@ -2,17 +2,17 @@ import ResultChip from "./ResultChip";
 
 export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
   const box = {
-    border: "1px solid #eee",
+    border: "1px solid #3a3a3a",
     borderRadius: 8,
     padding: 16,
-    backgroundColor: "#fafafa",
+    backgroundColor: "#1f1f1f",
   };
 
   if (!signal) {
     return (
       <div style={box}>
-        <h3 style={{ marginTop: 0, marginBottom: 16 }}>Sinais de Roleta</h3>
-        <div style={{ textAlign: "center", padding: "20px 0", color: "#666" }}>
+        <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>Sinais de Roleta</h3>
+        <div style={{ textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
           <p style={{ fontSize: 16, marginBottom: 8 }}>
             🔍 Analisando padrões...
           </p>
@@ -33,6 +33,7 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
       borderRadius: 12,
       padding: 16,
       animation: "pulse 2s infinite",
+      backgroundColor: "#1f1f1f",
     };
 
     switch (signal.type) {
@@ -40,19 +41,16 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
         return {
           ...baseStyle,
           borderColor: "#00ff00",
-          backgroundColor: "#f0fff0",
         };
       case "MEDIUM_SIGNAL":
         return {
           ...baseStyle,
           borderColor: "#ffff00",
-          backgroundColor: "#fffef0",
         };
       default:
         return {
           ...baseStyle,
           borderColor: "#ffa500",
-          backgroundColor: "#fff5e6",
         };
     }
   };
@@ -80,16 +78,16 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
     display: "flex",
     justifyContent: "space-between",
     fontSize: 12,
-    color: "#666",
+    color: "#c0c0c0",
     marginTop: 12,
     paddingTop: 12,
-    borderTop: "1px solid #ddd",
+    borderTop: "1px solid #3a3a3a",
   };
 
   const progressBarStyle = {
     width: "100%",
     height: 6,
-    backgroundColor: "#e0e0e0",
+    backgroundColor: "#2a2a2a",
     borderRadius: 3,
     overflow: "hidden",
     marginTop: 8,
@@ -103,7 +101,7 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
 
   return (
     <div style={box}>
-      <h3 style={{ marginTop: 0, marginBottom: 16 }}>Sinais de Roleta</h3>
+      <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>Sinais de Roleta</h3>
 
       <div style={getSignalStyles()}>
         {/* Header */}
@@ -113,24 +111,24 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
             <span
               style={{
                 fontSize: 11,
-                color: "#999",
-                backgroundColor: "#fff",
+                color: "#c0c0c0",
+                backgroundColor: "#2a2a2a",
                 padding: "2px 8px",
                 borderRadius: 10,
-                border: "1px solid #ddd",
+                border: "1px solid #3a3a3a",
               }}>
               🧪 Aprendendo
             </span>
           )}
         </div>
 
-        <h4 style={{ margin: "0 0 12px 0", fontSize: 16 }}>
+        <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>
           {signal.description}
         </h4>
 
         {/* Targets */}
         <div>
-          <strong style={{ fontSize: 14, color: "#333" }}>Apostar em:</strong>
+          <strong style={{ fontSize: 14, color: "#ecf0f1" }}>Apostar em:</strong>
           <div style={targetGridStyle}>
             {signal.targets.slice(0, 20).map((num) => (
               <ResultChip key={num} value={num} size="large" highlight />
@@ -139,10 +137,11 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
               <span
                 style={{
                   padding: "8px 12px",
-                  backgroundColor: "#f0f0f0",
+                  backgroundColor: "#2a2a2a",
                   borderRadius: 8,
                   fontSize: 12,
-                  color: "#666",
+                  color: "#c0c0c0",
+                  border: "1px solid #3a3a3a",
                 }}>
                 +{signal.targets.length - 20} números
               </span>
@@ -166,7 +165,7 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
               display: "flex",
               justifyContent: "space-between",
               fontSize: 12,
-              color: "#666",
+              color: "#c0c0c0",
               marginBottom: 4,
             }}>
             <span>Válido por:</span>

@@ -1126,28 +1126,32 @@ function App() {
           marginTop: 24,
           display: route === "#/roulette" ? "block" : "none",
         }}>
-        <RoulettePatternsPanel
-          signal={bestRouletteSignal}
-          nextSignalIn={bestRouletteSignal ? null : 3 - (roulette.length % 3)}
-        />
-      </div>
-
-      <div
-        style={{
-          marginTop: 24,
-          display: route === "#/roulette" ? "block" : "none",
-        }}>
         <div
           className="panels"
           style={{
             display: "flex",
             gap: 16,
-            marginTop: 16,
+            flexWrap: "wrap",
             justifyContent: "center",
           }}>
+          {/* Card de Auto Aposta */}
           <div
-            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
+            style={{ 
+              border: "1px solid #ccc", 
+              padding: 16, 
+              borderRadius: 8,
+              flex: "1 1 400px",
+              maxWidth: "600px"
+            }}>
             <h2>Auto aposta (sinal) - Roleta</h2>
+            
+            {/* Card de Sinais Inteligente */}
+            <div style={{ marginBottom: 16 }}>
+              <RoulettePatternsPanel
+                signal={bestRouletteSignal}
+                nextSignalIn={bestRouletteSignal ? null : 3 - (roulette.length % 3)}
+              />
+            </div>
             <p>Estado: {autoRouletteEnabled ? "Ativa" : "Desativada"}</p>
             <div
               style={{
