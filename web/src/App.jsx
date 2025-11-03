@@ -1195,9 +1195,23 @@ function App() {
                     </div>
                   </div>
                 </div>
-                {/* Lista de Sinais */}
+                {/* Lista de Sinais com Scroll */}
                 <div
-                  style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  style={{ 
+                    display: "flex", 
+                    flexDirection: "column", 
+                    gap: 16,
+                    maxHeight: "600px", // Altura máxima
+                    overflowY: "auto", // Scroll vertical
+                    overflowX: "hidden", // Sem scroll horizontal
+                    paddingRight: 8, // Espaço para a scrollbar
+                    // Estilo da scrollbar (webkit browsers)
+                    scrollbarWidth: "thin", // Firefox
+                    scrollbarColor: "#3498db #2a2a2a", // Firefox
+                  }}
+                  // Estilo da scrollbar webkit
+                  className="custom-scrollbar"
+                  >
                   {rouletteSignalsHistory.slice(0, 20).map((h) => (
                     <div
                       key={h.id}
@@ -1420,6 +1434,23 @@ function App() {
               </div>
             )}
           </div>
+          {/* CSS para scrollbar customizada */}
+          <style>{`
+            .custom-scrollbar::-webkit-scrollbar {
+              width: 8px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-track {
+              background: #2a2a2a;
+              border-radius: 4px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+              background: #3498db;
+              border-radius: 4px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+              background: #5dade2;
+            }
+          `}</style>
         </div>
       )}
     </div>
