@@ -10,38 +10,38 @@
  */
 export const PATTERN_PRIORITIES = {
   // Padrões de alta confiabilidade (baseados em física da roleta)
-  neighbors_cluster: 10,        // Agrupamento geográfico na roda
-  sector_voisins: 9,            // Voisins du Zero (setor clássico)
-  sector_tiers: 9,              // Tiers du Cylindre
-  sector_orphelins: 9,          // Orphelins
-  hot_numbers_trio: 8,          // 3+ números quentes
-  
+  neighbors_cluster: 10, // Agrupamento geográfico na roda
+  sector_voisins: 9, // Voisins du Zero (setor clássico)
+  sector_tiers: 9, // Tiers du Cylindre
+  sector_orphelins: 9, // Orphelins
+  hot_numbers_trio: 8, // 3+ números quentes
+
   // Padrões de média confiabilidade
-  column_cold: 6,               // Coluna ausente
-  dozen_cold: 6,                // Dúzia ausente
-  finals_concentration: 5,      // Concentração em finais
-  red_black_balance: 5,         // Desequilíbrio de cores
-  
+  column_cold: 6, // Coluna ausente
+  dozen_cold: 6, // Dúzia ausente
+  finals_concentration: 5, // Concentração em finais
+  red_black_balance: 5, // Desequilíbrio de cores
+
   // Padrões de baixa confiabilidade (mais aleatórios)
-  column_triple: 4,             // Trinca de coluna
-  dozen_imbalance: 4,           // Desequilíbrio de dúzia
-  highlow_streak: 3,            // Sequência alto/baixo
-  parity_streak: 3,             // Sequência par/ímpar
-  zero_proximity: 2,            // Zero recente (informativo)
+  column_triple: 4, // Trinca de coluna
+  dozen_imbalance: 4, // Desequilíbrio de dúzia
+  highlow_streak: 3, // Sequência alto/baixo
+  parity_streak: 3, // Sequência par/ímpar
+  zero_proximity: 2, // Zero recente (informativo)
 };
 
 /**
  * Configuração de sinais inteligentes
  */
 export const SIGNAL_CONFIG = {
-  MIN_CONFIDENCE: 7.0,          // Confiança mínima para emitir sinal (0-10)
-  COOLDOWN_AFTER_WIN: 10000,    // 10s após acerto
-  COOLDOWN_AFTER_LOSS: 5000,    // 5s após erro
-  MIN_RESULTS_BETWEEN: 2,       // Mínimo 2 resultados novos
-  MAX_SIGNALS_PER_MINUTE: 6,    // Máximo 6 sinais/minuto
-  PATTERN_MIN_OCCURRENCE: 3,    // Padrão precisa aparecer 3x mínimo
-  LEARNING_THRESHOLD: 5,        // Tentativas mínimas para aprender
-  MIN_ACCURACY: 55,             // Acurácia mínima % para continuar emitindo
+  MIN_CONFIDENCE: 7.0, // Confiança mínima para emitir sinal (0-10)
+  COOLDOWN_AFTER_WIN: 10000, // 10s após acerto
+  COOLDOWN_AFTER_LOSS: 5000, // 5s após erro
+  MIN_RESULTS_BETWEEN: 2, // Mínimo 2 resultados novos
+  MAX_SIGNALS_PER_MINUTE: 6, // Máximo 6 sinais/minuto
+  PATTERN_MIN_OCCURRENCE: 3, // Padrão precisa aparecer 3x mínimo
+  LEARNING_THRESHOLD: 5, // Tentativas mínimas para aprender
+  MIN_ACCURACY: 55, // Acurácia mínima % para continuar emitindo
 };
 
 /**
@@ -56,9 +56,9 @@ class PatternLearner {
   }
 
   _loadFromStorage() {
-    if (typeof localStorage === 'undefined') return null;
+    if (typeof localStorage === "undefined") return null;
     try {
-      const data = localStorage.getItem('roulette_pattern_stats');
+      const data = localStorage.getItem("roulette_pattern_stats");
       return data ? JSON.parse(data) : null;
     } catch {
       return null;
@@ -66,9 +66,12 @@ class PatternLearner {
   }
 
   _saveToStorage() {
-    if (typeof localStorage === 'undefined') return;
+    if (typeof localStorage === "undefined") return;
     try {
-      localStorage.setItem('roulette_pattern_stats', JSON.stringify(this.patternStats));
+      localStorage.setItem(
+        "roulette_pattern_stats",
+        JSON.stringify(this.patternStats)
+      );
     } catch {
       // Ignorar erros de storage
     }
@@ -76,14 +79,14 @@ class PatternLearner {
 
   recordOutcome(patternKey, hit, targets = []) {
     if (!this.patternStats[patternKey]) {
-      this.patternStats[patternKey] = { 
-        hits: 0, 
+      this.patternStats[patternKey] = {
+        hits: 0,
         misses: 0,
         targets: [],
-        lastUpdate: Date.now()
+        lastUpdate: Date.now(),
       };
     }
-    
+
     const stats = this.patternStats[patternKey];
     if (hit) {
       stats.hits++;
@@ -91,7 +94,7 @@ class PatternLearner {
       stats.misses++;
     }
     stats.lastUpdate = Date.now();
-    
+
     // Guardar targets para análise
     if (targets.length > 0) {
       stats.targets.push({ numbers: targets, hit, ts: Date.now() });
@@ -100,17 +103,17 @@ class PatternLearner {
         stats.targets = stats.targets.slice(-50);
       }
     }
-    
+
     this._saveToStorage();
   }
 
   getPatternAccuracy(patternKey) {
     const stats = this.patternStats[patternKey];
     if (!stats) return 50; // Default neutro
-    
+
     const total = stats.hits + stats.misses;
     if (total === 0) return 50;
-    
+
     return (stats.hits / total) * 100;
   }
 
@@ -123,16 +126,16 @@ class PatternLearner {
   shouldEmitPattern(patternKey, baseConfidence) {
     const accuracy = this.getPatternAccuracy(patternKey);
     const attempts = this.getTotalAttempts(patternKey);
-    
+
     // Fase de aprendizado (primeiras tentativas)
     if (attempts < SIGNAL_CONFIG.LEARNING_THRESHOLD) {
       return baseConfidence >= SIGNAL_CONFIG.MIN_CONFIDENCE;
     }
-    
+
     // Fase madura: exigir acurácia mínima
     const meetsAccuracy = accuracy >= SIGNAL_CONFIG.MIN_ACCURACY;
     const meetsConfidence = baseConfidence >= SIGNAL_CONFIG.MIN_CONFIDENCE;
-    
+
     return meetsAccuracy && meetsConfidence;
   }
 
@@ -140,12 +143,15 @@ class PatternLearner {
     if (!this.thresholdAdjustments[patternKey]) {
       this.thresholdAdjustments[patternKey] = 0;
     }
-    
+
     // Ajustar threshold em 0.5 pontos
     this.thresholdAdjustments[patternKey] += increase ? 0.5 : -0.5;
-    
+
     // Limitar ajuste entre -2 e +2
-    this.thresholdAdjustments[patternKey] = Math.max(-2, Math.min(2, this.thresholdAdjustments[patternKey]));
+    this.thresholdAdjustments[patternKey] = Math.max(
+      -2,
+      Math.min(2, this.thresholdAdjustments[patternKey])
+    );
   }
 
   getAdjustedThreshold(patternKey, baseThreshold) {
@@ -155,15 +161,17 @@ class PatternLearner {
 
   canEmitSignal() {
     const now = Date.now();
-    
+
     // Limpar sinais antigos (> 1 minuto)
-    this.signalsThisMinute = this.signalsThisMinute.filter(ts => now - ts < 60000);
-    
+    this.signalsThisMinute = this.signalsThisMinute.filter(
+      (ts) => now - ts < 60000
+    );
+
     // Verificar limite de sinais por minuto
     if (this.signalsThisMinute.length >= SIGNAL_CONFIG.MAX_SIGNALS_PER_MINUTE) {
       return false;
     }
-    
+
     return true;
   }
 
@@ -177,10 +185,10 @@ class PatternLearner {
     for (const [key, data] of Object.entries(this.patternStats)) {
       const total = data.hits + data.misses;
       stats[key] = {
-        accuracy: total > 0 ? ((data.hits / total) * 100).toFixed(1) : 'N/A',
+        accuracy: total > 0 ? ((data.hits / total) * 100).toFixed(1) : "N/A",
         attempts: total,
         hits: data.hits,
-        misses: data.misses
+        misses: data.misses,
       };
     }
     return stats;
@@ -1128,7 +1136,9 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   const lastColors = colorWindow.map((r) => r.color).filter(Boolean);
   if (
     lastColors.length >= colorSeqLen &&
-    lastColors.slice(-colorSeqLen).every((c) => c === lastColors.slice(-1)[0]) &&
+    lastColors
+      .slice(-colorSeqLen)
+      .every((c) => c === lastColors.slice(-1)[0]) &&
     (lastColors.slice(-1)[0] === "red" || lastColors.slice(-1)[0] === "black")
   ) {
     patterns.push({
@@ -1143,7 +1153,9 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
 
   // 2) Alternância de cores (ex.: Preto, Vermelho, Preto, Vermelho)
   const altLen = 4;
-  const altColors = colorWindow.map((r) => r.color).filter((c) => c !== "green");
+  const altColors = colorWindow
+    .map((r) => r.color)
+    .filter((c) => c !== "green");
   if (altColors.length >= altLen) {
     const lastAlt = altColors.slice(-altLen);
     const alternates = lastAlt.every((c, i, arr) => {
@@ -1170,11 +1182,21 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
       return false;
     }
   }
-  for (let i = analysisResults.length - 1; i >= Math.max(0, analysisResults.length - 12); i--) {
+  for (
+    let i = analysisResults.length - 1;
+    i >= Math.max(0, analysisResults.length - 12);
+    i--
+  ) {
     for (let j = i - 1; j >= Math.max(0, i - 6); j--) {
       const a = Number(analysisResults[j].number);
       const b = Number(analysisResults[i].number);
-      if (Number.isFinite(a) && Number.isFinite(b) && a !== 0 && b !== 0 && isMirror(a, b)) {
+      if (
+        Number.isFinite(a) &&
+        Number.isFinite(b) &&
+        a !== 0 &&
+        b !== 0 &&
+        isMirror(a, b)
+      ) {
         patterns.push({
           key: "mirrored_numbers",
           description: `Números espelhados detectados: ${a} -> ${b}`,
@@ -1211,11 +1233,19 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   }
 
   // 5) Zero seguido de múltiplos de 10 (0 -> 10/20/30)
-  for (let i = analysisResults.length - 1; i >= Math.max(0, analysisResults.length - 8); i--) {
+  for (
+    let i = analysisResults.length - 1;
+    i >= Math.max(0, analysisResults.length - 8);
+    i--
+  ) {
     const a = Number(analysisResults[i].number);
     if (a === 0) {
       // olhar próximos 3 resultados (mais recentes que o zero)
-      for (let j = i + 1; j <= Math.min(analysisResults.length - 1, i + 3); j++) {
+      for (
+        let j = i + 1;
+        j <= Math.min(analysisResults.length - 1, i + 3);
+        j++
+      ) {
         const b = Number(analysisResults[j]?.number);
         if (Number.isFinite(b) && b !== 0 && b % 10 === 0) {
           patterns.push({
@@ -1306,30 +1336,43 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
   if (cobraHits >= 2) {
     patterns.push({
       key: "cobra_bet",
-      description: `Padrão Cobra detectado (${cobraHits} dos números do padrão saíram recentemente)` ,
+      description: `Padrão Cobra detectado (${cobraHits} dos números do padrão saíram recentemente)`,
       risk: "low",
       targets: { type: "numbers", numbers: COBRA_NUMS },
     });
   }
 
   // Números sequenciais: se últimos 2 forem consecutivos, sugerir continuação
-  const seqWin = analysisResults.slice(-3).map((r) => Number(r.number)).filter((n) => Number.isFinite(n));
+  const seqWin = analysisResults
+    .slice(-3)
+    .map((r) => Number(r.number))
+    .filter((n) => Number.isFinite(n));
   if (seqWin.length >= 2) {
     const a = seqWin[seqWin.length - 2];
     const b = seqWin[seqWin.length - 1];
     if (b === a + 1) {
       patterns.push({
         key: "sequential_numbers",
-        description: `Sequência crescente detectada (${a} -> ${b}), sugerindo ${b + 1}`,
+        description: `Sequência crescente detectada (${a} -> ${b}), sugerindo ${
+          b + 1
+        }`,
         risk: "low",
-        targets: { type: "numbers", numbers: [b + 1].filter((n) => n >= 0 && n <= 36) },
+        targets: {
+          type: "numbers",
+          numbers: [b + 1].filter((n) => n >= 0 && n <= 36),
+        },
       });
     } else if (b === a - 1) {
       patterns.push({
         key: "sequential_numbers",
-        description: `Sequência decrescente detectada (${a} -> ${b}), sugerindo ${b - 1}`,
+        description: `Sequência decrescente detectada (${a} -> ${b}), sugerindo ${
+          b - 1
+        }`,
         risk: "low",
-        targets: { type: "numbers", numbers: [b - 1].filter((n) => n >= 0 && n <= 36) },
+        targets: {
+          type: "numbers",
+          numbers: [b - 1].filter((n) => n >= 0 && n <= 36),
+        },
       });
     }
   }
@@ -1415,20 +1458,20 @@ export function detectBestRouletteSignal(results = [], options = {}) {
 
   // Detectar todos os padrões possíveis
   const allPatterns = detectRouletteAdvancedPatterns(results, options);
-  
+
   if (allPatterns.length === 0) {
     return null;
   }
 
   // Pontuar cada padrão
-  const scoredPatterns = allPatterns.map(pattern => {
+  const scoredPatterns = allPatterns.map((pattern) => {
     const basePriority = PATTERN_PRIORITIES[pattern.key] || 1;
     const accuracy = patternLearner.getPatternAccuracy(pattern.key);
     const attempts = patternLearner.getTotalAttempts(pattern.key);
-    
+
     // Calcular confiança (0-10)
     let confidence = basePriority;
-    
+
     // Ajustar com base em acurácia histórica (se tiver dados)
     if (attempts >= SIGNAL_CONFIG.LEARNING_THRESHOLD) {
       // Penalizar se accuracy < 55%, bonificar se > 60%
@@ -1438,21 +1481,24 @@ export function detectBestRouletteSignal(results = [], options = {}) {
         confidence *= 1.2; // Aumenta 20%
       }
     }
-    
+
     // Ajustar com base em threshold adaptativo
-    const adjustedThreshold = patternLearner.getAdjustedThreshold(pattern.key, confidence);
+    const adjustedThreshold = patternLearner.getAdjustedThreshold(
+      pattern.key,
+      confidence
+    );
     confidence = Math.max(1, Math.min(10, adjustedThreshold));
-    
+
     return {
       ...pattern,
       confidence,
       accuracy: attempts > 0 ? accuracy : null,
-      attempts
+      attempts,
     };
   });
 
   // Filtrar padrões que podem ser emitidos
-  const validPatterns = scoredPatterns.filter(p => 
+  const validPatterns = scoredPatterns.filter((p) =>
     patternLearner.shouldEmitPattern(p.key, p.confidence)
   );
 
@@ -1461,7 +1507,7 @@ export function detectBestRouletteSignal(results = [], options = {}) {
   }
 
   // Selecionar o melhor padrão (maior confiança)
-  const bestPattern = validPatterns.reduce((best, current) => 
+  const bestPattern = validPatterns.reduce((best, current) =>
     current.confidence > best.confidence ? current : best
   );
 
@@ -1472,17 +1518,17 @@ export function detectBestRouletteSignal(results = [], options = {}) {
 
   // Extrair números específicos para apostar
   const targets = extractTargetNumbers(bestPattern.targets);
-  
+
   if (targets.length === 0) {
     return null;
   }
 
   // Calcular cobertura da mesa
   const coverage = `${targets.length}/37`;
-  
+
   // Calcular ROI esperado (simplificado: payout 36:1 - probabilidade)
   const probability = targets.length / 37;
-  const expectedRoi = ((36 * probability) - 1) * 100;
+  const expectedRoi = (36 * probability - 1) * 100;
 
   // Marcar sinal como emitido
   patternLearner.markSignalEmitted();
@@ -1496,15 +1542,19 @@ export function detectBestRouletteSignal(results = [], options = {}) {
     targets,
     color: getSignalColor(bestPattern.confidence),
     suggestedBet: {
-      type: bestPattern.targets.type || 'straight_up',
+      type: bestPattern.targets.type || "straight_up",
       numbers: targets,
       coverage,
-      expectedRoi: expectedRoi > 0 ? `+${expectedRoi.toFixed(1)}%` : `${expectedRoi.toFixed(1)}%`
+      expectedRoi:
+        expectedRoi > 0
+          ? `+${expectedRoi.toFixed(1)}%`
+          : `${expectedRoi.toFixed(1)}%`,
     },
     validFor: 3, // Válido pelos próximos 3 giros
-    historicalAccuracy: bestPattern.attempts > 0 ? Number(bestPattern.accuracy.toFixed(1)) : null,
+    historicalAccuracy:
+      bestPattern.attempts > 0 ? Number(bestPattern.accuracy.toFixed(1)) : null,
     isLearning: bestPattern.attempts < SIGNAL_CONFIG.LEARNING_THRESHOLD,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
 }
 
@@ -1513,26 +1563,30 @@ export function detectBestRouletteSignal(results = [], options = {}) {
  */
 function extractTargetNumbers(targets) {
   if (!targets) return [];
-  
+
   const numbers = [];
-  
+
   switch (targets.type) {
-    case 'numbers':
+    case "numbers":
       return targets.numbers || [];
-      
-    case 'color': {
+
+    case "color": {
       // Retornar números da cor (red: ímpares de 1-36 exceto verdes, black: pares, green: 0)
-      if (targets.color === 'red') {
-        return [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-      } else if (targets.color === 'black') {
-        return [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
-      } else if (targets.color === 'green') {
+      if (targets.color === "red") {
+        return [
+          1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36,
+        ];
+      } else if (targets.color === "black") {
+        return [
+          2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35,
+        ];
+      } else if (targets.color === "green") {
         return [0];
       }
       break;
     }
-      
-    case 'column': {
+
+    case "column": {
       // Coluna 1: 1,4,7..., Coluna 2: 2,5,8..., Coluna 3: 3,6,9...
       const col = targets.column;
       for (let i = col; i <= 36; i += 3) {
@@ -1540,8 +1594,8 @@ function extractTargetNumbers(targets) {
       }
       return numbers;
     }
-      
-    case 'dozen': {
+
+    case "dozen": {
       // Dúzia 1: 1-12, Dúzia 2: 13-24, Dúzia 3: 25-36
       const start = (targets.dozen - 1) * 12 + 1;
       for (let i = start; i < start + 12; i++) {
@@ -1549,59 +1603,59 @@ function extractTargetNumbers(targets) {
       }
       return numbers;
     }
-      
-    case 'sector': {
+
+    case "sector": {
       // Retornar números do setor
       const sectorName = targets.sector;
-      if (sectorName === 'voisins') return SECTOR_VOISINS;
-      if (sectorName === 'tiers') return SECTOR_TIERS;
-      if (sectorName === 'orphelins') return SECTOR_ORPHELINS;
-      if (sectorName === 'jeu_zero') return SECTOR_JEU_ZERO;
+      if (sectorName === "voisins") return SECTOR_VOISINS;
+      if (sectorName === "tiers") return SECTOR_TIERS;
+      if (sectorName === "orphelins") return SECTOR_ORPHELINS;
+      if (sectorName === "jeu_zero") return SECTOR_JEU_ZERO;
       break;
     }
-      
-    case 'clusters':
+
+    case "clusters":
       // Pegar números dos clusters
       if (Array.isArray(targets.clusters)) {
-        return targets.clusters.flatMap(c => c.numbers || []);
+        return targets.clusters.flatMap((c) => c.numbers || []);
       }
       break;
-      
-    case 'highlow':
-      if (targets.value === 'low') {
+
+    case "highlow":
+      if (targets.value === "low") {
         return Array.from({ length: 18 }, (_, i) => i + 1);
       } else {
         return Array.from({ length: 18 }, (_, i) => i + 19);
       }
-      
-    case 'parity':
-      if (targets.value === 'even') {
+
+    case "parity":
+      if (targets.value === "even") {
         return Array.from({ length: 18 }, (_, i) => (i + 1) * 2);
       } else {
         return Array.from({ length: 18 }, (_, i) => i * 2 + 1);
       }
   }
-  
-  return numbers.filter(n => n >= 0 && n <= 36);
+
+  return numbers.filter((n) => n >= 0 && n <= 36);
 }
 
 /**
  * Determina o tipo de sinal baseado na confiança
  */
 function getSignalType(confidence) {
-  if (confidence >= 8.5) return 'STRONG_SIGNAL';
-  if (confidence >= 7.0) return 'MEDIUM_SIGNAL';
-  return 'WEAK_SIGNAL';
+  if (confidence >= 8.5) return "STRONG_SIGNAL";
+  if (confidence >= 7.0) return "MEDIUM_SIGNAL";
+  return "WEAK_SIGNAL";
 }
 
 /**
  * Retorna a cor do sinal baseado na confiança
  */
 function getSignalColor(confidence) {
-  if (confidence >= 8.5) return '#00ff00'; // Verde forte
-  if (confidence >= 7.5) return '#90ee90'; // Verde claro
-  if (confidence >= 7.0) return '#ffff00'; // Amarelo
-  return '#ffa500'; // Laranja
+  if (confidence >= 8.5) return "#00ff00"; // Verde forte
+  if (confidence >= 7.5) return "#90ee90"; // Verde claro
+  if (confidence >= 7.0) return "#ffff00"; // Amarelo
+  return "#ffa500"; // Laranja
 }
 
 /**
@@ -1612,19 +1666,19 @@ function getSignalColor(confidence) {
  */
 export function validateSignalOutcome(signal, actualNumber) {
   if (!signal || !signal.targets) return false;
-  
+
   const hit = signal.targets.includes(actualNumber);
-  
+
   // Registrar resultado
   recordPatternOutcome(signal.patternKey, hit, signal.targets);
-  
+
   // Ajustar threshold
   if (hit) {
     patternLearner.adjustThreshold(signal.patternKey, false); // Facilitar próximo
   } else {
     patternLearner.adjustThreshold(signal.patternKey, true); // Dificultar próximo
   }
-  
+
   return hit;
 }
 
@@ -1917,7 +1971,10 @@ export function chooseRouletteBetSignal(
         break;
       case "color_alternation": {
         // apostar na cor oposta ao último resultado (heurística simples)
-        const lastColorAlt = results.slice().reverse().find((r) => r.color && r.color !== "green");
+        const lastColorAlt = results
+          .slice()
+          .reverse()
+          .find((r) => r.color && r.color !== "green");
         if (lastColorAlt) {
           const opp = lastColorAlt.color === "red" ? "black" : "red";
           candidates.push({
@@ -1977,14 +2034,19 @@ export function chooseRouletteBetSignal(
       case "alternating_opposite_sectors": {
         // tentar mapear para números próximos ao último e seu oposto
         try {
-          const last = results && results.length ? Number(results[results.length - 1].number) : null;
+          const last =
+            results && results.length
+              ? Number(results[results.length - 1].number)
+              : null;
           if (Number.isFinite(last)) {
             const idx = wheelIndexOf(last);
             const N = EU_WHEEL_ORDER.length;
             const oppIdx = (idx + Math.floor(N / 2)) % N;
             const center1 = EU_WHEEL_ORDER[idx];
             const center2 = EU_WHEEL_ORDER[oppIdx];
-            const nums = Array.from(new Set([...neighborsOf(center1, 2), ...neighborsOf(center2, 2)]));
+            const nums = Array.from(
+              new Set([...neighborsOf(center1, 2), ...neighborsOf(center2, 2)])
+            );
             candidates.push({
               key: "alternating_opposite_sectors",
               type: "numbers",
