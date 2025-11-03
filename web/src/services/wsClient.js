@@ -85,6 +85,7 @@ export function createWsClient(onMessage) {
     console.error(e);
   }
 
+  // Se não há SERVER_URL configurado
   if (!SERVER_URL) {
     // Em desenvolvimento, sem SERVER_URL, evita conexão automática para não gerar erros de rede
     if (import.meta.env.DEV) {
@@ -100,7 +101,7 @@ export function createWsClient(onMessage) {
         },
       };
     }
-    // Em produção, tenta SSE relativo
+    // Em produção, tenta SSE relativo (Netlify Edge Functions)
     connectSSE();
     return {
       close() {
@@ -109,38 +110,9 @@ export function createWsClient(onMessage) {
     };
   }
 
-  const wsUrl = SERVER_URL.replace(/^http/, "ws") + "/ws";
-  try {
-    console.log("[WSClient] Connect to", wsUrl);
-  } catch (e) {
-    console.error(e);
-  }
-  const ws = new WebSocket(wsUrl);
-  ws.onopen = () => console.log("[WS] Conectado ao bridge");
-  ws.onmessage = (ev) => {
-    try {
-      const data = JSON.parse(ev.data);
-      onMessage?.(data);
-    } catch (e) {
-      console.error(e);
-      onMessage?.(ev.data);
-    }
-  };
-  ws.onclose = () => console.log("[WS] Desconectado do bridge");
-  ws.onerror = (e) => {
-    try {
-      console.warn("[WS] Erro, usando SSE fallback", e);
-    } catch (err) {
-      console.error(err);
-    }
-    try {
-      ws.close();
-    } catch (err) {
-      console.error(err);
-    }
-    connectSSE();
-  };
-  active = { type: "ws", close: () => ws.close() };
+  // Se SERVER_URL está configurado, usa SSE direto (dev-server local ou servidor remoto)
+  // Prioriza SSE sobre WebSocket para compatibilidade
+  connectSSE();
   return {
     close() {
       active?.close?.();
