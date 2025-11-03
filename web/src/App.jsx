@@ -62,11 +62,12 @@ function App() {
   const [lastRouletteAdviceStatus, setLastRouletteAdviceStatus] =
     useState(null);
   const [blockAlertsWhileActive, setBlockAlertsWhileActive] = useState(true);
-  
+
   // Novo sistema de sinais inteligente
   const [bestRouletteSignal, setBestRouletteSignal] = useState(null);
   const [signalValidFor, setSignalValidFor] = useState(3);
   const [resultsCountSinceSignal, setResultsCountSinceSignal] = useState(0);
+  const lastValidatedResultRef = useRef(null); // Rastrear último resultado validado
   const [enabledPatterns, _setEnabledPatterns] = useState({
     column_triple: true,
     dozen_imbalance: true,
@@ -580,9 +581,15 @@ function App() {
   // ============================================================================
   useEffect(() => {
     if (!roulette || roulette.length < 3) return;
-    
+
+    // ⚠️ IMPORTANTE: Só detectar novo sinal se NÃO houver um ativo
+    if (bestRouletteSignal) {
+      // Já existe um sinal ativo, aguardar validação
+      return;
+    }
+
     const analysisResults = [...roulette].reverse();
-    
+
     // Detectar melhor sinal
     const signal = detectBestRouletteSignal(analysisResults, {
       aggressive: aggressiveMode,
@@ -596,14 +603,16 @@ function App() {
         maxHistorical,
       },
     });
-    
+
     if (signal) {
+      console.log('[Signal] Novo sinal emitido:', signal.patternKey, 'Confiança:', signal.confidence);
       setBestRouletteSignal(signal);
       setSignalValidFor(signal.validFor);
       setResultsCountSinceSignal(0);
     }
   }, [
     roulette,
+    bestRouletteSignal, // Adicionado para verificar se já existe sinal
     aggressiveMode,
     resetStrategy,
     windowSize,
@@ -617,38 +626,56 @@ function App() {
   // Validação de sinais - verifica se acertou ou errou
   useEffect(() => {
     if (!bestRouletteSignal || !roulette || roulette.length === 0) return;
-    
+
     const latestResult = roulette[0];
     const resultNum = Number(latestResult.number);
-    
+    const resultId = `${latestResult.timestamp}-${resultNum}`;
+
     // Verificar se é um resultado novo (posterior ao sinal)
     if (latestResult.timestamp <= bestRouletteSignal.timestamp) return;
-    
+
+    // ⚠️ IMPORTANTE: Verificar se este resultado já foi validado
+    if (lastValidatedResultRef.current === resultId) {
+      return; // Já validamos este resultado
+    }
+
+    // Marcar como validado
+    lastValidatedResultRef.current = resultId;
+
     // Incrementar contador de resultados desde o sinal
     const newCount = resultsCountSinceSignal + 1;
     setResultsCountSinceSignal(newCount);
-    
+
     // Validar resultado
     const hit = validateSignalOutcome(bestRouletteSignal, resultNum);
-    
+
+    console.log(`[Validation] Resultado #${newCount}: ${resultNum} - ${hit ? 'HIT ✅' : 'MISS ❌'}`);
+    console.log(`[Validation] Targets: [${bestRouletteSignal.targets.slice(0, 5).join(', ')}...]`);
+
     // Atualizar UI com feedback
     if (hit) {
-      setLastRouletteAdviceStatus(`✅ Acerto! Número ${resultNum} estava nos targets`);
+      setLastRouletteAdviceStatus(
+        `✅ Acerto! Número ${resultNum} estava nos targets (${newCount}/${signalValidFor})`
+      );
     } else {
-      setLastRouletteAdviceStatus(`❌ Erro. Número ${resultNum} não estava nos targets`);
+      setLastRouletteAdviceStatus(
+        `❌ Erro. Número ${resultNum} não estava nos targets (${newCount}/${signalValidFor})`
+      );
     }
-    
+
     // Limpar status após 5 segundos
     const timeout = setTimeout(() => {
       setLastRouletteAdviceStatus(null);
     }, 5000);
-    
+
     // Limpar sinal se passou o prazo de validade
     if (newCount >= signalValidFor) {
+      console.log('[Signal] Sinal expirado após', newCount, 'resultados');
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
+      lastValidatedResultRef.current = null; // Reset para próximo sinal
     }
-    
+
     return () => clearTimeout(timeout);
   }, [roulette, bestRouletteSignal, resultsCountSinceSignal, signalValidFor]);
 
@@ -810,8 +837,7 @@ function App() {
           gap: "8px",
           marginTop: "12px",
           marginBottom: "16px",
-        }}
-      >
+        }}>
         <a href="#/" style={{ textDecoration: "none" }}>
           <button
             style={{
@@ -821,8 +847,7 @@ function App() {
               color: "#fff",
               border: "1px solid #374151",
               fontSize: "14px",
-            }}
-          >
+            }}>
             Double
           </button>
         </a>
@@ -835,8 +860,7 @@ function App() {
               color: "#fff",
               border: "1px solid #374151",
               fontSize: "14px",
-            }}
-          >
+            }}>
             Roleta
           </button>
         </a>
@@ -850,11 +874,9 @@ function App() {
             gap: 16,
             marginTop: 16,
             justifyContent: "center",
-          }}
-        >
+          }}>
           <div
-            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}
-          >
+            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
             <h2>Conexão em tempo real</h2>
             <p>Conexão automática ao Play na Bet.</p>
             <p>
@@ -872,8 +894,7 @@ function App() {
             </p>
             <button
               onClick={handleConnectWs}
-              style={{ width: isNarrow ? "100%" : undefined }}
-            >
+              style={{ width: isNarrow ? "100%" : undefined }}>
               Reconectar WS
             </button>
             <div
@@ -885,15 +906,13 @@ function App() {
                 justifyContent: "center",
                 flexDirection: isNarrow ? "column" : "row",
                 width: isNarrow ? "100%" : undefined,
-              }}
-            >
+              }}>
               <span style={{ opacity: 0.8 }}>Não tem conta?</span>
               <a
                 href="https://playnabets.com/cadastro?refId=NjMzMTRyZWZJZA=="
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ width: isNarrow ? "100%" : undefined }}
-              >
+                style={{ width: isNarrow ? "100%" : undefined }}>
                 <button style={{ width: isNarrow ? "100%" : undefined }}>
                   Cadastre-se na Play na Bets
                 </button>
@@ -902,8 +921,7 @@ function App() {
           </div>
 
           <div
-            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}
-          >
+            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
             <h2>Auto aposta (sinal)</h2>
             <p>Estado: {autoBetEnabled ? "Ativa" : "Desativada"}</p>
             <div
@@ -912,20 +930,17 @@ function App() {
                 gap: 8,
                 alignItems: "center",
                 flexWrap: "wrap",
-              }}
-            >
+              }}>
               <button
                 onClick={() => setAutoBetEnabled((v) => !v)}
-                style={{ width: isNarrow ? "100%" : undefined }}
-              >
+                style={{ width: isNarrow ? "100%" : undefined }}>
                 {autoBetEnabled ? "Desativar sinais" : "Ativar sinais"}
               </button>
               <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ opacity: 0.8 }}>Mostrar</span>
                 <select
                   value={historyLimit}
-                  onChange={(e) => setHistoryLimit(Number(e.target.value))}
-                >
+                  onChange={(e) => setHistoryLimit(Number(e.target.value))}>
                   {[3, 5, 10, 15].map((n) => (
                     <option key={n} value={n}>
                       {n}
@@ -954,15 +969,13 @@ function App() {
               <div style={{ marginTop: 8 }}>
                 {activeSignal ? (
                   <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={colorSquareStyle(activeSignal.color)} />
                     <span
                       style={{
                         color: colorHex[activeSignal.color],
                         fontWeight: 600,
-                      }}
-                    >
+                      }}>
                       {colorLabelPt(activeSignal.color)}
                     </span>
                     <span style={{ opacity: 0.8, fontSize: 12 }}>
@@ -976,8 +989,7 @@ function App() {
                         background: "#374151",
                         color: "#fff",
                         fontSize: 12,
-                      }}
-                    >
+                      }}>
                       aguardando resolução
                     </span>
                   </div>
@@ -991,8 +1003,7 @@ function App() {
                         ? "#ecf0f1"
                         : colorHex[activeSignal.color]
                       : undefined,
-                  }}
-                >
+                  }}>
                   {lastAutoBetStatus}
                 </p>
               </div>
@@ -1004,17 +1015,14 @@ function App() {
                 <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
               ) : (
                 <div
-                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
-                >
+                  style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {signalHistory.slice(0, historyLimit).map((h, i) => (
                     <div
                       key={i}
-                      style={{ display: "flex", alignItems: "center", gap: 8 }}
-                    >
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={colorSquareStyle(h.color)} />
                       <span
-                        style={{ color: colorHex[h.color], fontWeight: 600 }}
-                      >
+                        style={{ color: colorHex[h.color], fontWeight: 600 }}>
                         {colorLabelPt(h.color)}
                       </span>
                       <span style={{ opacity: 0.8 }}>
@@ -1028,8 +1036,7 @@ function App() {
                           marginLeft: "auto",
                           fontWeight: 600,
                           color: h.result === "acerto" ? "#2ecc71" : "#e74c3c",
-                        }}
-                      >
+                        }}>
                         {h.result}
                       </span>
                     </div>
@@ -1045,8 +1052,7 @@ function App() {
         style={{
           marginTop: 24,
           display: route !== "#/roulette" ? "block" : "none",
-        }}
-      >
+        }}>
         <h2>Últimos Resultados</h2>
         <div
           style={{
@@ -1056,8 +1062,7 @@ function App() {
             minHeight: resultsBoxHeight,
             maxHeight: resultsBoxHeight,
             overflow: "hidden",
-          }}
-        >
+          }}>
           {results.length === 0 ? (
             <p>Nenhum resultado ainda.</p>
           ) : (
@@ -1071,8 +1076,7 @@ function App() {
                   overflowX: isNarrow ? "hidden" : "auto",
                   paddingBottom: 6,
                   justifyContent: "center",
-                }}
-              >
+                }}>
                 {row.map((r, idx) => (
                   <ResultChip
                     key={`${ridx}-${idx}`}
@@ -1091,8 +1095,7 @@ function App() {
         style={{
           marginTop: 24,
           display: route !== "#/roulette" ? "block" : "none",
-        }}
-      >
+        }}>
         <StatsPanel stats={stats} streaks={streaks} />
       </div>
 
@@ -1100,8 +1103,7 @@ function App() {
         style={{
           marginTop: 24,
           display: route !== "#/roulette" ? "block" : "none",
-        }}
-      >
+        }}>
         <PatternsPanel patterns={patterns} />
       </div>
 
@@ -1115,8 +1117,7 @@ function App() {
         style={{
           marginTop: 24,
           display: route === "#/roulette" ? "block" : "none",
-        }}
-      >
+        }}>
         <RouletteStatsPanel stats={rouletteStats} streaks={rouletteStreaks} />
       </div>
 
@@ -1124,11 +1125,10 @@ function App() {
         style={{
           marginTop: 24,
           display: route === "#/roulette" ? "block" : "none",
-        }}
-      >
-        <RoulettePatternsPanel 
-          signal={bestRouletteSignal} 
-          nextSignalIn={bestRouletteSignal ? null : (3 - (roulette.length % 3))}
+        }}>
+        <RoulettePatternsPanel
+          signal={bestRouletteSignal}
+          nextSignalIn={bestRouletteSignal ? null : 3 - (roulette.length % 3)}
         />
       </div>
 
@@ -1136,8 +1136,7 @@ function App() {
         style={{
           marginTop: 24,
           display: route === "#/roulette" ? "block" : "none",
-        }}
-      >
+        }}>
         <div
           className="panels"
           style={{
@@ -1145,11 +1144,9 @@ function App() {
             gap: 16,
             marginTop: 16,
             justifyContent: "center",
-          }}
-        >
+          }}>
           <div
-            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}
-          >
+            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
             <h2>Auto aposta (sinal) - Roleta</h2>
             <p>Estado: {autoRouletteEnabled ? "Ativa" : "Desativada"}</p>
             <div
@@ -1158,12 +1155,10 @@ function App() {
                 gap: 8,
                 alignItems: "center",
                 flexWrap: "wrap",
-              }}
-            >
+              }}>
               <button
                 onClick={() => setAutoRouletteEnabled((v) => !v)}
-                style={{ width: isNarrow ? "100%" : undefined }}
-              >
+                style={{ width: isNarrow ? "100%" : undefined }}>
                 {autoRouletteEnabled ? "Desativar sinais" : "Ativar sinais"}
               </button>
               <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1172,8 +1167,7 @@ function App() {
                   value={rouletteHistoryLimit}
                   onChange={(e) =>
                     setRouletteHistoryLimit(Number(e.target.value))
-                  }
-                >
+                  }>
                   {[3, 5, 10, 15].map((n) => (
                     <option key={n} value={n}>
                       {n}
@@ -1200,16 +1194,14 @@ function App() {
                 backgroundColor: "#1f1f1f",
                 borderRadius: 6,
                 border: "1px solid #3a3a3a",
-              }}
-            >
+              }}>
               <div
                 style={{
                   fontWeight: 600,
                   marginBottom: 8,
                   fontSize: 14,
                   color: "#ecf0f1",
-                }}
-              >
+                }}>
                 🔄 Reset Adaptativo
               </div>
               <div
@@ -1218,19 +1210,16 @@ function App() {
                   gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr",
                   gap: 8,
                   fontSize: 12,
-                }}
-              >
+                }}>
                 <label
-                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                >
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <span style={{ opacity: 0.9, color: "#ecf0f1" }}>
                     Estratégia:
                   </span>
                   <select
                     value={resetStrategy}
                     onChange={(e) => setResetStrategy(e.target.value)}
-                    style={{ padding: 4, fontSize: 12 }}
-                  >
+                    style={{ padding: 4, fontSize: 12 }}>
                     <option value={ADAPTIVE_RESET_STRATEGIES.FULL_RESET}>
                       Reset Completo
                     </option>
@@ -1248,8 +1237,11 @@ function App() {
 
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW && (
                   <label
-                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                  >
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                    }}>
                     <span style={{ opacity: 0.9, color: "#ecf0f1" }}>
                       Tamanho da Janela:
                     </span>
@@ -1273,8 +1265,7 @@ function App() {
                         display: "flex",
                         flexDirection: "column",
                         gap: 4,
-                      }}
-                    >
+                      }}>
                       <span style={{ opacity: 0.9, color: "#ecf0f1" }}>
                         Limite de Mudança:
                       </span>
@@ -1295,8 +1286,7 @@ function App() {
                         display: "flex",
                         flexDirection: "column",
                         gap: 4,
-                      }}
-                    >
+                      }}>
                       <span style={{ opacity: 0.9, color: "#ecf0f1" }}>
                         Máx. Histórico:
                       </span>
@@ -1320,8 +1310,7 @@ function App() {
                         display: "flex",
                         flexDirection: "column",
                         gap: 4,
-                      }}
-                    >
+                      }}>
                       <span style={{ opacity: 0.9, color: "#ecf0f1" }}>
                         Peso Recente:
                       </span>
@@ -1342,8 +1331,7 @@ function App() {
                         display: "flex",
                         flexDirection: "column",
                         gap: 4,
-                      }}
-                    >
+                      }}>
                       <span style={{ opacity: 0.9, color: "#ecf0f1" }}>
                         Máx. Recente:
                       </span>
@@ -1362,8 +1350,7 @@ function App() {
                         display: "flex",
                         flexDirection: "column",
                         gap: 4,
-                      }}
-                    >
+                      }}>
                       <span style={{ opacity: 0.9, color: "#ecf0f1" }}>
                         Máx. Histórico:
                       </span>
@@ -1388,8 +1375,7 @@ function App() {
                   fontSize: 11,
                   color: "#c0c0c0",
                   fontStyle: "italic",
-                }}
-              >
+                }}>
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.FULL_RESET &&
                   "Reinicia análise após cada sinal bem-sucedido"}
                 {resetStrategy === ADAPTIVE_RESET_STRATEGIES.SLIDING_WINDOW &&
@@ -1410,8 +1396,7 @@ function App() {
               <div style={{ marginTop: 8 }}>
                 {activeRouletteSignal ? (
                   <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {activeRouletteSignal.type === "color" ? (
                       <span
                         style={colorSquareStyle(activeRouletteSignal.color)}
@@ -1425,8 +1410,7 @@ function App() {
                           background: "#374151",
                           color: "#fff",
                           fontSize: 12,
-                        }}
-                      >
+                        }}>
                         {adviceLabelPt(activeRouletteSignal)}
                       </span>
                     )}
@@ -1441,8 +1425,7 @@ function App() {
                         background: "#374151",
                         color: "#fff",
                         fontSize: 12,
-                      }}
-                    >
+                      }}>
                       aguardando resolução
                     </span>
                   </div>
@@ -1459,8 +1442,7 @@ function App() {
                 <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
               ) : (
                 <div
-                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
-                >
+                  style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {rouletteSignalHistory
                     .slice(0, rouletteHistoryLimit)
                     .map((h, i) => (
@@ -1470,8 +1452,7 @@ function App() {
                           display: "flex",
                           alignItems: "center",
                           gap: 8,
-                        }}
-                      >
+                        }}>
                         <span
                           style={{
                             display: "inline-block",
@@ -1480,8 +1461,7 @@ function App() {
                             background: "#374151",
                             color: "#fff",
                             fontSize: 12,
-                          }}
-                        >
+                          }}>
                           {h.value}
                         </span>
                         <span style={{ opacity: 0.8 }}>
@@ -1500,8 +1480,7 @@ function App() {
                                 h.m1 === "acerto" ? "#2ecc71" : "#e74c3c",
                               color: "#fff",
                               fontSize: 12,
-                            }}
-                          >
+                            }}>
                             M1 {h.m1}
                           </span>
                         )}
@@ -1515,8 +1494,7 @@ function App() {
                                 h.m2 === "acerto" ? "#2ecc71" : "#e74c3c",
                               color: "#fff",
                               fontSize: 12,
-                            }}
-                          >
+                            }}>
                             M2 {h.m2}
                           </span>
                         )}
@@ -1526,8 +1504,7 @@ function App() {
                             fontWeight: 600,
                             color:
                               h.result === "acerto" ? "#2ecc71" : "#e74c3c",
-                          }}
-                        >
+                          }}>
                           {h.result}
                         </span>
                       </div>
@@ -1543,8 +1520,7 @@ function App() {
         style={{
           marginTop: 24,
           display: route === "#/roulette" ? "block" : "none",
-        }}
-      >
+        }}>
         <h2>Roleta (Pragmatic) - Timeline</h2>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {roulette.slice(0, 20).map((r, idx) => (
@@ -1567,8 +1543,7 @@ function App() {
                     : "#10b981",
                 border: "1px solid rgba(255,255,255,0.15)",
               }}
-              title={`${r.number} (${r.color})`}
-            >
+              title={`${r.number} (${r.color})`}>
               {r.number}
             </div>
           ))}
