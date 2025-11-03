@@ -50,6 +50,7 @@ function App() {
   const [resultsCountSinceSignal, setResultsCountSinceSignal] = useState(0);
   const lastValidatedResultRef = useRef(null); // Rastrear último resultado validado
   const [rouletteSignalsHistory, setRouletteSignalsHistory] = useState([]); // Histórico de sinais da roleta
+  const [noSignalMessage, setNoSignalMessage] = useState(null); // Mensagem quando não há sinal
 
   const [aggressiveMode, setAggressiveMode] = useState(true);
 
@@ -376,6 +377,19 @@ function App() {
       setBestRouletteSignal(signal);
       setSignalValidFor(signal.validFor);
       setResultsCountSinceSignal(0);
+      setNoSignalMessage(null); // Limpar mensagem de "sem sinal"
+    } else {
+      // Nenhum padrão forte o suficiente foi detectado
+      if (roulette.length % 3 === 0) {
+        // Só mostrar mensagem quando completar ciclo de 3 resultados
+        setNoSignalMessage("❌ Nenhum padrão forte detectado neste ciclo");
+        console.log("[Signal] Nenhum padrão com confiança suficiente");
+        
+        // Limpar mensagem após 5 segundos
+        setTimeout(() => {
+          setNoSignalMessage(null);
+        }, 5000);
+      }
     }
   }, [
     roulette,
@@ -1013,6 +1027,7 @@ function App() {
                 nextSignalIn={
                   bestRouletteSignal ? null : 3 - (roulette.length % 3)
                 }
+                noSignalMessage={noSignalMessage}
               />
             </div>
           </div>

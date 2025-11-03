@@ -1,6 +1,6 @@
 import ResultChip from "./ResultChip";
 
-export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
+export default function RoulettePatternsPanel({ signal, nextSignalIn = null, noSignalMessage = null }) {
   const box = {
     border: "1px solid #3a3a3a",
     borderRadius: 8,
@@ -14,18 +14,34 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null }) {
         <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
           Sinais de Roleta
         </h3>
-        <div
-          style={{ textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
-          <p style={{ fontSize: 16, marginBottom: 8 }}>
-            🔍 Analisando padrões...
-          </p>
-          {nextSignalIn !== null && (
-            <p style={{ fontSize: 14, color: "#999" }}>
-              Próximo sinal em {nextSignalIn} resultado
-              {nextSignalIn !== 1 ? "s" : ""}
+        {noSignalMessage ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "20px 0",
+              color: "#e74c3c",
+              backgroundColor: "#2a2a2a",
+              borderRadius: 8,
+              border: "1px solid #e74c3c",
+            }}>
+            <p style={{ fontSize: 16, marginBottom: 0 }}>
+              {noSignalMessage}
             </p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div
+            style={{ textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
+            <p style={{ fontSize: 16, marginBottom: 8 }}>
+              🔍 Analisando padrões...
+            </p>
+            {nextSignalIn !== null && (
+              <p style={{ fontSize: 14, color: "#999" }}>
+                Próximo sinal em {nextSignalIn} resultado
+                {nextSignalIn !== 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     );
   }
