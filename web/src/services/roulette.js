@@ -36,7 +36,7 @@ export const PATTERN_PRIORITIES = {
   // Padrões de CORES (mais simples e populares)
   red_black_balance: 6, // Desequilíbrio vermelho/preto
   color_streak: 5, // Sequência de mesma cor (5+ vezes)
-  
+
   // Padrões de APOSTAS EXTERNAS (Par/Ímpar, Alto/Baixo)
   parity_imbalance: 5, // Desequilíbrio par/ímpar
   highlow_imbalance: 5, // Desequilíbrio alto (19-36) / baixo (1-18)
@@ -1226,15 +1226,13 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
     (r) => rouletteParity(r.number) === "odd"
   ).length;
   const parityDiff = Math.abs(evenCount - oddCount);
-  
+
   if (parityDiff >= 6) {
     // Diferença de 6+ em 20 jogadas
     const dominant = evenCount > oddCount ? "even" : "odd";
     patterns.push({
       key: "parity_imbalance",
-      description: `${
-        dominant === "even" ? "Pares" : "Ímpares"
-      } dominando: ${
+      description: `${dominant === "even" ? "Pares" : "Ímpares"} dominando: ${
         dominant === "even" ? evenCount : oddCount
       } vs ${dominant === "even" ? oddCount : evenCount}`,
       risk: "low",
@@ -1283,9 +1281,9 @@ export function detectRouletteAdvancedPatterns(results = [], options = {}) {
       key: "highlow_imbalance",
       description: `${
         dominant === "high" ? "Altos (19-36)" : "Baixos (1-18)"
-      } dominando: ${
-        dominant === "high" ? highCount : lowCount
-      } vs ${dominant === "high" ? lowCount : highCount}`,
+      } dominando: ${dominant === "high" ? highCount : lowCount} vs ${
+        dominant === "high" ? lowCount : highCount
+      }`,
       risk: "low",
       targets: { type: "highlow", value: dominant },
     });
@@ -1887,14 +1885,15 @@ function getFriendlyDescription(patternKey, originalDescription) {
     // Cores (mais simples e populares)
     red_black_balance: "🔴⚫ Cores desbalanceadas! Uma cor está dominando.",
     color_streak: "🔴⚫ Sequência de cor! Mesma cor caindo muito.",
-    
+
     // Apostas externas - Par/Ímpar
     parity_imbalance: "🔢 Par/Ímpar desbalanceado! Um dos dois está dominando.",
     even_streak: "2️⃣4️⃣6️⃣ Sequência de PARES! Números pares caindo muito.",
     odd_streak: "1️⃣3️⃣5️⃣ Sequência de ÍMPARES! Números ímpares caindo muito.",
-    
+
     // Apostas externas - Alto/Baixo
-    highlow_imbalance: "⬆️⬇️ Alto/Baixo desbalanceado! Uma faixa está dominando.",
+    highlow_imbalance:
+      "⬆️⬇️ Alto/Baixo desbalanceado! Uma faixa está dominando.",
     high_streak: "⬆️ Sequência de ALTOS (19-36)! Números altos caindo muito.",
     low_streak: "⬇️ Sequência de BAIXOS (1-18)! Números baixos caindo muito.",
   };

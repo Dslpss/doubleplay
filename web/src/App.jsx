@@ -51,6 +51,7 @@ function App() {
   const lastValidatedResultRef = useRef(null); // Rastrear último resultado validado
   const [rouletteSignalsHistory, setRouletteSignalsHistory] = useState([]); // Histórico de sinais da roleta
   const [noSignalMessage, setNoSignalMessage] = useState(null); // Mensagem quando não há sinal
+  const [currentSignalAttempts, setCurrentSignalAttempts] = useState([]); // Armazena as 3 tentativas do sinal atual (Martingale)
 
   const [aggressiveMode, setAggressiveMode] = useState(true);
 
@@ -450,42 +451,74 @@ function App() {
         .join(", ")}...]`
     );
 
-    // Adicionar ao histórico
-    setRouletteSignalsHistory((prev) =>
-      [
-        {
-          id: resultId,
-          patternKey: bestRouletteSignal.patternKey,
-          description: bestRouletteSignal.description,
-          confidence: bestRouletteSignal.confidence,
-          targets: bestRouletteSignal.targets,
-          resultNumber: resultNum,
-          hit,
-          timestamp: Date.now(),
-          validationCount: newCount,
-        },
-        ...prev,
-      ].slice(0, 50)
-    ); // Manter últimos 50
+    // Adicionar tentativa ao array de tentativas do sinal atual (Martingale)
+    const attempt = {
+      attemptNumber: newCount,
+      resultNumber: resultNum,
+      hit,
+      timestamp: Date.now(),
+    };
+
+    setCurrentSignalAttempts((prev) => [...prev, attempt]);
 
     // Limpar sinal IMEDIATAMENTE quando acerta OU quando expira
     if (hit) {
       console.log("[Signal] ✅ ACERTOU! Limpando sinal imediatamente.");
+      
+      // Adicionar ao histórico com TODAS as tentativas
+      setRouletteSignalsHistory((prev) =>
+        [
+          {
+            id: resultId,
+            patternKey: bestRouletteSignal.patternKey,
+            description: bestRouletteSignal.description,
+            confidence: bestRouletteSignal.confidence,
+            targets: bestRouletteSignal.targets,
+            attempts: [...currentSignalAttempts, attempt], // Todas as tentativas (Martingale)
+            hit: true,
+            hitOnAttempt: newCount, // Em qual giro acertou
+            timestamp: Date.now(),
+          },
+          ...prev,
+        ].slice(0, 50)
+      ); // Manter últimos 50
+
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
+      setCurrentSignalAttempts([]); // Limpar tentativas
       lastValidatedResultRef.current = null; // Reset para próximo sinal
     } else if (newCount >= signalValidFor) {
-      // Se errou e passou o prazo de validade
+      // Se errou e passou o prazo de validade (3 tentativas)
       console.log(
         "[Signal] ❌ Sinal expirado após",
         newCount,
         "tentativas sem acerto"
       );
+
+      // Adicionar ao histórico com TODAS as tentativas (perdeu todas)
+      setRouletteSignalsHistory((prev) =>
+        [
+          {
+            id: resultId,
+            patternKey: bestRouletteSignal.patternKey,
+            description: bestRouletteSignal.description,
+            confidence: bestRouletteSignal.confidence,
+            targets: bestRouletteSignal.targets,
+            attempts: [...currentSignalAttempts, attempt], // Todas as 3 tentativas
+            hit: false,
+            hitOnAttempt: null, // Não acertou em nenhum giro
+            timestamp: Date.now(),
+          },
+          ...prev,
+        ].slice(0, 50)
+      ); // Manter últimos 50
+
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
+      setCurrentSignalAttempts([]); // Limpar tentativas
       lastValidatedResultRef.current = null; // Reset para próximo sinal
     }
-  }, [roulette, bestRouletteSignal, resultsCountSinceSignal, signalValidFor]);
+  }, [roulette, bestRouletteSignal, resultsCountSinceSignal, signalValidFor, currentSignalAttempts]);
 
   // SISTEMA ANTIGO DE VALIDAÇÃO - DESABILITADO
   // Agora usando apenas o sistema inteligente de validação
@@ -1109,12 +1142,43 @@ function App() {
             <h2
               style={{
                 marginTop: 0,
-                marginBottom: 20,
+                marginBottom: 12,
                 color: "#ecf0f1",
                 fontSize: 20,
               }}>
               📊 Histórico de Sinais
             </h2>
+            <div
+              style={{
+                padding: 12,
+                backgroundColor: "#2a2a2a",
+                borderRadius: 8,
+                marginBottom: 20,
+                border: "1px solid #3498db",
+              }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "#ecf0f1",
+                  fontWeight: 600,
+                  marginBottom: 8,
+                }}>
+                🎰 Sistema Martingale Ativo
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#c0c0c0",
+                  lineHeight: 1.6,
+                }}>
+                Cada sinal possui <strong style={{ color: "#ffd700" }}>3 tentativas</strong> de acerto:
+                <div style={{ marginTop: 6, marginLeft: 12 }}>
+                  • <strong style={{ color: "#3498db" }}>Giro 1</strong>: Aposta Principal<br />
+                  • <strong style={{ color: "#9b59b6" }}>Giro 2</strong>: Gale 1 (recuperação)<br />
+                  • <strong style={{ color: "#e67e22" }}>Giro 3</strong>: Gale 2 (última chance)
+                </div>
+              </div>
+            </div>
             {rouletteSignalsHistory.length === 0 ? (
               <p
                 style={{
@@ -1288,7 +1352,7 @@ function App() {
                         </span>
                       </div>
 
-                      {/* Resultado e Targets */}
+                      {/* Sistema Martingale - 3 Tentativas */}
                       <div
                         style={{
                           display: "flex",
@@ -1298,52 +1362,153 @@ function App() {
                           backgroundColor: "#1f1f1f",
                           borderRadius: 8,
                         }}>
-                        {/* Resultado */}
+                        {/* Título Martingale */}
                         <div
                           style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: "#ffd700",
+                            marginBottom: 8,
                             display: "flex",
                             alignItems: "center",
                             gap: 8,
                           }}>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: "#ffd700",
-                              minWidth: 70,
-                            }}>
-                            🎯 Resultado:
-                          </span>
-                          {(() => {
-                            const redNumbers = [
-                              1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27,
-                              30, 32, 34, 36,
-                            ];
-                            const resColor =
-                              h.resultNumber === 0
-                                ? "green"
-                                : redNumbers.includes(h.resultNumber)
-                                ? "red"
-                                : "black";
-                            return (
-                              <div
-                                style={{
-                                  padding: 4,
-                                  backgroundColor: h.hit
-                                    ? "rgba(46, 204, 113, 0.2)"
-                                    : "transparent",
-                                  borderRadius: 8,
-                                  border: h.hit ? "2px solid #2ecc71" : "none",
-                                }}>
-                                <ResultChip
-                                  number={h.resultNumber}
-                                  color={resColor}
-                                  compact
-                                />
-                              </div>
-                            );
-                          })()}
+                          <span>🎰 Sistema Martingale (3 Giros)</span>
+                          {h.hit && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: "#2ecc71",
+                                backgroundColor: "rgba(46, 204, 113, 0.2)",
+                                padding: "2px 8px",
+                                borderRadius: 12,
+                              }}>
+                              Acertou no Giro {h.hitOnAttempt}
+                            </span>
+                          )}
                         </div>
+
+                        {/* Mostrar as 3 tentativas */}
+                        {h.attempts && h.attempts.length > 0 && (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 10,
+                            }}>
+                            {h.attempts.map((attempt, idx) => {
+                              const redNumbers = [
+                                1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25,
+                                27, 30, 32, 34, 36,
+                              ];
+                              const resColor =
+                                attempt.resultNumber === 0
+                                  ? "green"
+                                  : redNumbers.includes(attempt.resultNumber)
+                                  ? "red"
+                                  : "black";
+
+                              // Labels para cada giro
+                              const attemptLabels = [
+                                "🎯 Aposta Principal",
+                                "🔄 Gale 1",
+                                "🔄🔄 Gale 2",
+                              ];
+
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
+                                    padding: 10,
+                                    backgroundColor:
+                                      attempt.hit
+                                        ? "rgba(46, 204, 113, 0.15)"
+                                        : "rgba(231, 76, 60, 0.1)",
+                                    borderRadius: 8,
+                                    border: `2px solid ${
+                                      attempt.hit ? "#2ecc71" : "#e74c3c"
+                                    }`,
+                                  }}>
+                                  <span
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: attempt.hit ? "#2ecc71" : "#e74c3c",
+                                      minWidth: 140,
+                                    }}>
+                                    {attemptLabels[idx]}
+                                  </span>
+                                  <ResultChip
+                                    number={attempt.resultNumber}
+                                    color={resColor}
+                                    compact
+                                  />
+                                  <span
+                                    style={{
+                                      fontSize: 14,
+                                      fontWeight: 700,
+                                      marginLeft: "auto",
+                                    }}>
+                                    {attempt.hit ? "✅" : "❌"}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Fallback se não houver attempts (sinais antigos) */}
+                        {(!h.attempts || h.attempts.length === 0) && h.resultNumber !== undefined && (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: "#ffd700",
+                                minWidth: 70,
+                              }}>
+                              🎯 Resultado:
+                            </span>
+                            {(() => {
+                              const redNumbers = [
+                                1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27,
+                                30, 32, 34, 36,
+                              ];
+                              const resColor =
+                                h.resultNumber === 0
+                                  ? "green"
+                                  : redNumbers.includes(h.resultNumber)
+                                  ? "red"
+                                  : "black";
+                              return (
+                                <div
+                                  style={{
+                                    padding: 4,
+                                    backgroundColor: h.hit
+                                      ? "rgba(46, 204, 113, 0.2)"
+                                      : "transparent",
+                                    borderRadius: 8,
+                                    border: h.hit ? "2px solid #2ecc71" : "none",
+                                  }}>
+                                  <ResultChip
+                                    number={h.resultNumber}
+                                    color={resColor}
+                                    compact
+                                  />
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
 
                         {/* Targets */}
                         <div
