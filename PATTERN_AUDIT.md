@@ -3,6 +3,7 @@
 ## Padrões Detectados (32 total)
 
 ### ✅ Configurados Corretamente (com prioridade E descrição)
+
 1. **neighbors_cluster** - Prioridade: 10 ✓ Descrição: ✓
 2. **sector_voisins** - Prioridade: 9 ✓ Descrição: ✓
 3. **sector_tiers** - Prioridade: 9 ✓ Descrição: ✓
@@ -17,6 +18,7 @@
 12. **zero_proximity** - Prioridade: 2 ✓ Descrição: ✓
 
 ### ⚠️ SEM PRIORIDADE (usarão default: 1)
+
 13. **alternating_opposite_sectors** - ❌ Prioridade | ❌ Descrição
 14. **brother_numbers** - ❌ Prioridade | ❌ Descrição
 15. **cobra_bet** - ❌ Prioridade | ❌ Descrição
@@ -39,27 +41,31 @@
 32. **zero_then_multiple10** - ❌ Prioridade | ❌ Descrição
 
 ### 🔍 Padrões em PATTERN_PRIORITIES mas NÃO detectados
+
 - **hot_numbers_trio** - Prioridade: 8 (nunca é criado no código!)
 - **finals_concentration** - Prioridade: 5 (nunca é criado no código!)
 
 ## 🚨 Problemas Identificados
 
 ### Crítico:
+
 1. **20 padrões sem prioridade** → usarão default 1, muito baixo para passar MIN_CONFIDENCE (6.5)
 2. **2 padrões fantasma** (hot_numbers_trio, finals_concentration) → nunca serão emitidos
 3. **hot_numbers** existe mas deveria ser **hot_numbers_trio**
 
 ### Médio:
+
 4. **13 padrões sem descrição amigável** → mostrarão texto técnico feio
 5. **Inconsistência** entre padrões detectados vs configurados
 
 ## 💡 Recomendações
 
 ### Ação 1: Adicionar prioridades faltantes
+
 ```javascript
 export const PATTERN_PRIORITIES = {
   // ... existentes ...
-  
+
   // Adicionar:
   hot_numbers: 8, // Números quentes (renomear hot_numbers_trio)
   neighbors_bet: 7, // Vizinhos diretos
@@ -85,10 +91,11 @@ export const PATTERN_PRIORITIES = {
 ```
 
 ### Ação 2: Adicionar descrições amigáveis
+
 ```javascript
 const friendlyDescriptions = {
   // ... existentes ...
-  
+
   // Adicionar:
   hot_numbers: "🔥 Número quente detectado! Ele está caindo muito.",
   neighbors_bet: "🎯 Vizinhos diretos! Aposte nos números adjacentes na roda.",
@@ -101,13 +108,15 @@ const friendlyDescriptions = {
   quick_repeat: "🔁 Repetição rápida! Número pode sair de novo.",
   column_imbalance: "📊 Coluna desbalanceada! Uma está dominando.",
   zero_then_multiple10: "🟢➡️🔟 Zero seguido de múltiplo de 10! Padrão raro.",
-  alternating_opposite_sectors: "↔️🔄 Setores opostos alternando! Padrão complexo.",
+  alternating_opposite_sectors:
+    "↔️🔄 Setores opostos alternando! Padrão complexo.",
 };
 ```
 
 ## ✅ Status dos Targets (extractTargetNumbers)
 
 Tipos suportados:
+
 - ✅ numbers
 - ✅ color
 - ✅ column

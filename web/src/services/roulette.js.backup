@@ -39,15 +39,15 @@ export const PATTERN_PRIORITIES = {
  * Configuração de sinais inteligentes
  */
 export const SIGNAL_CONFIG = {
-  MIN_CONFIDENCE: 7.0, // Confiança mínima para emitir sinal (0-10) - aumentado para padrões de qualidade
+  MIN_CONFIDENCE: 6.5, // Confiança mínima para emitir sinal (0-10)
   COOLDOWN_AFTER_WIN: 10000, // 10s após acerto
   COOLDOWN_AFTER_LOSS: 5000, // 5s após erro
   MIN_RESULTS_BETWEEN: 2, // Mínimo 2 resultados novos
-  MAX_SIGNALS_PER_MINUTE: 4, // Máximo 4 sinais/minuto (reduzido para focar em qualidade)
+  MAX_SIGNALS_PER_MINUTE: 6, // Máximo 6 sinais/minuto
   PATTERN_MIN_OCCURRENCE: 3, // Padrão precisa aparecer 3x mínimo
-  LEARNING_THRESHOLD: 8, // Tentativas mínimas para aprender (reduzido)
-  MIN_ACCURACY: 55, // Acurácia mínima % para continuar emitindo (aumentado)
-  RESET_THRESHOLD: 15, // Após 15 tentativas, dá segunda chance (reduzido)
+  LEARNING_THRESHOLD: 10, // Tentativas mínimas para aprender (dá mais chances)
+  MIN_ACCURACY: 50, // Acurácia mínima % para continuar emitindo
+  RESET_THRESHOLD: 20, // Após 20 tentativas, dá segunda chance
 };
 
 /**
@@ -617,6 +617,10 @@ export function buildRouletteStats(results = []) {
  *
  * Padrões detectados:
  * - column_triple: 3 números consecutivos da mesma coluna
+ * - dozen_imbalance: Dúzia dominante nos últimos 12 resultados
+ * - highlow_streak: Sequência de números altos/baixos
+ * - parity_streak: Sequência de números pares/ímpares
+ * - zero_proximity: Zero recente (últimos 10)
  * - red_black_balance: Desequilíbrio de cores
  * - hot_numbers: Números mais frequentes
  * - sector_*: Concentração em setores da roda (Voisins, Tiers, etc.)
@@ -1769,6 +1773,31 @@ function getFriendlyDescription(patternKey, originalDescription) {
       "🔴⚫ Cores desbalanceadas! Uma cor está dominando.",
     color_streak: 
       "🔴⚫ Sequência de cor! Mesma cor caindo muito.",
+
+    // Padrões de clusters e drift
+    wheel_cluster_drift: "🌀 Roleta está favorecendo uma região específica!",
+
+    // Padrões de sequência
+    highlow_streak: "⬆️⬇️ Números altos/baixos em sequência! Padrão claro.",
+    parity_streak: "🔢 Par/Ímpar em padrão! Sequência detectada.",
+    sequential_numbers:
+      "🔢 Números em sequência! Padrão consecutivo detectado.",
+
+    // Padrões de repetição
+    repeated_numbers: "� Números repetindo! Padrão de repetição ativo.",
+    quick_repeat: "🔁 Repetição rápida! Número pode sair de novo.",
+    dormant_numbers: "💤 Números dormentes! Hora de acordarem.",
+
+    // Padrões especiais
+    zero_proximity: "🟢 Zero saiu recentemente! Atenção aos vizinhos.",
+    brother_numbers: "� Números irmãos detectados! Conexão na roda.",
+    mirrored_numbers: "🪞 Números espelhados! Simetria na roda.",
+    opposite_sector: "↔️ Setor oposto na roda! Números do lado contrário.",
+    cobra_bet: "🐍 Aposta Cobra! Padrão em forma de serpente.",
+    multiples_of_last: "✖️ Múltiplos do último número! Progressão matemática.",
+    zero_then_multiple10: "🟢➡️🔟 Zero seguido de múltiplo de 10! Padrão raro.",
+    alternating_opposite_sectors:
+      "↔️� Setores opostos alternando! Padrão complexo.",
   };
 
   // Verificar se há mapeamento direto
