@@ -43,8 +43,6 @@ function App() {
   const [isNarrow, setIsNarrow] = useState(false);
   const [route, setRoute] = useState(window.location.hash || "#/");
   const [autoRouletteEnabled, setAutoRouletteEnabled] = useState(true);
-  const [rouletteSignalHistory] = useState([]);
-  const [rouletteHistoryLimit, setRouletteHistoryLimit] = useState(5);
 
   // Novo sistema de sinais inteligente
   const [bestRouletteSignal, setBestRouletteSignal] = useState(null);
@@ -787,21 +785,6 @@ function App() {
                 {autoRouletteEnabled ? "Desativar sinais" : "Ativar sinais"}
               </button>
               <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ opacity: 0.8 }}>Mostrar</span>
-                <select
-                  value={rouletteHistoryLimit}
-                  onChange={(e) =>
-                    setRouletteHistoryLimit(Number(e.target.value))
-                  }>
-                  {[3, 5, 10, 15].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <span style={{ opacity: 0.8 }}>sinais</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <input
                   type="checkbox"
                   checked={aggressiveMode}
@@ -1014,83 +997,6 @@ function App() {
             </div>
             <div style={{ marginTop: 8, fontSize: 12, color: "#c0392b" }}>
               ⚠️ Os sinais são visuais e sugerem números com base em padrões inteligentes. Use por sua conta e risco.
-            </div>
-
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontWeight: 600 }}>Histórico</div>
-              {rouletteSignalHistory.length === 0 ? (
-                <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
-              ) : (
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {rouletteSignalHistory
-                    .slice(0, rouletteHistoryLimit)
-                    .map((h, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            padding: "2px 6px",
-                            borderRadius: 4,
-                            background: "#374151",
-                            color: "#fff",
-                            fontSize: 12,
-                          }}>
-                          {h.value}
-                        </span>
-                        <span style={{ opacity: 0.8 }}>
-                          após número {h.number}
-                        </span>
-                        <span style={{ opacity: 0.6, fontSize: 12 }}>
-                          {new Date(h.time).toLocaleTimeString()}
-                        </span>
-                        {h.m1 && (
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                              background:
-                                h.m1 === "acerto" ? "#2ecc71" : "#e74c3c",
-                              color: "#fff",
-                              fontSize: 12,
-                            }}>
-                            M1 {h.m1}
-                          </span>
-                        )}
-                        {h.m2 && (
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                              background:
-                                h.m2 === "acerto" ? "#2ecc71" : "#e74c3c",
-                              color: "#fff",
-                              fontSize: 12,
-                            }}>
-                            M2 {h.m2}
-                          </span>
-                        )}
-                        <span
-                          style={{
-                            marginLeft: "auto",
-                            fontWeight: 600,
-                            color:
-                              h.result === "acerto" ? "#2ecc71" : "#e74c3c",
-                          }}>
-                          {h.result}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
