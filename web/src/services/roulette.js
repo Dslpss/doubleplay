@@ -49,15 +49,15 @@ export const PATTERN_PRIORITIES = {
  * Configuração de sinais inteligentes
  */
 export const SIGNAL_CONFIG = {
-  MIN_CONFIDENCE: 7.0, // Confiança mínima para emitir sinal (0-10) - aumentado para padrões de qualidade
+  MIN_CONFIDENCE: 6.5, // Confiança mínima para emitir sinal (0-10) - balanceado para mais sinais com qualidade
   COOLDOWN_AFTER_WIN: 10000, // 10s após acerto
   COOLDOWN_AFTER_LOSS: 5000, // 5s após erro
   MIN_RESULTS_BETWEEN: 2, // Mínimo 2 resultados novos
-  MAX_SIGNALS_PER_MINUTE: 4, // Máximo 4 sinais/minuto (reduzido para focar em qualidade)
+  MAX_SIGNALS_PER_MINUTE: 5, // Máximo 5 sinais/minuto (aumentado para mais oportunidades)
   PATTERN_MIN_OCCURRENCE: 3, // Padrão precisa aparecer 3x mínimo
-  LEARNING_THRESHOLD: 8, // Tentativas mínimas para aprender (reduzido)
-  MIN_ACCURACY: 55, // Acurácia mínima % para continuar emitindo (aumentado)
-  RESET_THRESHOLD: 15, // Após 15 tentativas, dá segunda chance (reduzido)
+  LEARNING_THRESHOLD: 12, // Tentativas mínimas para aprender - mais tempo para validar
+  MIN_ACCURACY: 48, // Acurácia mínima % para continuar emitindo - mais tolerante mas ainda exige qualidade
+  RESET_THRESHOLD: 15, // Após 15 tentativas, dá segunda chance
 };
 
 /**
@@ -1626,11 +1626,11 @@ export function detectBestRouletteSignal(results = [], options = {}) {
 
     // Ajustar com base em acurácia histórica (se tiver dados)
     if (attempts >= SIGNAL_CONFIG.LEARNING_THRESHOLD) {
-      // Penalizar se accuracy < 55%, bonificar se > 60%
-      if (accuracy < SIGNAL_CONFIG.MIN_ACCURACY) {
-        confidence *= 0.7; // Reduz 30%
-      } else if (accuracy > 60) {
-        confidence *= 1.2; // Aumenta 20%
+      // Penalizar levemente se accuracy < 40%, bonificar se > 55%
+      if (accuracy < 40) {
+        confidence *= 0.85; // Reduz apenas 15% (menos agressivo)
+      } else if (accuracy >= 55) {
+        confidence *= 1.15; // Aumenta 15% para padrões bons
       }
     }
 
