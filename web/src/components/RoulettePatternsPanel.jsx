@@ -23,7 +23,11 @@ function getBetTypeLabel(type) {
   return labels[type] || type;
 }
 
-export default function RoulettePatternsPanel({ signal, nextSignalIn = null, noSignalMessage = null }) {
+export default function RoulettePatternsPanel({
+  signal,
+  nextSignalIn = null,
+  noSignalMessage = null,
+}) {
   const box = {
     border: "1px solid #3a3a3a",
     borderRadius: 8,
@@ -47,13 +51,15 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null, noS
               borderRadius: 8,
               border: "1px solid #e74c3c",
             }}>
-            <p style={{ fontSize: 16, marginBottom: 0 }}>
-              {noSignalMessage}
-            </p>
+            <p style={{ fontSize: 16, marginBottom: 0 }}>{noSignalMessage}</p>
           </div>
         ) : (
           <div
-            style={{ textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
+            style={{
+              textAlign: "center",
+              padding: "20px 0",
+              color: "#c0c0c0",
+            }}>
             <p style={{ fontSize: 16, marginBottom: 8 }}>
               🔍 Analisando padrões...
             </p>
@@ -171,23 +177,24 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null, noS
         </h4>
 
         {/* Bet Type Label */}
-        {signal.suggestedBet.type && signal.suggestedBet.type !== "straight_up" && (
-          <div style={{ marginBottom: 8 }}>
-            <span
-              style={{
-                display: "inline-block",
-                padding: "4px 12px",
-                backgroundColor: "#2a2a2a",
-                borderRadius: 16,
-                fontSize: 12,
-                color: "#ffd700",
-                border: "1px solid #3a3a3a",
-                fontWeight: "500",
-              }}>
-              📍 Tipo: {getBetTypeLabel(signal.suggestedBet.type)}
-            </span>
-          </div>
-        )}
+        {signal.suggestedBet.type &&
+          signal.suggestedBet.type !== "straight_up" && (
+            <div style={{ marginBottom: 8 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "4px 12px",
+                  backgroundColor: "#2a2a2a",
+                  borderRadius: 16,
+                  fontSize: 12,
+                  color: "#ffd700",
+                  border: "1px solid #3a3a3a",
+                  fontWeight: "500",
+                }}>
+                📍 Tipo: {getBetTypeLabel(signal.suggestedBet.type)}
+              </span>
+            </div>
+          )}
 
         {/* Targets */}
         <div>
@@ -197,8 +204,16 @@ export default function RoulettePatternsPanel({ signal, nextSignalIn = null, noS
           <div style={targetGridStyle}>
             {signal.targets.slice(0, 20).map((num) => {
               // Determinar cor do número
-              const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-              const color = num === 0 ? 'green' : redNumbers.includes(num) ? 'red' : 'black';
+              const redNumbers = [
+                1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34,
+                36,
+              ];
+              const color =
+                num === 0
+                  ? "green"
+                  : redNumbers.includes(num)
+                  ? "red"
+                  : "black";
               return <ResultChip key={num} number={num} color={color} />;
             })}
             {signal.targets.length > 20 && (

@@ -14,20 +14,48 @@ export const PATTERN_PRIORITIES = {
   sector_voisins: 9, // Voisins du Zero (setor clássico)
   sector_tiers: 9, // Tiers du Cylindre
   sector_orphelins: 9, // Orphelins
-  hot_numbers_trio: 8, // 3+ números quentes
-
-  // Padrões de média confiabilidade
+  hot_numbers: 8, // Números quentes detectados
+  
+  // Padrões baseados em vizinhança na roda
+  neighbors_bet: 7, // Vizinhos diretos do último número
+  neighbors_last: 7, // Região vizinha ao último
+  pivot_number: 7, // Número pivô recorrente
+  
+  // Padrões de média-alta confiabilidade
+  wheel_cluster_drift: 6, // Drift de cluster na roda
+  sector_jeu_zero: 6, // Setor Jeu Zero
   column_cold: 6, // Coluna ausente
   dozen_cold: 6, // Dúzia ausente
-  finals_concentration: 5, // Concentração em finais
+  
+  // Padrões de média confiabilidade
+  color_streak: 5, // Sequência de cor
+  color_alternation: 5, // Alternância de cor
+  dormant_numbers: 5, // Números dormentes
   red_black_balance: 5, // Desequilíbrio de cores
-
-  // Padrões de baixa confiabilidade (mais aleatórios)
+  
+  // Padrões de média-baixa confiabilidade
+  repeated_numbers: 4, // Números repetindo
+  column_imbalance: 4, // Desequilíbrio de coluna
   column_triple: 4, // Trinca de coluna
   dozen_imbalance: 4, // Desequilíbrio de dúzia
+  
+  // Padrões de baixa confiabilidade
+  quick_repeat: 3, // Repetição rápida
+  sequential_numbers: 3, // Números em sequência
   highlow_streak: 3, // Sequência alto/baixo
   parity_streak: 3, // Sequência par/ímpar
-  zero_proximity: 2, // Zero recente (informativo)
+  
+  // Padrões informativos/complementares
+  brother_numbers: 2, // Números irmãos
+  mirrored_numbers: 2, // Números espelhados
+  opposite_sector: 2, // Setor oposto
+  cobra_bet: 2, // Aposta cobra
+  zero_proximity: 2, // Zero recente
+  
+  // Padrões especulativos
+  multiples_of_last: 1, // Múltiplos do último
+  zero_then_multiple10: 1, // Zero → múltiplo de 10
+  alternating_opposite_sectors: 1, // Alternância de setores
 };
 
 /**
@@ -134,8 +162,15 @@ class PatternLearner {
     }
 
     // Segunda chance: após muitas tentativas, reseta bloqueio
-    if (attempts >= SIGNAL_CONFIG.RESET_THRESHOLD && accuracy < SIGNAL_CONFIG.MIN_ACCURACY) {
-      console.log(`[PatternLearner] ${patternKey}: Segunda chance após ${attempts} tentativas (acc: ${accuracy.toFixed(1)}%)`);
+    if (
+      attempts >= SIGNAL_CONFIG.RESET_THRESHOLD &&
+      accuracy < SIGNAL_CONFIG.MIN_ACCURACY
+    ) {
+      console.log(
+        `[PatternLearner] ${patternKey}: Segunda chance após ${attempts} tentativas (acc: ${accuracy.toFixed(
+          1
+        )}%)`
+      );
       // Reset stats para dar nova oportunidade
       this.patternStats[patternKey] = { hits: 0, misses: 0 };
       return baseConfidence >= SIGNAL_CONFIG.MIN_CONFIDENCE;
@@ -1469,14 +1504,19 @@ export function detectBestRouletteSignal(results = [], options = {}) {
   // Detectar todos os padrões possíveis
   const allPatterns = detectRouletteAdvancedPatterns(results, options);
 
-  console.log(`[PatternDetection] ${allPatterns.length} padrões detectados:`, allPatterns.map(p => p.key));
+  console.log(
+    `[PatternDetection] ${allPatterns.length} padrões detectados:`,
+    allPatterns.map((p) => p.key)
+  );
 
   if (allPatterns.length === 0) {
     console.log("[PatternDetection] Nenhum padrão detectado pela análise");
     return null;
   }
 
-  console.log(`[PatternScoring] Calculando confiança para ${allPatterns.length} padrões...`);
+  console.log(
+    `[PatternScoring] Calculando confiança para ${allPatterns.length} padrões...`
+  );
 
   // Pontuar cada padrão
   const scoredPatterns = allPatterns.map((pattern) => {
@@ -1512,19 +1552,30 @@ export function detectBestRouletteSignal(results = [], options = {}) {
     };
   });
 
-  console.log(`[PatternScoring] Padrões pontuados:`, 
-    scoredPatterns.map(p => `${p.key}(conf:${p.confidence.toFixed(1)}, acc:${p.accuracy ? p.accuracy.toFixed(1) : 'N/A'}%)`));
+  console.log(
+    `[PatternScoring] Padrões pontuados:`,
+    scoredPatterns.map(
+      (p) =>
+        `${p.key}(conf:${p.confidence.toFixed(1)}, acc:${
+          p.accuracy ? p.accuracy.toFixed(1) : "N/A"
+        }%)`
+    )
+  );
 
   // Filtrar padrões que podem ser emitidos
   const validPatterns = scoredPatterns.filter((p) =>
     patternLearner.shouldEmitPattern(p.key, p.confidence)
   );
 
-  console.log(`[PatternFiltering] ${validPatterns.length} padrões válidos após filtro:`, 
-    validPatterns.map(p => `${p.key}(${p.confidence.toFixed(1)})`));
+  console.log(
+    `[PatternFiltering] ${validPatterns.length} padrões válidos após filtro:`,
+    validPatterns.map((p) => `${p.key}(${p.confidence.toFixed(1)})`)
+  );
 
   if (validPatterns.length === 0) {
-    console.log("[PatternFiltering] Nenhum padrão passou no filtro de confiança");
+    console.log(
+      "[PatternFiltering] Nenhum padrão passou no filtro de confiança"
+    );
     return null;
   }
 
@@ -1533,11 +1584,19 @@ export function detectBestRouletteSignal(results = [], options = {}) {
     current.confidence > best.confidence ? current : best
   );
 
-  console.log(`[PatternSelection] Melhor padrão: ${bestPattern.key} com confiança ${bestPattern.confidence.toFixed(1)}`);
+  console.log(
+    `[PatternSelection] Melhor padrão: ${
+      bestPattern.key
+    } com confiança ${bestPattern.confidence.toFixed(1)}`
+  );
 
   // Verificar se atinge confiança mínima
   if (bestPattern.confidence < SIGNAL_CONFIG.MIN_CONFIDENCE) {
-    console.log(`[PatternSelection] Confiança ${bestPattern.confidence.toFixed(1)} < mínimo ${SIGNAL_CONFIG.MIN_CONFIDENCE}`);
+    console.log(
+      `[PatternSelection] Confiança ${bestPattern.confidence.toFixed(
+        1
+      )} < mínimo ${SIGNAL_CONFIG.MIN_CONFIDENCE}`
+    );
     return null;
   }
 
@@ -1547,7 +1606,9 @@ export function detectBestRouletteSignal(results = [], options = {}) {
   console.log(`[PatternSelection] Targets extraídos:`, targets);
 
   if (targets.length === 0) {
-    console.log(`[PatternSelection] BLOQUEADO: Nenhum número alvo extraído para ${bestPattern.key}`);
+    console.log(
+      `[PatternSelection] BLOQUEADO: Nenhum número alvo extraído para ${bestPattern.key}`
+    );
     console.log(`[PatternSelection] bestPattern.targets:`, bestPattern.targets);
     return null;
   }
@@ -1651,7 +1712,7 @@ function extractTargetNumbers(targets) {
       if (Array.isArray(targets.clusters)) {
         return targets.clusters.flatMap((c) => {
           // Suporta tanto array simples [1,2,3] quanto objeto {numbers: [1,2,3]}
-          return Array.isArray(c) ? c : (c.numbers || []);
+          return Array.isArray(c) ? c : c.numbers || [];
         });
       }
       break;
@@ -1699,6 +1760,7 @@ function getSignalColor(confidence) {
 function getFriendlyDescription(patternKey, originalDescription) {
   // Mapeamento de descrições amigáveis por tipo de padrão
   const friendlyDescriptions = {
+    // Padrões de alta confiabilidade
     neighbors_cluster:
       "🎯 Números vizinhos na roda estão quentes! Aposte nessa região.",
     sector_voisins:
@@ -1707,25 +1769,47 @@ function getFriendlyDescription(patternKey, originalDescription) {
     sector_orphelins:
       "✨ Região dos Órfãos está favorável! Números dispersos mas conectados.",
     sector_jeu_zero: "🎲 Região Jogo Zero está em alta! Próximo ao zero.",
-    hot_numbers_trio:
-      "🔥 Números quentes identificados! Eles estão caindo muito.",
-    column_cold: "❄️ Uma coluna está fria demais! Hora dela voltar.",
-    dozen_cold: "❄️ Uma dúzia não cai há muito tempo! Boa chance de sair.",
-    finals_concentration: "🎯 Números com mesma terminação estão em sequência!",
+    hot_numbers: "🔥 Número quente detectado! Ele está caindo muito.",
+    
+    // Padrões de vizinhança
+    neighbors_bet: "🎯 Vizinhos diretos! Aposte nos números adjacentes na roda.",
     neighbors_last: "🎯 Vizinhos do último número! Região quente na roda.",
     pivot_number: "⭐ Número pivô detectado! Ele está caindo frequentemente.",
-    wheel_cluster_drift: "🌀 Roleta está favorecendo uma região específica!",
+    
+    // Padrões de coluna e dúzia
+    column_cold: "❄️ Uma coluna está fria demais! Hora dela voltar.",
+    dozen_cold: "❄️ Uma dúzia não cai há muito tempo! Boa chance de sair.",
     column_triple: "📊 Coluna em sequência! Padrão raro e forte.",
-    column_heavy: "📊 Uma coluna está dominando! Continue nela.",
+    column_imbalance: "📊 Coluna desbalanceada! Uma está dominando muito.",
     dozen_imbalance: "📊 Dúzia desbalanceada! Compensação esperada.",
-    highlow_streak: "⬆️⬇️ Números altos/baixos em sequência! Padrão claro.",
-    parity_streak: "🔢 Par/Ímpar em padrão! Sequência detectada.",
+    
+    // Padrões de cor
     red_black_balance: "🔴⚫ Cores desbalanceadas! Uma está dominando.",
-    zero_proximity: "🟢 Zero saiu recentemente! Atenção aos vizinhos.",
-    dormant_numbers: "💤 Números dormentes! Hora de acordarem.",
-    repeated_numbers: "🔄 Números repetindo! Padrão de repetição ativo.",
     color_streak: "🔴⚫ Sequência de cor forte! Continue na tendência.",
     color_alternation: "🔴⚫ Cores alternando perfeitamente! Padrão claro.",
+    
+    // Padrões de clusters e drift
+    wheel_cluster_drift: "🌀 Roleta está favorecendo uma região específica!",
+    
+    // Padrões de sequência
+    highlow_streak: "⬆️⬇️ Números altos/baixos em sequência! Padrão claro.",
+    parity_streak: "🔢 Par/Ímpar em padrão! Sequência detectada.",
+    sequential_numbers: "🔢 Números em sequência! Padrão consecutivo detectado.",
+    
+    // Padrões de repetição
+    repeated_numbers: "� Números repetindo! Padrão de repetição ativo.",
+    quick_repeat: "🔁 Repetição rápida! Número pode sair de novo.",
+    dormant_numbers: "💤 Números dormentes! Hora de acordarem.",
+    
+    // Padrões especiais
+    zero_proximity: "🟢 Zero saiu recentemente! Atenção aos vizinhos.",
+    brother_numbers: "� Números irmãos detectados! Conexão na roda.",
+    mirrored_numbers: "🪞 Números espelhados! Simetria na roda.",
+    opposite_sector: "↔️ Setor oposto na roda! Números do lado contrário.",
+    cobra_bet: "🐍 Aposta Cobra! Padrão em forma de serpente.",
+    multiples_of_last: "✖️ Múltiplos do último número! Progressão matemática.",
+    zero_then_multiple10: "🟢➡️🔟 Zero seguido de múltiplo de 10! Padrão raro.",
+    alternating_opposite_sectors: "↔️� Setores opostos alternando! Padrão complexo.",
   };
 
   // Verificar se há mapeamento direto
