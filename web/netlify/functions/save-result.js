@@ -17,7 +17,12 @@ export const handler = async (event) => {
     const body = JSON.parse(event.body);
     const { result, gameType = "double" } = body;
 
-    if (!result || !result.number || !result.timestamp) {
+    // Aceitar número 0 (branco) e garantir tipos válidos
+    if (
+      !result ||
+      typeof result.number !== "number" ||
+      typeof result.timestamp !== "number"
+    ) {
       return {
         statusCode: 400,
         body: JSON.stringify({

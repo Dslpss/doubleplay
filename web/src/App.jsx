@@ -202,23 +202,38 @@ function App() {
 
         // Sincronizar sinal ativo do Double - SEMPRE atualiza se diferente
         const activeDoubleSignal = await getActiveSignal("double");
-        
+
         // Compara IDs ou timestamps para ver se mudou
-        const currentId = bestDoubleSignal?.id || bestDoubleSignal?.timestamp || 0;
-        const remoteId = activeDoubleSignal?.id || activeDoubleSignal?.timestamp || 0;
-        
+        const currentId =
+          bestDoubleSignal?.id || bestDoubleSignal?.timestamp || 0;
+        const remoteId =
+          activeDoubleSignal?.id || activeDoubleSignal?.timestamp || 0;
+
         if (activeDoubleSignal && !bestDoubleSignal) {
           // Não tem sinal local mas tem no banco - PEGAR IMEDIATAMENTE
-          console.log("🔔 Sinal encontrado no banco, aplicando localmente!", activeDoubleSignal.description);
+          console.log(
+            "🔔 Sinal encontrado no banco, aplicando localmente!",
+            activeDoubleSignal.description
+          );
           setBestDoubleSignal(activeDoubleSignal);
-          doubleAttemptResultsRef.current = activeDoubleSignal.attemptResults || [];
-          setDoubleResultsCountSinceSignal(activeDoubleSignal.resultsCount || 0);
-        } else if (activeDoubleSignal && bestDoubleSignal && currentId !== remoteId) {
+          doubleAttemptResultsRef.current =
+            activeDoubleSignal.attemptResults || [];
+          setDoubleResultsCountSinceSignal(
+            activeDoubleSignal.resultsCount || 0
+          );
+        } else if (
+          activeDoubleSignal &&
+          bestDoubleSignal &&
+          currentId !== remoteId
+        ) {
           // Sinal diferente no banco - ATUALIZAR
           console.log("🔔 Sinal atualizado do banco!");
           setBestDoubleSignal(activeDoubleSignal);
-          doubleAttemptResultsRef.current = activeDoubleSignal.attemptResults || [];
-          setDoubleResultsCountSinceSignal(activeDoubleSignal.resultsCount || 0);
+          doubleAttemptResultsRef.current =
+            activeDoubleSignal.attemptResults || [];
+          setDoubleResultsCountSinceSignal(
+            activeDoubleSignal.resultsCount || 0
+          );
         } else if (!activeDoubleSignal && bestDoubleSignal) {
           // Sinal foi removido remotamente
           console.log("🔕 Sinal removido do banco");
@@ -951,27 +966,18 @@ function App() {
               </a>
             </div>
           </div>
-
-          {/* Painel de Sinais do Double */}
-          <div
-            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
-            <h2>Sinais Inteligentes (Double)</h2>
-            <div style={{ marginTop: 8 }}>
-              <DoublePatternsPanel
-                signal={bestDoubleSignal}
-                nextSignalIn={
-                  bestDoubleSignal ? null : 3 - (results.length % 3)
-                }
-                noSignalMessage={noDoubleSignalMessage}
-                lastNumber={
-                  results.length > 0 ? results[results.length - 1].number : null
-                }
-              />
-            </div>
-          </div>
         </div>
       )}
 
+      <div
+        style={{
+          marginTop: 24,
+          display: route !== "#/roulette" ? "block" : "none",
+        }}>
+        <StatsPanel stats={stats} streaks={streaks} />
+      </div>
+
+      {/* Card de Últimos Resultados - acima dos sinais inteligentes */}
       <div
         style={{
           marginTop: 24,
@@ -1017,13 +1023,64 @@ function App() {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 24,
-          display: route !== "#/roulette" ? "block" : "none",
-        }}>
-        <StatsPanel stats={stats} streaks={streaks} />
-      </div>
+      {/* Card de Sinais Inteligentes do Double - abaixo dos últimos resultados */}
+      {route !== "#/roulette" && (
+        <div style={{ marginTop: 24 }}>
+          <div
+            style={{
+              border: "1px solid rgb(204, 204, 204)",
+              padding: 16,
+              borderRadius: 8,
+            }}>
+            <h2>Sinais Inteligentes (Double)</h2>
+            <div style={{ marginTop: 8 }}>
+              <div
+                style={{
+                  border: "1px solid rgb(58, 58, 58)",
+                  borderRadius: 8,
+                  padding: 16,
+                  backgroundColor: "rgb(31, 31, 31)",
+                }}>
+                <h3
+                  style={{
+                    marginTop: 0,
+                    marginBottom: 16,
+                    color: "rgb(236, 240, 241)",
+                  }}>
+                  Sinais do Double
+                </h3>
+                {bestDoubleSignal ? (
+                  <DoublePatternsPanel
+                    signal={bestDoubleSignal}
+                    nextSignalIn={null}
+                    noSignalMessage={noDoubleSignalMessage}
+                    lastNumber={
+                      results.length > 0
+                        ? results[results.length - 1].number
+                        : null
+                    }
+                  />
+                ) : (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "20px 0",
+                      color: "rgb(192, 192, 192)",
+                    }}>
+                    <p style={{ fontSize: 16, marginBottom: 8 }}>
+                      🔍 Analisando padrões...
+                    </p>
+                    <p style={{ fontSize: 14, color: "rgb(153, 153, 153)" }}>
+                      Próximo sinal em {3 - (results.length % 3)} resultado
+                      {3 - (results.length % 3) !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Removido: Painel "Padrões Detectados" no modo Double */}
 
