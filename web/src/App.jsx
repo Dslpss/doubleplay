@@ -137,6 +137,68 @@ function App() {
     loadInitialData();
   }, []); // Executa apenas uma vez na montagem
 
+  // Sincronização periódica - busca novos dados do banco a cada 10 segundos
+  useEffect(() => {
+    const syncInterval = setInterval(async () => {
+      try {
+        // Sincronizar resultados do Double
+        const doubleResults = await getResults("double", 100);
+        if (doubleResults && doubleResults.length > 0) {
+          setResults((prev) => {
+            // Só atualiza se houver diferença (para evitar re-renders desnecessários)
+            const lastLocal = prev[prev.length - 1];
+            const lastRemote = doubleResults[doubleResults.length - 1];
+            if (!lastLocal || !lastRemote || lastLocal.timestamp !== lastRemote.timestamp) {
+              return doubleResults;
+            }
+            return prev;
+          });
+        }
+
+        // Sincronizar resultados da Roleta
+        const rouletteResults = await getResults("roulette", 100);
+        if (rouletteResults && rouletteResults.length > 0) {
+          setRoulette((prev) => {
+            const lastLocal = prev[0];
+            const lastRemote = rouletteResults[0];
+            if (!lastLocal || !lastRemote || lastLocal.timestamp !== lastRemote.timestamp) {
+              return rouletteResults;
+            }
+            return prev;
+          });
+        }
+
+        // Sincronizar histórico de sinais do Double
+        const doubleSignals = await getSignals("double", 100);
+        if (doubleSignals && doubleSignals.length > 0) {
+          setDoubleSignalsHistory((prev) => {
+            if (prev.length !== doubleSignals.length) {
+              return doubleSignals;
+            }
+            return prev;
+          });
+        }
+
+        // Sincronizar histórico de sinais da Roleta
+        const rouletteSignals = await getSignals("roulette", 100);
+        if (rouletteSignals && rouletteSignals.length > 0) {
+          setRouletteSignalsHistory((prev) => {
+            if (prev.length !== rouletteSignals.length) {
+              return rouletteSignals;
+            }
+            return prev;
+          });
+        }
+
+        console.log("🔄 Dados sincronizados com o banco");
+      } catch (error) {
+        console.error("⚠️ Erro ao sincronizar dados:", error);
+      }
+    }, 10000); // A cada 10 segundos
+
+    return () => clearInterval(syncInterval);
+  }, []);
+
   useEffect(() => {
     wsRef.current = createWsClient((data) => {
       if (data?.type === "status") {
