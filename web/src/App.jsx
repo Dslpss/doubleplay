@@ -426,6 +426,8 @@ function App() {
     const signal = detectBestDoubleSignal(analysisResults, {});
 
     if (signal) {
+      // Marcar que o sinal foi exibido no card
+      signal.wasDisplayed = true;
       setBestDoubleSignal(signal);
       doubleAttemptResultsRef.current = [];
       setDoubleResultsCountSinceSignal(0);
@@ -462,49 +464,53 @@ function App() {
     const hit = (bestDoubleSignal.targets || []).includes(Number(latest.number));
     // tentativa registrada apenas para controle local; histórico não persistido
     if (hit) {
-      // Registrar no histórico do Double
-      setDoubleSignalsHistory((hist) => [
-        {
-          id: resultId,
-          hit: true,
-          hitOnAttempt: newCount,
-          description: bestDoubleSignal.description,
-          confidence: bestDoubleSignal.confidence,
-          timestamp: Date.now(),
-          targets: bestDoubleSignal.targets || [],
-          resultNumber: Number(latest.number),
-          attempts: (doubleAttemptResultsRef.current || []).map((num) => ({
-            resultNumber: Number(num),
-            hit: (bestDoubleSignal.targets || []).includes(Number(num)),
-          })),
-          attemptResults: [...doubleAttemptResultsRef.current],
-        },
-        ...hist,
-      ]);
+      // Registrar no histórico do Double APENAS se o sinal foi exibido no card
+      if (bestDoubleSignal.wasDisplayed) {
+        setDoubleSignalsHistory((hist) => [
+          {
+            id: resultId,
+            hit: true,
+            hitOnAttempt: newCount,
+            description: bestDoubleSignal.description,
+            confidence: bestDoubleSignal.confidence,
+            timestamp: Date.now(),
+            targets: bestDoubleSignal.targets || [],
+            resultNumber: Number(latest.number),
+            attempts: (doubleAttemptResultsRef.current || []).map((num) => ({
+              resultNumber: Number(num),
+              hit: (bestDoubleSignal.targets || []).includes(Number(num)),
+            })),
+            attemptResults: [...doubleAttemptResultsRef.current],
+          },
+          ...hist,
+        ]);
+      }
       setBestDoubleSignal(null);
       setDoubleResultsCountSinceSignal(0);
       doubleAttemptResultsRef.current = [];
       lastDoubleValidatedResultRef.current = null;
     } else if (newCount >= (bestDoubleSignal.validFor || 3)) {
-      // expirou sem acerto
-      setDoubleSignalsHistory((hist) => [
-        {
-          id: resultId,
-          hit: false,
-          hitOnAttempt: null,
-          description: bestDoubleSignal.description,
-          confidence: bestDoubleSignal.confidence,
-          timestamp: Date.now(),
-          targets: bestDoubleSignal.targets || [],
-          resultNumber: Number(latest.number),
-          attempts: (doubleAttemptResultsRef.current || []).map((num) => ({
-            resultNumber: Number(num),
-            hit: (bestDoubleSignal.targets || []).includes(Number(num)),
-          })),
-          attemptResults: [...doubleAttemptResultsRef.current],
-        },
-        ...hist,
-      ]);
+      // expirou sem acerto - APENAS registrar se o sinal foi exibido no card
+      if (bestDoubleSignal.wasDisplayed) {
+        setDoubleSignalsHistory((hist) => [
+          {
+            id: resultId,
+            hit: false,
+            hitOnAttempt: null,
+            description: bestDoubleSignal.description,
+            confidence: bestDoubleSignal.confidence,
+            timestamp: Date.now(),
+            targets: bestDoubleSignal.targets || [],
+            resultNumber: Number(latest.number),
+            attempts: (doubleAttemptResultsRef.current || []).map((num) => ({
+              resultNumber: Number(num),
+              hit: (bestDoubleSignal.targets || []).includes(Number(num)),
+            })),
+            attemptResults: [...doubleAttemptResultsRef.current],
+          },
+          ...hist,
+        ]);
+      }
       setBestDoubleSignal(null);
       setDoubleResultsCountSinceSignal(0);
       doubleAttemptResultsRef.current = [];
