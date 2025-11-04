@@ -12,7 +12,6 @@ import {
 } from "./services/parser";
 import ResultChip from "./components/ResultChip";
 import StatsPanel from "./components/StatsPanel";
-import PatternsPanel from "./components/PatternsPanel";
 import RouletteStatsPanel from "./components/RouletteStatsPanel";
 import RoulettePatternsPanel from "./components/RoulettePatternsPanel";
 import {
@@ -22,6 +21,8 @@ import {
 } from "./services/roulette";
 import DoubleEmbedPanel from "./components/DoubleEmbedPanel";
 import RouletteEmbedPanel from "./components/RouletteEmbedPanel";
+import DoublePatternsPanel from "./components/DoublePatternsPanel.jsx";
+import { detectBestDoubleSignal } from "./services/double.js";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
@@ -33,13 +34,13 @@ function App() {
   const lastRouletteKeyRef = useRef(null);
   const MAX_RESULTS = 100;
 
-  const [autoBetEnabled, setAutoBetEnabled] = useState(false);
+  const [autoBetEnabled] = useState(false);
   const [lastAutoBetRound, setLastAutoBetRound] = useState(null);
-  const [lastAutoBetStatus, setLastAutoBetStatus] = useState(null);
+  const [, setLastAutoBetStatus] = useState(null);
   const [lastPatternKey, setLastPatternKey] = useState(null);
   const [activeSignal, setActiveSignal] = useState(null);
-  const [signalHistory, setSignalHistory] = useState([]);
-  const [historyLimit, setHistoryLimit] = useState(5);
+  const [, setSignalHistory] = useState([]);
+  // removed unused historyLimit state
   const [isNarrow, setIsNarrow] = useState(false);
   const [route, setRoute] = useState(window.location.hash || "#/");
   const [autoRouletteEnabled, setAutoRouletteEnabled] = useState(true);
@@ -52,6 +53,14 @@ function App() {
   const [rouletteSignalsHistory, setRouletteSignalsHistory] = useState([]); // Histórico de sinais da roleta
   const [noSignalMessage, setNoSignalMessage] = useState(null); // Mensagem quando não há sinal
   const [currentSignalAttempts, setCurrentSignalAttempts] = useState([]); // Armazena as 3 tentativas do sinal atual (Martingale)
+
+  // Sinais inteligentes para Double
+  const [bestDoubleSignal, setBestDoubleSignal] = useState(null);
+  const [doubleResultsCountSinceSignal, setDoubleResultsCountSinceSignal] = useState(0);
+  const lastDoubleValidatedResultRef = useRef(null);
+  const doubleAttemptResultsRef = useRef([]); // armazena resultados por giro para o sinal atual (Double)
+  const [noDoubleSignalMessage, setNoDoubleSignalMessage] = useState(null);
+  const [doubleSignalsHistory, setDoubleSignalsHistory] = useState([]); // Histórico de sinais do Double
 
   const [aggressiveMode, setAggressiveMode] = useState(true);
 
@@ -169,7 +178,6 @@ function App() {
   const connected = Boolean(serverStatus?.wsConnected);
   const stats = summarizeResults(results);
   const streaks = computeStreaks(results);
-  const patterns = detectSimplePatterns(results);
   const rouletteStats = summarizeRoulette(roulette);
   const rouletteStreaks = computeRouletteStreaks(roulette);
 
@@ -209,18 +217,7 @@ function App() {
   }
 
   // Helpers de cor para UI do alerta de sinal
-  const colorHex = { red: "#e74c3c", black: "#2c3e50", white: "#ecf0f1" };
-  const colorLabelPt = (c) =>
-    c === "red" ? "vermelho" : c === "black" ? "preto" : "branco";
-  const colorSquareStyle = (c) => ({
-    display: "inline-block",
-    width: 16,
-    height: 16,
-    borderRadius: 3,
-    background: colorHex[c],
-    border: "1px solid rgba(0,0,0,0.2)",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-  });
+  // removed unused colorHex helper
 
   /* removed unused eslint-disable directive */
   useEffect(() => {
@@ -413,6 +410,107 @@ function App() {
     maxRecent,
     maxHistorical,
   ]);
+
+  // ===============================
+  // Sinais Inteligentes do Double
+  // ===============================
+  useEffect(() => {
+    if (route === "#/roulette") return; // apenas no modo Double
+    if (!results || results.length < 3) return;
+
+    if (bestDoubleSignal) {
+      return; // aguardar validação do sinal atual
+    }
+
+    const analysisResults = [...results]; // cronológico: mais recente no fim
+    const signal = detectBestDoubleSignal(analysisResults, {});
+
+    if (signal) {
+      setBestDoubleSignal(signal);
+      doubleAttemptResultsRef.current = [];
+      setDoubleResultsCountSinceSignal(0);
+      setNoDoubleSignalMessage(null);
+    } else {
+      if (results.length % 3 === 0) {
+        setNoDoubleSignalMessage("❌ Nenhum padrão forte detectado neste ciclo");
+        setTimeout(() => setNoDoubleSignalMessage(null), 5000);
+      }
+    }
+  }, [results, bestDoubleSignal, route]);
+
+  // Validação de sinais do Double
+  useEffect(() => {
+    if (route === "#/roulette") return;
+    if (!bestDoubleSignal || !results || results.length === 0) return;
+
+    const latest = results[results.length - 1];
+    const resultId = `${latest.timestamp}-${latest.number}`;
+
+    // Evitar validar resultados anteriores ao sinal
+    if ((latest.timestamp || 0) <= (bestDoubleSignal.timestamp || 0)) return;
+    // Evitar dupla validação
+    if (lastDoubleValidatedResultRef.current === resultId) return;
+    lastDoubleValidatedResultRef.current = resultId;
+
+    // Incrementar contador
+    const newCount = doubleResultsCountSinceSignal + 1;
+    setDoubleResultsCountSinceSignal(newCount);
+    // Registrar resultado desta tentativa
+    doubleAttemptResultsRef.current.push(Number(latest.number));
+
+    // Validar resultado
+    const hit = (bestDoubleSignal.targets || []).includes(Number(latest.number));
+    // tentativa registrada apenas para controle local; histórico não persistido
+    if (hit) {
+      // Registrar no histórico do Double
+      setDoubleSignalsHistory((hist) => [
+        {
+          id: resultId,
+          hit: true,
+          hitOnAttempt: newCount,
+          description: bestDoubleSignal.description,
+          confidence: bestDoubleSignal.confidence,
+          timestamp: Date.now(),
+          targets: bestDoubleSignal.targets || [],
+          resultNumber: Number(latest.number),
+          attempts: (doubleAttemptResultsRef.current || []).map((num) => ({
+            resultNumber: Number(num),
+            hit: (bestDoubleSignal.targets || []).includes(Number(num)),
+          })),
+          attemptResults: [...doubleAttemptResultsRef.current],
+        },
+        ...hist,
+      ]);
+      setBestDoubleSignal(null);
+      setDoubleResultsCountSinceSignal(0);
+      doubleAttemptResultsRef.current = [];
+      lastDoubleValidatedResultRef.current = null;
+    } else if (newCount >= (bestDoubleSignal.validFor || 3)) {
+      // expirou sem acerto
+      setDoubleSignalsHistory((hist) => [
+        {
+          id: resultId,
+          hit: false,
+          hitOnAttempt: null,
+          description: bestDoubleSignal.description,
+          confidence: bestDoubleSignal.confidence,
+          timestamp: Date.now(),
+          targets: bestDoubleSignal.targets || [],
+          resultNumber: Number(latest.number),
+          attempts: (doubleAttemptResultsRef.current || []).map((num) => ({
+            resultNumber: Number(num),
+            hit: (bestDoubleSignal.targets || []).includes(Number(num)),
+          })),
+          attemptResults: [...doubleAttemptResultsRef.current],
+        },
+        ...hist,
+      ]);
+      setBestDoubleSignal(null);
+      setDoubleResultsCountSinceSignal(0);
+      doubleAttemptResultsRef.current = [];
+      lastDoubleValidatedResultRef.current = null;
+    }
+  }, [results, bestDoubleSignal, route, doubleResultsCountSinceSignal]);
 
   // Validação de sinais - verifica se acertou ou errou
   useEffect(() => {
@@ -647,123 +745,23 @@ function App() {
             </div>
           </div>
 
-          <div
-            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
-            <h2>Auto aposta (sinal)</h2>
-            <p>Estado: {autoBetEnabled ? "Ativa" : "Desativada"}</p>
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}>
-              <button
-                onClick={() => setAutoBetEnabled((v) => !v)}
-                style={{ width: isNarrow ? "100%" : undefined }}>
-                {autoBetEnabled ? "Desativar sinais" : "Ativar sinais"}
-              </button>
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ opacity: 0.8 }}>Mostrar</span>
-                <select
-                  value={historyLimit}
-                  onChange={(e) => setHistoryLimit(Number(e.target.value))}>
-                  {[3, 5, 10, 15].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <span style={{ opacity: 0.8 }}>sinais</span>
-              </label>
-            </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: "#c0392b" }}>
-              ⚠️ Você pode aplicar Martingale 2 (até duas entradas de
-              recuperação), por sua conta e risco. Os sinais são apenas visuais
-              e não automatizam valor nem execução de apostas.
-            </div>
-            {lastAutoBetStatus ? (
-              <div style={{ marginTop: 8 }}>
-                {activeSignal ? (
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={colorSquareStyle(activeSignal.color)} />
-                    <span
-                      style={{
-                        color: colorHex[activeSignal.color],
-                        fontWeight: 600,
-                      }}>
-                      {colorLabelPt(activeSignal.color)}
-                    </span>
-                    <span style={{ opacity: 0.8, fontSize: 12 }}>
-                      chance {activeSignal.chance}%
-                    </span>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "2px 6px",
-                        borderRadius: 4,
-                        background: "#374151",
-                        color: "#fff",
-                        fontSize: 12,
-                      }}>
-                      aguardando resolução
-                    </span>
-                  </div>
-                ) : null}
-                <p
-                  style={{
-                    marginTop: 4,
-                    opacity: 0.85,
-                    color: activeSignal
-                      ? activeSignal.color === "black"
-                        ? "#ecf0f1"
-                        : colorHex[activeSignal.color]
-                      : undefined,
-                  }}>
-                  {lastAutoBetStatus}
-                </p>
-              </div>
-            ) : null}
-
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontWeight: 600 }}>Histórico</div>
-              {signalHistory.length === 0 ? (
-                <p style={{ opacity: 0.7 }}>Nenhum sinal ainda.</p>
-              ) : (
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {signalHistory.slice(0, historyLimit).map((h, i) => (
-                    <div
-                      key={i}
-                      style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={colorSquareStyle(h.color)} />
-                      <span
-                        style={{ color: colorHex[h.color], fontWeight: 600 }}>
-                        {colorLabelPt(h.color)}
-                      </span>
-                      <span style={{ opacity: 0.8 }}>
-                        após número {h.number}
-                      </span>
-                      <span style={{ opacity: 0.6, fontSize: 12 }}>
-                        {new Date(h.time).toLocaleTimeString()}
-                      </span>
-                      <span
-                        style={{
-                          marginLeft: "auto",
-                          fontWeight: 600,
-                          color: h.result === "acerto" ? "#2ecc71" : "#e74c3c",
-                        }}>
-                        {h.result}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Painel de Sinais do Double */}
+      <div
+        style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
+        <h2>Sinais Inteligentes (Double)</h2>
+        <div style={{ marginTop: 8 }}>
+          <DoublePatternsPanel
+            signal={bestDoubleSignal}
+            nextSignalIn={bestDoubleSignal ? null : 3 - (results.length % 3)}
+            noSignalMessage={noDoubleSignalMessage}
+            lastNumber={results.length > 0 ? results[results.length - 1].number : null}
+          />
         </div>
-      )}
+      </div>
+    </div>
+  )}
+
+  
 
       <div
         style={{
@@ -788,11 +786,13 @@ function App() {
                 key={ridx}
                 style={{
                   display: "flex",
-                  gap: 8,
-                  flexWrap: isNarrow ? "wrap" : "nowrap",
-                  overflowX: isNarrow ? "hidden" : "auto",
+                  gap: isNarrow ? 6 : 8,
+                  flexWrap: "nowrap",
+                  overflowX: "auto",
                   paddingBottom: 6,
-                  justifyContent: "center",
+                  justifyContent: isNarrow ? "flex-start" : "center",
+                  scrollSnapType: isNarrow ? "x mandatory" : "none",
+                  WebkitOverflowScrolling: "touch",
                 }}>
                 {row.map((r, idx) => (
                   <ResultChip
@@ -816,17 +816,338 @@ function App() {
         <StatsPanel stats={stats} streaks={streaks} />
       </div>
 
-      <div
-        style={{
-          marginTop: 24,
-          display: route !== "#/roulette" ? "block" : "none",
-        }}>
-        <PatternsPanel patterns={patterns} />
-      </div>
+      {/* Removido: Painel "Padrões Detectados" no modo Double */}
 
       {route !== "#/roulette" && (
         <div style={{ marginTop: 24 }}>
           <DoubleEmbedPanel />
+        </div>
+      )}
+
+      {/* Card de Histórico de Sinais (Double) - abaixo do iframe */}
+      {route !== "#/roulette" && (
+        <div style={{ marginTop: 24 }}>
+          <div
+            style={{
+              border: "1px solid #3a3a3a",
+              padding: 20,
+              borderRadius: 12,
+              backgroundColor: "#1f1f1f",
+            }}>
+            <h2
+              style={{
+                marginTop: 0,
+                marginBottom: 12,
+                color: "#ecf0f1",
+                fontSize: 20,
+              }}>
+              📊 Histórico de Sinais (Double)
+            </h2>
+            <div
+              style={{
+                padding: 12,
+                backgroundColor: "#2a2a2a",
+                borderRadius: 8,
+                marginBottom: 20,
+                border: "1px solid #3498db",
+              }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "#ecf0f1",
+                  fontWeight: 600,
+                  marginBottom: 8,
+                }}>
+                🎰 Sistema Martingale Ativo
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#c0c0c0",
+                  lineHeight: 1.6,
+                }}>
+                Cada sinal possui <strong style={{ color: "#ffd700" }}>3 tentativas</strong> de acerto:
+                <div style={{ marginTop: 6, marginLeft: 12 }}>
+                  • <strong style={{ color: "#3498db" }}>Giro 1</strong>: Aposta Principal
+                  <br />• <strong style={{ color: "#9b59b6" }}>Giro 2</strong>: Gale 1 (recuperação)
+                  <br />• <strong style={{ color: "#e67e22" }}>Giro 3</strong>: Gale 2 (última chance)
+                </div>
+              </div>
+            </div>
+
+            {doubleSignalsHistory.length === 0 ? (
+              <p
+                style={{
+                  opacity: 0.7,
+                  textAlign: "center",
+                  padding: "30px 0",
+                  color: "#c0c0c0",
+                  fontSize: 14,
+                }}>
+                Nenhum sinal validado ainda. Os sinais aparecerão aqui após serem testados.
+              </p>
+            ) : (
+              <div>
+                {/* Estatísticas */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                    gap: 12,
+                    marginBottom: 20,
+                    padding: 16,
+                    backgroundColor: "#2a2a2a",
+                    borderRadius: 8,
+                  }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#3498db" }}>
+                      {doubleSignalsHistory.length}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
+                      Total de sinais
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#2ecc71" }}>
+                      {doubleSignalsHistory.filter((h) => h.hit).length}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
+                      ✅ Acertos
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#e74c3c" }}>
+                      {doubleSignalsHistory.filter((h) => !h.hit).length}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
+                      ❌ Erros
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "#ffd700" }}>
+                      {doubleSignalsHistory.length > 0
+                        ? ((doubleSignalsHistory.filter((h) => h.hit).length / doubleSignalsHistory.length) * 100).toFixed(1)
+                        : 0}
+                      %
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
+                      Taxa de acerto
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lista de Sinais com Scroll */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 16,
+                    maxHeight: "600px",
+                    overflowY: "auto",
+                    overflowX: "hidden",
+                    paddingRight: 8,
+                    scrollbarWidth: "thin",
+                    scrollbarColor: "#3498db #2a2a2a",
+                  }}
+                  className="custom-scrollbar">
+                  {doubleSignalsHistory.slice(0, 20).map((h) => (
+                    <div
+                      key={h.id}
+                      style={{
+                        padding: 16,
+                        borderRadius: 10,
+                        backgroundColor: "#2a2a2a",
+                        border: `2px solid ${h.hit ? "#2ecc71" : "#e74c3c"}`,
+                        boxShadow: h.hit ? "0 0 10px rgba(46, 204, 113, 0.2)" : "0 0 10px rgba(231, 76, 60, 0.2)",
+                        transition: "all 0.2s ease",
+                      }}>
+                      {/* Header */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          marginBottom: 12,
+                          flexWrap: "wrap",
+                        }}>
+                        <span style={{ fontSize: 24 }}>{h.hit ? "✅" : "❌"}</span>
+                        <span style={{ fontWeight: 600, fontSize: 15, color: "#ecf0f1", flex: 1 }}>
+                          {h.description}
+                        </span>
+                        <span
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 16,
+                            backgroundColor: h.hit ? "#2ecc71" : "#e74c3c",
+                            color: "#fff",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: 0.5,
+                          }}>
+                          {h.hit ? "ACERTO" : "ERRO"}
+                        </span>
+                        <span
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 16,
+                            backgroundColor: "#3498db",
+                            color: "#fff",
+                            fontSize: 11,
+                            fontWeight: 600,
+                          }}>
+                          {h.confidence}/10
+                        </span>
+                        <span style={{ fontSize: 11, opacity: 0.6, color: "#c0c0c0" }}>
+                          {new Date(h.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+
+                      {/* Título Martingale e informação de acerto */}
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: "#ffd700",
+                          marginBottom: 8,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}>
+                        <span>🎰 Sistema Martingale (3 Giros)</span>
+                        {h.hit && h.hitOnAttempt && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: "#2ecc71",
+                              backgroundColor: "rgba(46, 204, 113, 0.2)",
+                              padding: "2px 8px",
+                              borderRadius: 12,
+                            }}>
+                            Acertou no Giro {h.hitOnAttempt}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Tentativas (3 giros) em estilo Roleta, com fallback antigo */}
+                      {h.attempts && h.attempts.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {h.attempts.map((attempt, idx) => {
+                            const resColor =
+                              attempt.resultNumber === 0
+                                ? "white"
+                                : attempt.resultNumber <= 7
+                                ? "red"
+                                : "black";
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 10,
+                                  padding: 10,
+                                  backgroundColor: attempt.hit
+                                    ? "rgba(46, 204, 113, 0.15)"
+                                    : "rgba(231, 76, 60, 0.1)",
+                                  borderRadius: 8,
+                                  border: `2px solid ${attempt.hit ? "#2ecc71" : "#e74c3c"}`,
+                                }}>
+                                <span
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: attempt.hit ? "#2ecc71" : "#e74c3c",
+                                    minWidth: 140,
+                                  }}>
+                                  {idx === 0
+                                    ? "🎯 Aposta Principal"
+                                    : idx === 1
+                                    ? "🔄 Gale 1"
+                                    : "🔄🔄 Gale 2"}
+                                </span>
+                                <ResultChip number={attempt.resultNumber} color={resColor} compact />
+                                <span style={{ fontSize: 14, fontWeight: 700, marginLeft: "auto" }}>
+                                  {attempt.hit ? "✅" : "❌"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        h.attemptResults && h.attemptResults.length > 0 ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: "#ffd700" }}>🎯 Resultados por Giro:</div>
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                            {h.attemptResults.slice(0, 3).map((num, idx) => {
+                                const color = num === 0 ? "white" : num <= 7 ? "red" : "black";
+                                const isHitAttempt = h.hit && h.hitOnAttempt === idx + 1;
+                                return (
+                                  <div key={`${h.id}-att-${idx}`} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 11, color: "#c0c0c0", minWidth: 46 }}>Giro {idx + 1}:</span>
+                                    <div
+                                      style={{
+                                        padding: isHitAttempt ? 4 : 0,
+                                        backgroundColor: isHitAttempt ? "rgba(46, 204, 113, 0.2)" : "transparent",
+                                        borderRadius: 8,
+                                        border: isHitAttempt ? "2px solid #2ecc71" : "none",
+                                      }}
+                                    >
+                                      <ResultChip number={num} color={color} compact />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          h.resultNumber !== undefined && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: "#ffd700", minWidth: 70 }}>🎯 Resultado:</span>
+                              {(() => {
+                                const color = h.resultNumber === 0 ? "white" : h.resultNumber <= 7 ? "red" : "black";
+                                return (
+                                  <div
+                                    style={{
+                                      padding: 4,
+                                      backgroundColor: h.hit ? "rgba(46, 204, 113, 0.2)" : "transparent",
+                                      borderRadius: 8,
+                                      border: h.hit ? "2px solid #2ecc71" : "none",
+                                    }}
+                                  >
+                                    <ResultChip number={h.resultNumber} color={color} compact />
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )
+                        )
+                      )}
+
+                      {/* Targets removidos conforme solicitado */}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {/* CSS para scrollbar customizada */}
+          <style>{`
+            .custom-scrollbar::-webkit-scrollbar {
+              width: 8px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-track {
+              background: #2a2a2a;
+              border-radius: 4px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+              background: #3498db;
+              border-radius: 4px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+              background: #5dade2;
+            }
+          `}</style>
         </div>
       )}
 
@@ -1418,7 +1739,7 @@ function App() {
                               flexDirection: "column",
                               gap: 10,
                             }}>
-                            {h.attempts.map((attempt, idx) => {
+                            {h.attempts.slice(0, 3).map((attempt, idx) => {
                               const redNumbers = [
                                 1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25,
                                 27, 30, 32, 34, 36,
@@ -1430,12 +1751,6 @@ function App() {
                                   ? "red"
                                   : "black";
 
-                              // Labels para cada giro
-                              const attemptLabels = [
-                                "🎯 Aposta Principal",
-                                "🔄 Gale 1",
-                                "🔄🔄 Gale 2",
-                              ];
 
                               return (
                                 <div
@@ -1462,7 +1777,11 @@ function App() {
                                         : "#e74c3c",
                                       minWidth: 140,
                                     }}>
-                                    {attemptLabels[idx]}
+                                    {idx === 0
+                                      ? "🎯 Aposta Principal"
+                                      : idx === 1
+                                      ? "🔄 Gale 1"
+                                      : "🔄🔄 Gale 2"}
                                   </span>
                                   <ResultChip
                                     number={attempt.resultNumber}
@@ -1559,7 +1878,7 @@ function App() {
                               flexWrap: "wrap",
                               flex: 1,
                             }}>
-                            {h.targets.slice(0, 10).map((num) => {
+                            {Array.isArray(h.targets) && h.targets.slice(0, 10).map((num) => {
                               const redNumbers = [
                                 1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25,
                                 27, 30, 32, 34, 36,
@@ -1611,7 +1930,7 @@ function App() {
                                 </div>
                               );
                             })}
-                            {h.targets.length > 10 && (
+                            {Array.isArray(h.targets) && h.targets.length > 10 && (
                               <span
                                 style={{
                                   padding: "6px 10px",
