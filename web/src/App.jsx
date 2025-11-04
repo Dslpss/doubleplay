@@ -56,7 +56,8 @@ function App() {
 
   // Sinais inteligentes para Double
   const [bestDoubleSignal, setBestDoubleSignal] = useState(null);
-  const [doubleResultsCountSinceSignal, setDoubleResultsCountSinceSignal] = useState(0);
+  const [doubleResultsCountSinceSignal, setDoubleResultsCountSinceSignal] =
+    useState(0);
   const lastDoubleValidatedResultRef = useRef(null);
   const doubleAttemptResultsRef = useRef([]); // armazena resultados por giro para o sinal atual (Double)
   const [noDoubleSignalMessage, setNoDoubleSignalMessage] = useState(null);
@@ -432,7 +433,9 @@ function App() {
       setNoDoubleSignalMessage(null);
     } else {
       if (results.length % 3 === 0) {
-        setNoDoubleSignalMessage("❌ Nenhum padrão forte detectado neste ciclo");
+        setNoDoubleSignalMessage(
+          "❌ Nenhum padrão forte detectado neste ciclo"
+        );
         setTimeout(() => setNoDoubleSignalMessage(null), 5000);
       }
     }
@@ -459,7 +462,9 @@ function App() {
     doubleAttemptResultsRef.current.push(Number(latest.number));
 
     // Validar resultado
-    const hit = (bestDoubleSignal.targets || []).includes(Number(latest.number));
+    const hit = (bestDoubleSignal.targets || []).includes(
+      Number(latest.number)
+    );
     // tentativa registrada apenas para controle local; histórico não persistido
     if (hit) {
       // Registrar no histórico do Double
@@ -562,7 +567,9 @@ function App() {
     // Limpar sinal IMEDIATAMENTE quando acerta OU quando expira
     if (hit) {
       console.log("[Signal] ✅ ACERTOU! Limpando sinal imediatamente.");
-      console.log(`[Learning] Registrando ACERTO para padrão ${bestRouletteSignal.patternKey} no giro ${newCount}`);
+      console.log(
+        `[Learning] Registrando ACERTO para padrão ${bestRouletteSignal.patternKey} no giro ${newCount}`
+      );
 
       // ✅ REGISTRAR APRENDIZADO: Acertou em algum dos 3 giros
       validateSignalOutcome(bestRouletteSignal, resultNum);
@@ -596,7 +603,9 @@ function App() {
         newCount,
         "tentativas sem acerto"
       );
-      console.log(`[Learning] Registrando ERRO para padrão ${bestRouletteSignal.patternKey} - perdeu todas as 3 tentativas`);
+      console.log(
+        `[Learning] Registrando ERRO para padrão ${bestRouletteSignal.patternKey} - perdeu todas as 3 tentativas`
+      );
 
       // ❌ REGISTRAR APRENDIZADO: Perdeu todas as 3 tentativas
       // Usar o resultado do último giro para registrar o erro
@@ -745,23 +754,35 @@ function App() {
             </div>
           </div>
 
-      {/* Painel de Sinais do Double */}
-      <div
-        style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
-        <h2>Sinais Inteligentes (Double)</h2>
-        <div style={{ marginTop: 8 }}>
-          <DoublePatternsPanel
-            signal={bestDoubleSignal}
-            nextSignalIn={bestDoubleSignal ? null : 3 - (results.length % 3)}
-            noSignalMessage={noDoubleSignalMessage}
-            lastNumber={results.length > 0 ? results[results.length - 1].number : null}
-          />
+          {/* Painel de Sinais do Double */}
+          <div
+            style={{ border: "1px solid #ccc", padding: 16, borderRadius: 8 }}>
+            <h2>Sinais Inteligentes (Double)</h2>
+            <div style={{ marginTop: 8 }}>
+              <DoublePatternsPanel
+                signal={bestDoubleSignal}
+                attempts={(doubleAttemptResultsRef.current || []).map(
+                  (num, idx) => ({
+                    attemptNumber: idx + 1,
+                    result: {
+                      number: num,
+                      color: num === 0 ? "white" : num <= 7 ? "red" : "black",
+                    },
+                    isWin: bestDoubleSignal?.targets?.includes(num) || false,
+                  })
+                )}
+                nextSignalIn={
+                  bestDoubleSignal ? null : 3 - (results.length % 3)
+                }
+                noSignalMessage={noDoubleSignalMessage}
+                lastNumber={
+                  results.length > 0 ? results[results.length - 1].number : null
+                }
+              />
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  )}
-
-  
+      )}
 
       <div
         style={{
@@ -866,11 +887,16 @@ function App() {
                   color: "#c0c0c0",
                   lineHeight: 1.6,
                 }}>
-                Cada sinal possui <strong style={{ color: "#ffd700" }}>3 tentativas</strong> de acerto:
+                Cada sinal possui{" "}
+                <strong style={{ color: "#ffd700" }}>3 tentativas</strong> de
+                acerto:
                 <div style={{ marginTop: 6, marginLeft: 12 }}>
-                  • <strong style={{ color: "#3498db" }}>Giro 1</strong>: Aposta Principal
-                  <br />• <strong style={{ color: "#9b59b6" }}>Giro 2</strong>: Gale 1 (recuperação)
-                  <br />• <strong style={{ color: "#e67e22" }}>Giro 3</strong>: Gale 2 (última chance)
+                  • <strong style={{ color: "#3498db" }}>Giro 1</strong>: Aposta
+                  Principal
+                  <br />• <strong style={{ color: "#9b59b6" }}>Giro 2</strong>:
+                  Gale 1 (recuperação)
+                  <br />• <strong style={{ color: "#e67e22" }}>Giro 3</strong>:
+                  Gale 2 (última chance)
                 </div>
               </div>
             </div>
@@ -884,7 +910,8 @@ function App() {
                   color: "#c0c0c0",
                   fontSize: 14,
                 }}>
-                Nenhum sinal validado ainda. Os sinais aparecerão aqui após serem testados.
+                Nenhum sinal validado ainda. Os sinais aparecerão aqui após
+                serem testados.
               </p>
             ) : (
               <div>
@@ -900,37 +927,65 @@ function App() {
                     borderRadius: 8,
                   }}>
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: "#3498db" }}>
+                    <div
+                      style={{
+                        fontSize: 24,
+                        fontWeight: 700,
+                        color: "#3498db",
+                      }}>
                       {doubleSignalsHistory.length}
                     </div>
-                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
+                    <div
+                      style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
                       Total de sinais
                     </div>
                   </div>
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: "#2ecc71" }}>
+                    <div
+                      style={{
+                        fontSize: 24,
+                        fontWeight: 700,
+                        color: "#2ecc71",
+                      }}>
                       {doubleSignalsHistory.filter((h) => h.hit).length}
                     </div>
-                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
+                    <div
+                      style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
                       ✅ Acertos
                     </div>
                   </div>
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: "#e74c3c" }}>
+                    <div
+                      style={{
+                        fontSize: 24,
+                        fontWeight: 700,
+                        color: "#e74c3c",
+                      }}>
                       {doubleSignalsHistory.filter((h) => !h.hit).length}
                     </div>
-                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
+                    <div
+                      style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
                       ❌ Erros
                     </div>
                   </div>
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: "#ffd700" }}>
+                    <div
+                      style={{
+                        fontSize: 24,
+                        fontWeight: 700,
+                        color: "#ffd700",
+                      }}>
                       {doubleSignalsHistory.length > 0
-                        ? ((doubleSignalsHistory.filter((h) => h.hit).length / doubleSignalsHistory.length) * 100).toFixed(1)
+                        ? (
+                            (doubleSignalsHistory.filter((h) => h.hit).length /
+                              doubleSignalsHistory.length) *
+                            100
+                          ).toFixed(1)
                         : 0}
                       %
                     </div>
-                    <div style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
+                    <div
+                      style={{ fontSize: 12, color: "#c0c0c0", marginTop: 4 }}>
                       Taxa de acerto
                     </div>
                   </div>
@@ -958,7 +1013,9 @@ function App() {
                         borderRadius: 10,
                         backgroundColor: "#2a2a2a",
                         border: `2px solid ${h.hit ? "#2ecc71" : "#e74c3c"}`,
-                        boxShadow: h.hit ? "0 0 10px rgba(46, 204, 113, 0.2)" : "0 0 10px rgba(231, 76, 60, 0.2)",
+                        boxShadow: h.hit
+                          ? "0 0 10px rgba(46, 204, 113, 0.2)"
+                          : "0 0 10px rgba(231, 76, 60, 0.2)",
                         transition: "all 0.2s ease",
                       }}>
                       {/* Header */}
@@ -970,8 +1027,16 @@ function App() {
                           marginBottom: 12,
                           flexWrap: "wrap",
                         }}>
-                        <span style={{ fontSize: 24 }}>{h.hit ? "✅" : "❌"}</span>
-                        <span style={{ fontWeight: 600, fontSize: 15, color: "#ecf0f1", flex: 1 }}>
+                        <span style={{ fontSize: 24 }}>
+                          {h.hit ? "✅" : "❌"}
+                        </span>
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            fontSize: 15,
+                            color: "#ecf0f1",
+                            flex: 1,
+                          }}>
                           {h.description}
                         </span>
                         <span
@@ -997,7 +1062,12 @@ function App() {
                           }}>
                           {h.confidence}/10
                         </span>
-                        <span style={{ fontSize: 11, opacity: 0.6, color: "#c0c0c0" }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            opacity: 0.6,
+                            color: "#c0c0c0",
+                          }}>
                           {new Date(h.timestamp).toLocaleTimeString()}
                         </span>
                       </div>
@@ -1031,7 +1101,12 @@ function App() {
 
                       {/* Tentativas (3 giros) em estilo Roleta, com fallback antigo */}
                       {h.attempts && h.attempts.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 10,
+                          }}>
                           {h.attempts.map((attempt, idx) => {
                             const resColor =
                               attempt.resultNumber === 0
@@ -1051,7 +1126,9 @@ function App() {
                                     ? "rgba(46, 204, 113, 0.15)"
                                     : "rgba(231, 76, 60, 0.1)",
                                   borderRadius: 8,
-                                  border: `2px solid ${attempt.hit ? "#2ecc71" : "#e74c3c"}`,
+                                  border: `2px solid ${
+                                    attempt.hit ? "#2ecc71" : "#e74c3c"
+                                  }`,
                                 }}>
                                 <span
                                   style={{
@@ -1066,61 +1143,136 @@ function App() {
                                     ? "🔄 Gale 1"
                                     : "🔄🔄 Gale 2"}
                                 </span>
-                                <ResultChip number={attempt.resultNumber} color={resColor} compact />
-                                <span style={{ fontSize: 14, fontWeight: 700, marginLeft: "auto" }}>
+                                <ResultChip
+                                  number={attempt.resultNumber}
+                                  color={resColor}
+                                  compact
+                                />
+                                <span
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: 700,
+                                    marginLeft: "auto",
+                                  }}>
                                   {attempt.hit ? "✅" : "❌"}
                                 </span>
                               </div>
                             );
                           })}
                         </div>
-                      ) : (
-                        h.attemptResults && h.attemptResults.length > 0 ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: "#ffd700" }}>🎯 Resultados por Giro:</div>
-                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                            {h.attemptResults.slice(0, 3).map((num, idx) => {
-                                const color = num === 0 ? "white" : num <= 7 ? "red" : "black";
-                                const isHitAttempt = h.hit && h.hitOnAttempt === idx + 1;
-                                return (
-                                  <div key={`${h.id}-att-${idx}`} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                    <span style={{ fontSize: 11, color: "#c0c0c0", minWidth: 46 }}>Giro {idx + 1}:</span>
-                                    <div
-                                      style={{
-                                        padding: isHitAttempt ? 4 : 0,
-                                        backgroundColor: isHitAttempt ? "rgba(46, 204, 113, 0.2)" : "transparent",
-                                        borderRadius: 8,
-                                        border: isHitAttempt ? "2px solid #2ecc71" : "none",
-                                      }}
-                                    >
-                                      <ResultChip number={num} color={color} compact />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                      ) : h.attemptResults && h.attemptResults.length > 0 ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                          }}>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: "#ffd700",
+                            }}>
+                            🎯 Resultados por Giro:
                           </div>
-                        ) : (
-                          h.resultNumber !== undefined && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: "#ffd700", minWidth: 70 }}>🎯 Resultado:</span>
-                              {(() => {
-                                const color = h.resultNumber === 0 ? "white" : h.resultNumber <= 7 ? "red" : "black";
-                                return (
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 10,
+                              flexWrap: "wrap",
+                            }}>
+                            {h.attemptResults.slice(0, 3).map((num, idx) => {
+                              const color =
+                                num === 0
+                                  ? "white"
+                                  : num <= 7
+                                  ? "red"
+                                  : "black";
+                              const isHitAttempt =
+                                h.hit && h.hitOnAttempt === idx + 1;
+                              return (
+                                <div
+                                  key={`${h.id}-att-${idx}`}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                  }}>
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      color: "#c0c0c0",
+                                      minWidth: 46,
+                                    }}>
+                                    Giro {idx + 1}:
+                                  </span>
                                   <div
                                     style={{
-                                      padding: 4,
-                                      backgroundColor: h.hit ? "rgba(46, 204, 113, 0.2)" : "transparent",
+                                      padding: isHitAttempt ? 4 : 0,
+                                      backgroundColor: isHitAttempt
+                                        ? "rgba(46, 204, 113, 0.2)"
+                                        : "transparent",
                                       borderRadius: 8,
-                                      border: h.hit ? "2px solid #2ecc71" : "none",
-                                    }}
-                                  >
-                                    <ResultChip number={h.resultNumber} color={color} compact />
+                                      border: isHitAttempt
+                                        ? "2px solid #2ecc71"
+                                        : "none",
+                                    }}>
+                                    <ResultChip
+                                      number={num}
+                                      color={color}
+                                      compact
+                                    />
                                   </div>
-                                );
-                              })()}
-                            </div>
-                          )
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        h.resultNumber !== undefined && (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: "#ffd700",
+                                minWidth: 70,
+                              }}>
+                              🎯 Resultado:
+                            </span>
+                            {(() => {
+                              const color =
+                                h.resultNumber === 0
+                                  ? "white"
+                                  : h.resultNumber <= 7
+                                  ? "red"
+                                  : "black";
+                              return (
+                                <div
+                                  style={{
+                                    padding: 4,
+                                    backgroundColor: h.hit
+                                      ? "rgba(46, 204, 113, 0.2)"
+                                      : "transparent",
+                                    borderRadius: 8,
+                                    border: h.hit
+                                      ? "2px solid #2ecc71"
+                                      : "none",
+                                  }}>
+                                  <ResultChip
+                                    number={h.resultNumber}
+                                    color={color}
+                                    compact
+                                  />
+                                </div>
+                              );
+                            })()}
+                          </div>
                         )
                       )}
 
@@ -1751,7 +1903,6 @@ function App() {
                                   ? "red"
                                   : "black";
 
-
                               return (
                                 <div
                                   key={idx}
@@ -1878,71 +2029,73 @@ function App() {
                               flexWrap: "wrap",
                               flex: 1,
                             }}>
-                            {Array.isArray(h.targets) && h.targets.slice(0, 10).map((num) => {
-                              const redNumbers = [
-                                1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25,
-                                27, 30, 32, 34, 36,
-                              ];
-                              const color =
-                                num === 0
-                                  ? "green"
-                                  : redNumbers.includes(num)
-                                  ? "red"
-                                  : "black";
-                              const isHit = num === h.resultNumber;
-                              return (
-                                <div
-                                  key={num}
+                            {Array.isArray(h.targets) &&
+                              h.targets.slice(0, 10).map((num) => {
+                                const redNumbers = [
+                                  1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25,
+                                  27, 30, 32, 34, 36,
+                                ];
+                                const color =
+                                  num === 0
+                                    ? "green"
+                                    : redNumbers.includes(num)
+                                    ? "red"
+                                    : "black";
+                                const isHit = num === h.resultNumber;
+                                return (
+                                  <div
+                                    key={num}
+                                    style={{
+                                      padding: isHit ? 4 : 0,
+                                      backgroundColor: isHit
+                                        ? "rgba(46, 204, 113, 0.2)"
+                                        : "transparent",
+                                      borderRadius: 8,
+                                      border: isHit
+                                        ? "2px solid #2ecc71"
+                                        : "none",
+                                      position: "relative",
+                                    }}>
+                                    <ResultChip
+                                      number={num}
+                                      color={color}
+                                      compact
+                                    />
+                                    {isHit && (
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          top: -6,
+                                          right: -6,
+                                          backgroundColor: "#2ecc71",
+                                          borderRadius: "50%",
+                                          width: 16,
+                                          height: 16,
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          fontSize: 10,
+                                        }}>
+                                        ✓
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            {Array.isArray(h.targets) &&
+                              h.targets.length > 10 && (
+                                <span
                                   style={{
-                                    padding: isHit ? 4 : 0,
-                                    backgroundColor: isHit
-                                      ? "rgba(46, 204, 113, 0.2)"
-                                      : "transparent",
-                                    borderRadius: 8,
-                                    border: isHit
-                                      ? "2px solid #2ecc71"
-                                      : "none",
-                                    position: "relative",
+                                    padding: "6px 10px",
+                                    backgroundColor: "#3a3a3a",
+                                    borderRadius: 6,
+                                    fontSize: 11,
+                                    color: "#c0c0c0",
+                                    fontWeight: 500,
                                   }}>
-                                  <ResultChip
-                                    number={num}
-                                    color={color}
-                                    compact
-                                  />
-                                  {isHit && (
-                                    <div
-                                      style={{
-                                        position: "absolute",
-                                        top: -6,
-                                        right: -6,
-                                        backgroundColor: "#2ecc71",
-                                        borderRadius: "50%",
-                                        width: 16,
-                                        height: 16,
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontSize: 10,
-                                      }}>
-                                      ✓
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {Array.isArray(h.targets) && h.targets.length > 10 && (
-                              <span
-                                style={{
-                                  padding: "6px 10px",
-                                  backgroundColor: "#3a3a3a",
-                                  borderRadius: 6,
-                                  fontSize: 11,
-                                  color: "#c0c0c0",
-                                  fontWeight: 500,
-                                }}>
-                                +{h.targets.length - 10} números
-                              </span>
-                            )}
+                                  +{h.targets.length - 10} números
+                                </span>
+                              )}
                           </div>
                         </div>
                       </div>

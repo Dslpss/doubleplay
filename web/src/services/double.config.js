@@ -13,6 +13,14 @@ export default {
   randomizeTopDelta: 5,
   composedMinAgree: 2, // mínimo de padrões concordando para preferir cor
 
-  // Cooldown de emissão (ms)
-  cooldownMs: 15000,
+  // Sistema de Validação
+  validForSpins: 3, // número de tentativas para validar o sinal (Martingale)
+
+  // Cooldowns de emissão (ms)
+  cooldownMs: 15000, // cooldown após WIN
+  cooldownAfterLossMs: 30000, // cooldown adicional após LOSS (total: 45s)
+
+  // Estratégia Martingale
+  baseAmount: 10, // valor base de aposta (R$)
+  martingaleMultiplier: 2, // multiplicador para próxima aposta
 };

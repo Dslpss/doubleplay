@@ -265,7 +265,80 @@ export function numbersForColor(color) {
   return [8, 9, 10, 11, 12, 13, 14];
 }
 
+// Sistema de validação de sinais
+let activeDoubleSignal = null;
+let doubleSignalAttempts = [];
+let lastDoubleValidatedResult = null;
+
+export function getActiveDoubleSignal() {
+  return activeDoubleSignal;
+}
+
+export function clearDoubleSignal() {
+  activeDoubleSignal = null;
+  doubleSignalAttempts = [];
+}
+
+export function validateDoubleSignalOutcome(signal, newResult) {
+  if (!signal || !newResult) return null;
+
+  // Evitar validar o mesmo resultado múltiplas vezes
+  const resultKey = `${newResult.number}-${newResult.timestamp}`;
+  if (lastDoubleValidatedResult === resultKey) return null;
+  lastDoubleValidatedResult = resultKey;
+
+  const attemptNumber = doubleSignalAttempts.length + 1;
+  const targetColor = signal.suggestedBet?.color;
+  const resultColor = newResult.color;
+
+  const isWin = targetColor === resultColor;
+  const outcome = {
+    attemptNumber,
+    result: newResult,
+    isWin,
+    timestamp: Date.now(),
+  };
+
+  doubleSignalAttempts.push(outcome);
+
+  // Sinal completo: WIN ou atingiu máximo de tentativas
+  if (isWin || attemptNumber >= (signal.validFor || 3)) {
+    const finalOutcome = {
+      signal,
+      attempts: [...doubleSignalAttempts],
+      finalResult: isWin ? "WIN" : "LOSS",
+      totalAttempts: attemptNumber,
+      timestamp: Date.now(),
+    };
+
+    // Aplicar cooldown diferenciado
+    if (isWin) {
+      setSignalCooldown(Date.now());
+    } else {
+      // Cooldown maior após perda
+      setSignalCooldown(Date.now());
+      lastSignalTimestamp = Date.now() + (CONFIG.cooldownAfterLossMs || 0);
+    }
+
+    clearDoubleSignal();
+    return finalOutcome;
+  }
+
+  return null; // Sinal continua ativo
+}
+
+export function getDoubleSignalAttempts() {
+  return doubleSignalAttempts;
+}
+
+export function calculateMartingaleBet(attemptNumber, baseAmount = 10) {
+  return baseAmount * Math.pow(2, attemptNumber - 1);
+}
+
 export function detectBestDoubleSignal(results = [], options = {}) {
+  // Não gerar novo sinal se já existe um ativo
+  if (activeDoubleSignal) return activeDoubleSignal;
+
   // Qualidade mínima de amostra
   const sampleStats = buildDoubleStats(results.slice(-50));
   if ((sampleStats.total || 0) < (CONFIG.minSampleTotal || 0)) return null;
@@ -324,7 +397,7 @@ export function detectBestDoubleSignal(results = [], options = {}) {
   // Ativar cooldown após gerar um sinal
   if (CONFIG.cooldownMs > 0) setSignalCooldown(Date.now());
 
-  return {
+  const newSignal = {
     type: getSignalType(confidence),
     color: getSignalColor(confidence),
     description,
@@ -339,9 +412,15 @@ export function detectBestDoubleSignal(results = [], options = {}) {
     },
     targets,
     reasons,
-    validFor: 3,
+    validFor: CONFIG.validForSpins || 3,
     historicalAccuracy: null,
     isLearning: false,
     timestamp: Date.now(),
   };
+
+  // Armazenar sinal ativo e resetar tentativas
+  activeDoubleSignal = newSignal;
+  doubleSignalAttempts = [];
+
+  return newSignal;
 }

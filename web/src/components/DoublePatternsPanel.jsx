@@ -1,8 +1,10 @@
 import ResultChip from "./ResultChip";
-import { labelPtForColor } from "../services/double.js";
+import { labelPtForColor, calculateMartingaleBet } from "../services/double.js";
+import CONFIG from "../services/double.config.js";
 
 export default function DoublePatternsPanel({
   signal,
+  attempts = [],
   nextSignalIn = null,
   noSignalMessage = null,
   lastNumber = null,
@@ -34,11 +36,18 @@ export default function DoublePatternsPanel({
           </div>
         ) : (
           <div
-            style={{ textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
-            <p style={{ fontSize: 16, marginBottom: 8 }}>🔍 Analisando padrões...</p>
+            style={{
+              textAlign: "center",
+              padding: "20px 0",
+              color: "#c0c0c0",
+            }}>
+            <p style={{ fontSize: 16, marginBottom: 8 }}>
+              🔍 Analisando padrões...
+            </p>
             {nextSignalIn !== null && (
               <p style={{ fontSize: 14, color: "#999" }}>
-                Próximo sinal em {nextSignalIn} resultado{nextSignalIn !== 1 ? "s" : ""}
+                Próximo sinal em {nextSignalIn} resultado
+                {nextSignalIn !== 1 ? "s" : ""}
               </p>
             )}
           </div>
@@ -105,7 +114,9 @@ export default function DoublePatternsPanel({
 
   return (
     <div style={box}>
-      <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>Sinais do Double</h3>
+      <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
+        Sinais do Double
+      </h3>
 
       <div style={getSignalStyles()}>
         <div style={{ marginBottom: 12 }}>
@@ -125,9 +136,92 @@ export default function DoublePatternsPanel({
           )}
         </div>
 
-        <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>{signal.description}</h4>
+        <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>
+          {signal.description}
+        </h4>
 
-        {lastNumber !== null && (
+        {/* Informações de Martingale - Tentativas */}
+        {attempts.length > 0 && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: 12,
+              backgroundColor: "#2a2a2a",
+              borderRadius: 8,
+              border: "2px solid #3498db",
+            }}>
+            <div style={{ marginBottom: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#3498db" }}>
+                📊 Tentativa {attempts.length}/{signal.validFor}
+              </span>
+            </div>
+            {attempts.map((attempt, idx) => {
+              const betAmount = calculateMartingaleBet(
+                attempt.attemptNumber,
+                CONFIG.baseAmount
+              );
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "6px 0",
+                    borderBottom:
+                      idx < attempts.length - 1 ? "1px solid #3a3a3a" : "none",
+                    color: attempt.isWin ? "#2ecc71" : "#e74c3c",
+                  }}>
+                  <span style={{ fontSize: 12 }}>
+                    #{attempt.attemptNumber}: Resultado {attempt.result.number}{" "}
+                    ({attempt.result.color})
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>
+                    R$ {betAmount.toFixed(2)} -{" "}
+                    {attempt.isWin ? "✅ WIN" : "❌ LOSS"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Próxima aposta sugerida */}
+        {attempts.length < signal.validFor && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: 12,
+              backgroundColor: "#2a2a2a",
+              borderRadius: 8,
+              border: "2px solid #ffd700",
+            }}>
+            <div style={{ marginBottom: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#ffd700" }}>
+                💰 Próxima Aposta (Martingale)
+              </span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+              <span style={{ fontSize: 13, color: "#ecf0f1" }}>
+                Tentativa {attempts.length + 1}/{signal.validFor}
+              </span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "#ffd700" }}>
+                R${" "}
+                {calculateMartingaleBet(
+                  attempts.length + 1,
+                  CONFIG.baseAmount
+                ).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {lastNumber !== null && attempts.length === 0 && (
           <div
             style={{
               marginBottom: 12,
@@ -139,12 +233,17 @@ export default function DoublePatternsPanel({
               alignItems: "center",
               gap: 10,
             }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "#ffd700" }}>🎯 Aposte após o número:</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#ffd700" }}>
+              🎯 Aposte após o número:
+            </span>
             {(() => {
-              const color = lastNumber === 0 ? "white" : lastNumber <= 7 ? "red" : "black";
+              const color =
+                lastNumber === 0 ? "white" : lastNumber <= 7 ? "red" : "black";
               return <ResultChip number={lastNumber} color={color} />;
             })()}
-            <span style={{ fontSize: 13, color: "#c0c0c0" }}>(faça sua aposta agora!)</span>
+            <span style={{ fontSize: 13, color: "#c0c0c0" }}>
+              (faça sua aposta agora!)
+            </span>
           </div>
         )}
 
@@ -195,9 +294,11 @@ export default function DoublePatternsPanel({
               border: "1px solid #3a3a3a",
               color: "#c0c0c0",
               fontSize: 12,
-            }}
-          >
-            <span style={{ color: "#ffd700", fontWeight: 600 }}>Baseado em:</span> {signal.reasons.join("; ")}
+            }}>
+            <span style={{ color: "#ffd700", fontWeight: 600 }}>
+              Baseado em:
+            </span>{" "}
+            {signal.reasons.join("; ")}
           </div>
         )}
 
@@ -212,7 +313,14 @@ export default function DoublePatternsPanel({
 
         {/* Progress bar - giros restantes */}
         <div style={{ marginTop: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#c0c0c0", marginBottom: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 12,
+              color: "#c0c0c0",
+              marginBottom: 4,
+            }}>
             <span>Válido por:</span>
             <span>{signal.validFor} giros</span>
           </div>
