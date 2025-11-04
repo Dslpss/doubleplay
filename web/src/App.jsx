@@ -28,6 +28,8 @@ import {
   getResults,
   saveSignal,
   getSignals,
+  saveActiveSignal,
+  getActiveSignal,
 } from "./services/database.js";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
@@ -190,6 +192,20 @@ function App() {
           });
         }
 
+        // Sincronizar sinal ativo do Double
+        const activeDoubleSignal = await getActiveSignal("double");
+        if (activeDoubleSignal && !bestDoubleSignal) {
+          // Só atualiza se não houver sinal local ativo
+          setBestDoubleSignal(activeDoubleSignal);
+          doubleAttemptResultsRef.current = activeDoubleSignal.attemptResults || [];
+          setDoubleResultsCountSinceSignal(activeDoubleSignal.resultsCount || 0);
+        } else if (!activeDoubleSignal && bestDoubleSignal) {
+          // Sinal foi removido remotamente
+          setBestDoubleSignal(null);
+          doubleAttemptResultsRef.current = [];
+          setDoubleResultsCountSinceSignal(0);
+        }
+
         console.log("🔄 Dados sincronizados com o banco");
       } catch (error) {
         console.error("⚠️ Erro ao sincronizar dados:", error);
@@ -197,7 +213,7 @@ function App() {
     }, 10000); // A cada 10 segundos
 
     return () => clearInterval(syncInterval);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     wsRef.current = createWsClient((data) => {
@@ -554,6 +570,11 @@ function App() {
       doubleAttemptResultsRef.current = [];
       setDoubleResultsCountSinceSignal(0);
       setNoDoubleSignalMessage(null);
+      
+      // Salvar sinal ativo no banco para sincronização
+      saveActiveSignal(signal, "double").catch((err) => {
+        console.error("Erro ao salvar sinal ativo do Double:", err);
+      });
     } else {
       if (results.length % 3 === 0) {
         setNoDoubleSignalMessage(
@@ -615,6 +636,12 @@ function App() {
           console.error("Erro ao salvar sinal do Double no banco:", err);
         });
       }
+      
+      // Remover sinal ativo do banco (acertou)
+      saveActiveSignal(null, "double").catch((err) => {
+        console.error("Erro ao remover sinal ativo do Double:", err);
+      });
+      
       setBestDoubleSignal(null);
       setDoubleResultsCountSinceSignal(0);
       doubleAttemptResultsRef.current = [];
@@ -645,6 +672,12 @@ function App() {
           console.error("Erro ao salvar sinal do Double no banco:", err);
         });
       }
+      
+      // Remover sinal ativo do banco (loss)
+      saveActiveSignal(null, "double").catch((err) => {
+        console.error("Erro ao remover sinal ativo do Double:", err);
+      });
+      
       setBestDoubleSignal(null);
       setDoubleResultsCountSinceSignal(0);
       doubleAttemptResultsRef.current = [];

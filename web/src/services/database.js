@@ -91,3 +91,48 @@ export async function getSignals(gameType = "double", limit = 100) {
     throw error;
   }
 }
+
+/**
+ * Salva o sinal ativo atual no banco de dados
+ */
+export async function saveActiveSignal(signal, gameType = "double") {
+  try {
+    const response = await fetch(`${API_BASE}/active-signal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signal, gameType }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Erro ao salvar sinal ativo");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Erro ao salvar sinal ativo:", error);
+    throw error;
+  }
+}
+
+/**
+ * Busca o sinal ativo atual do banco de dados
+ */
+export async function getActiveSignal(gameType = "double") {
+  try {
+    const response = await fetch(
+      `${API_BASE}/active-signal?gameType=${gameType}`
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Erro ao buscar sinal ativo");
+    }
+
+    const data = await response.json();
+    return data.signal || null;
+  } catch (error) {
+    console.error("Erro ao buscar sinal ativo:", error);
+    throw error;
+  }
+}
