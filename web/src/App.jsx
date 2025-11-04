@@ -936,6 +936,166 @@ function App() {
                   </div>
                 </div>
 
+                {/* Estatísticas Entre Losses */}
+                {(() => {
+                  const calculateLossStats = (history) => {
+                    const losses = [];
+                    const hitsSequences = [];
+                    let currentHitSequence = [];
+                    
+                    // Percorrer histórico do mais antigo para o mais recente
+                    [...history].reverse().forEach((signal) => {
+                      if (signal.hit) {
+                        currentHitSequence.push(signal);
+                      } else {
+                        // Loss encontrado
+                        losses.push(signal);
+                        if (currentHitSequence.length > 0) {
+                          hitsSequences.push(currentHitSequence.length);
+                          currentHitSequence = [];
+                        }
+                      }
+                    });
+                    
+                    // Se terminou com uma sequência de acertos, adicionar
+                    if (currentHitSequence.length > 0) {
+                      hitsSequences.push(currentHitSequence.length);
+                    }
+                    
+                    const avgHitsBetweenLosses = hitsSequences.length > 0 
+                      ? (hitsSequences.reduce((a, b) => a + b, 0) / hitsSequences.length).toFixed(1)
+                      : 0;
+                    
+                    const maxHitsBetweenLosses = hitsSequences.length > 0 
+                      ? Math.max(...hitsSequences)
+                      : 0;
+                    
+                    const minHitsBetweenLosses = hitsSequences.length > 0 
+                      ? Math.min(...hitsSequences)
+                      : 0;
+                    
+                    return {
+                      totalLosses: losses.length,
+                      hitsSequences,
+                      avgHitsBetweenLosses,
+                      maxHitsBetweenLosses,
+                      minHitsBetweenLosses,
+                      totalSequences: hitsSequences.length
+                    };
+                  };
+                  
+                  const lossStats = calculateLossStats(doubleSignalsHistory);
+                  
+                  if (lossStats.totalLosses === 0) {
+                    return null;
+                  }
+                  
+                  return (
+                    <div
+                      style={{
+                        padding: 16,
+                        backgroundColor: "#2a2a2a",
+                        borderRadius: 8,
+                        marginBottom: 20,
+                        border: "1px solid #9b59b6",
+                      }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          color: "#ecf0f1",
+                          fontWeight: 600,
+                          marginBottom: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}>
+                        <span>📊 Análise de Recuperação Entre Losses</span>
+                      </div>
+                      
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                          gap: 12,
+                        }}>
+                        <div
+                          style={{
+                            padding: 12,
+                            backgroundColor: "#1f1f1f",
+                            borderRadius: 6,
+                            border: "1px solid #3498db",
+                          }}>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: "#3498db", textAlign: "center" }}>
+                            {lossStats.avgHitsBetweenLosses}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#c0c0c0", marginTop: 4, textAlign: "center" }}>
+                            Média de acertos entre losses
+                          </div>
+                        </div>
+                        
+                        <div
+                          style={{
+                            padding: 12,
+                            backgroundColor: "#1f1f1f",
+                            borderRadius: 6,
+                            border: "1px solid #2ecc71",
+                          }}>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: "#2ecc71", textAlign: "center" }}>
+                            {lossStats.maxHitsBetweenLosses}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#c0c0c0", marginTop: 4, textAlign: "center" }}>
+                            Máximo de acertos seguidos
+                          </div>
+                        </div>
+                        
+                        <div
+                          style={{
+                            padding: 12,
+                            backgroundColor: "#1f1f1f",
+                            borderRadius: 6,
+                            border: "1px solid #e67e22",
+                          }}>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: "#e67e22", textAlign: "center" }}>
+                            {lossStats.minHitsBetweenLosses}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#c0c0c0", marginTop: 4, textAlign: "center" }}>
+                            Mínimo de acertos entre losses
+                          </div>
+                        </div>
+                        
+                        <div
+                          style={{
+                            padding: 12,
+                            backgroundColor: "#1f1f1f",
+                            borderRadius: 6,
+                            border: "1px solid #9b59b6",
+                          }}>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: "#9b59b6", textAlign: "center" }}>
+                            {lossStats.totalSequences}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#c0c0c0", marginTop: 4, textAlign: "center" }}>
+                            Ciclos analisados
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div
+                        style={{
+                          marginTop: 12,
+                          padding: 10,
+                          backgroundColor: "#1f1f1f",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          color: "#c0c0c0",
+                          lineHeight: 1.5,
+                        }}>
+                        💡 <strong style={{ color: "#ffd700" }}>Interpretação:</strong> Entre cada loss, você teve em média <strong style={{ color: "#3498db" }}>{lossStats.avgHitsBetweenLosses}</strong> acertos. 
+                        Sua melhor sequência foi de <strong style={{ color: "#2ecc71" }}>{lossStats.maxHitsBetweenLosses}</strong> acertos consecutivos.
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Lista de Sinais com Scroll */}
                 <div
                   style={{
