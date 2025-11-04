@@ -1,23 +1,23 @@
 // Gerenciar sinal ativo no banco de dados
-import { connectToDatabase, ensureIndexes } from './db-utils.js';
+import { connectToDatabase, ensureIndexes } from "./db-utils.js";
 
 export const handler = async (event) => {
   const { db } = await connectToDatabase();
   await ensureIndexes(db);
 
-  const activeSignalsCollection = db.collection('active_signals');
+  const activeSignalsCollection = db.collection("active_signals");
   const params = event.queryStringParameters || {};
-  const gameType = params.gameType || 'double';
+  const gameType = params.gameType || "double";
 
-  if (event.httpMethod === 'GET') {
+  if (event.httpMethod === "GET") {
     // Buscar sinal ativo
     try {
       const activeSignal = await activeSignalsCollection.findOne({ gameType });
-      
+
       if (!activeSignal || !activeSignal.signal) {
         return {
           statusCode: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ signal: null, gameType }),
         };
       }
@@ -32,29 +32,29 @@ export const handler = async (event) => {
         await activeSignalsCollection.deleteOne({ gameType });
         return {
           statusCode: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ signal: null, gameType }),
         };
       }
 
       const { _id: _, ...signalData } = activeSignal;
-      _ // evita warning de variável não usada
-      
+      _; // evita warning de variável não usada
+
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(signalData),
       };
     } catch (error) {
-      console.error('Erro ao buscar sinal ativo:', error);
+      console.error("Erro ao buscar sinal ativo:", error);
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Erro ao buscar sinal ativo' }),
+        body: JSON.stringify({ error: "Erro ao buscar sinal ativo" }),
       };
     }
   }
 
-  if (event.httpMethod === 'POST') {
+  if (event.httpMethod === "POST") {
     // Salvar/atualizar sinal ativo
     try {
       const body = JSON.parse(event.body);
@@ -65,7 +65,7 @@ export const handler = async (event) => {
         await activeSignalsCollection.deleteOne({ gameType });
         return {
           statusCode: 200,
-          body: JSON.stringify({ message: 'Sinal ativo removido', gameType }),
+          body: JSON.stringify({ message: "Sinal ativo removido", gameType }),
         };
       }
 
@@ -84,19 +84,19 @@ export const handler = async (event) => {
 
       return {
         statusCode: 200,
-        body: JSON.stringify({ message: 'Sinal ativo salvo', gameType }),
+        body: JSON.stringify({ message: "Sinal ativo salvo", gameType }),
       };
     } catch (error) {
-      console.error('Erro ao salvar sinal ativo:', error);
+      console.error("Erro ao salvar sinal ativo:", error);
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Erro ao salvar sinal ativo' }),
+        body: JSON.stringify({ error: "Erro ao salvar sinal ativo" }),
       };
     }
   }
 
   return {
     statusCode: 405,
-    body: JSON.stringify({ error: 'Method not allowed' }),
+    body: JSON.stringify({ error: "Method not allowed" }),
   };
 };
