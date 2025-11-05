@@ -594,25 +594,47 @@ function App() {
     if (route === "#/roulette") return; // apenas no modo Double
     if (!results || results.length < 3) return;
 
+    // Se já existe um sinal ativo, PARAR de buscar novos padrões
+    // Aguardar a validação completa (3 tentativas ou acerto)
     if (bestDoubleSignal) {
-      return; // aguardar validação do sinal atual
+      console.log(
+        "⏸️ [DETECÇÃO PAUSADA] Aguardando validação do sinal ativo:",
+        bestDoubleSignal.description
+      );
+      return;
     }
 
+    console.log("🔍 [BUSCANDO PADRÃO] Analisando resultados...");
     const analysisResults = [...results]; // cronológico: mais recente no fim
     const signal = detectBestDoubleSignal(analysisResults, {});
 
     if (signal) {
-      // Marcar que o sinal foi exibido no card
+      console.log(
+        "🔔 [NOVO SINAL DETECTADO]:",
+        signal.description,
+        "Targets:",
+        signal.targets
+      );
+
+      // Configurar sinal com todas as propriedades necessárias
       signal.wasDisplayed = true;
-      setBestDoubleSignal(signal);
-      // Limpar último resultado mostrado no card ao iniciar um novo sinal
-      setLastDoubleSignalOutcome(null);
+      signal.timestamp = Date.now(); // timestamp de quando foi detectado
+
+      // Resetar estado de validação ANTES de definir o novo sinal
       doubleAttemptResultsRef.current = [];
+      lastDoubleValidatedResultRef.current = null;
       setDoubleResultsCountSinceSignal(0);
+      setLastDoubleSignalOutcome(null);
       setNoDoubleSignalMessage(null);
 
+      // Agora definir o sinal (isso vai triggar a renderização)
+      setBestDoubleSignal(signal);
+
+      console.log(
+        "✅ [SINAL DEFINIDO] Sinal configurado e pronto para validação"
+      );
+
       // Salvar sinal ativo no banco para sincronização
-      console.log("💾 Salvando novo sinal no banco:", signal.description);
       saveActiveSignal(signal, "double").catch((err) => {
         console.error("Erro ao salvar sinal ativo do Double:", err);
       });
@@ -621,6 +643,8 @@ function App() {
         setNoDoubleSignalMessage(
           "❌ Nenhum padrão forte detectado neste ciclo"
         );
+        // Limpar mensagem de último resultado também, pois estamos em novo ciclo
+        setLastDoubleSignalOutcome(null);
         setTimeout(() => setNoDoubleSignalMessage(null), 5000);
       }
     }
@@ -647,124 +671,163 @@ function App() {
   // Validação de sinais do Double
   useEffect(() => {
     if (route === "#/roulette") return;
-    if (!bestDoubleSignal || !results || results.length === 0) return;
+
+    // Não há sinal ativo para validar
+    if (!bestDoubleSignal || !results || results.length === 0) {
+      return;
+    }
+
+    console.log(
+      "🔍 [VALIDATION] Checando novo resultado para sinal:",
+      bestDoubleSignal.description
+    );
 
     const latest = results[results.length - 1];
     const resultId = `${latest.timestamp}-${latest.number}`;
+    const resultTimestamp = latest.timestamp || 0;
+    const signalTimestamp = bestDoubleSignal.timestamp || 0;
 
-    // Evitar validar resultados anteriores ao sinal
-    if ((latest.timestamp || 0) <= (bestDoubleSignal.timestamp || 0)) return;
-    // Evitar dupla validação
-    if (lastDoubleValidatedResultRef.current === resultId) return;
+    // Validar apenas resultados POSTERIORES ao sinal
+    // Usar >= para garantir que o resultado é mais recente que o sinal
+    if (resultTimestamp <= signalTimestamp) {
+      console.log(
+        "[Double Validation] ⏭️ Ignorando resultado anterior/igual ao sinal"
+      );
+      return;
+    }
+
+    // Evitar validar o mesmo resultado duas vezes
+    if (lastDoubleValidatedResultRef.current === resultId) {
+      console.log("[Double Validation] ⏭️ Resultado já validado anteriormente");
+      return;
+    }
+
+    // Marcar como validado
     lastDoubleValidatedResultRef.current = resultId;
 
-    // Incrementar contador
+    // Incrementar contador de tentativas
     const newCount = doubleResultsCountSinceSignal + 1;
+    const maxAttempts = bestDoubleSignal.validFor || 3;
+
     setDoubleResultsCountSinceSignal(newCount);
-    // Registrar resultado desta tentativa
+
+    // Registrar número desta tentativa
     doubleAttemptResultsRef.current.push(Number(latest.number));
 
-    // Validar resultado
-    const hit = (bestDoubleSignal.targets || []).includes(
-      Number(latest.number)
-    );
-    // tentativa registrada apenas para controle local; histórico não persistido
+    // Verificar se acertou
+    const resultNumber = Number(latest.number);
+    const targets = bestDoubleSignal.targets || [];
+    const hit = targets.includes(resultNumber);
+
+    console.log(`\n🎯 [TENTATIVA ${newCount}/${maxAttempts}]`);
+    console.log(`   Número saiu: ${resultNumber}`);
+    console.log(`   Targets: [${targets.join(", ")}]`);
+    console.log(`   ${hit ? "✅ ACERTOU!" : "❌ ERROU"}`);
+    console.log(`   wasDisplayed: ${bestDoubleSignal.wasDisplayed}\n`);
+
     if (hit) {
-      // Registrar no histórico do Double APENAS se o sinal foi exibido no card
-      if (bestDoubleSignal.wasDisplayed) {
-        const signalRecord = {
-          id: resultId,
-          hit: true,
-          hitOnAttempt: newCount,
-          description: bestDoubleSignal.description,
-          confidence: bestDoubleSignal.confidence,
-          timestamp: Date.now(),
-          targets: bestDoubleSignal.targets || [],
-          resultNumber: Number(latest.number),
-          attempts: (doubleAttemptResultsRef.current || []).map((num) => ({
-            resultNumber: Number(num),
-            hit: (bestDoubleSignal.targets || []).includes(Number(num)),
-          })),
-          attemptResults: [...doubleAttemptResultsRef.current],
-        };
+      // ✅ ACERTOU!
+      const signalRecord = {
+        id: resultId,
+        hit: true,
+        hitOnAttempt: newCount,
+        description: bestDoubleSignal.description,
+        confidence: bestDoubleSignal.confidence,
+        timestamp: Date.now(),
+        targets: bestDoubleSignal.targets || [],
+        resultNumber: resultNumber,
+        attempts: doubleAttemptResultsRef.current.map((num) => ({
+          resultNumber: Number(num),
+          hit: targets.includes(Number(num)),
+        })),
+        attemptResults: [...doubleAttemptResultsRef.current],
+      };
 
-        setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
+      // Adicionar ao histórico
+      setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
 
-        // Guardar resultado para mostrar no card de sinais inteligentes APENAS se foi exibido
-        setLastDoubleSignalOutcome({
-          hit: true,
-          hitOnAttempt: newCount,
-          description: bestDoubleSignal.description,
-          confidence: bestDoubleSignal.confidence,
-          timestamp: Date.now(),
-        });
+      // Mostrar banner de ACERTO no card
+      setLastDoubleSignalOutcome({
+        hit: true,
+        hitOnAttempt: newCount,
+        description: bestDoubleSignal.description,
+        confidence: bestDoubleSignal.confidence,
+        timestamp: Date.now(),
+      });
 
-        // Salvar no banco de dados
-        saveSignal(signalRecord, "double").catch((err) => {
-          console.error("Erro ao salvar sinal do Double no banco:", err);
-        });
-      } else {
-        // Sinal acertou mas não foi exibido - não mostrar resultado no card
-        console.log("🔕 Sinal acertou mas não foi exibido no card");
-      }
+      // Salvar no banco de dados
+      saveSignal(signalRecord, "double").catch((err) => {
+        console.error("Erro ao salvar sinal do Double:", err);
+      });
 
-      // Remover sinal ativo do banco (acertou)
+      // Remover sinal ativo do banco
       saveActiveSignal(null, "double").catch((err) => {
         console.error("Erro ao remover sinal ativo do Double:", err);
       });
 
+      console.log("🧹 Limpando sinal após ACERTO...");
+      console.log("🔓 Sistema liberado para buscar novo padrão\n");
+
+      // Limpar sinal e resetar estado - LIBERA para buscar novo padrão
       setBestDoubleSignal(null);
       setDoubleResultsCountSinceSignal(0);
       doubleAttemptResultsRef.current = [];
       lastDoubleValidatedResultRef.current = null;
-    } else if (newCount >= (bestDoubleSignal.validFor || 3)) {
-      // expirou sem acerto - APENAS registrar se o sinal foi exibido no card
-      if (bestDoubleSignal.wasDisplayed) {
-        const signalRecord = {
-          id: resultId,
-          hit: false,
-          hitOnAttempt: null,
-          description: bestDoubleSignal.description,
-          confidence: bestDoubleSignal.confidence,
-          timestamp: Date.now(),
-          targets: bestDoubleSignal.targets || [],
-          resultNumber: Number(latest.number),
-          attempts: (doubleAttemptResultsRef.current || []).map((num) => ({
-            resultNumber: Number(num),
-            hit: (bestDoubleSignal.targets || []).includes(Number(num)),
-          })),
-          attemptResults: [...doubleAttemptResultsRef.current],
-        };
+    } else if (newCount >= maxAttempts) {
+      // ❌ LOSS - todas as tentativas falharam
+      console.log(`💔 LOSS após ${newCount} tentativas\n`);
 
-        setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
+      const signalRecord = {
+        id: resultId,
+        hit: false,
+        hitOnAttempt: null,
+        description: bestDoubleSignal.description,
+        confidence: bestDoubleSignal.confidence,
+        timestamp: Date.now(),
+        targets: bestDoubleSignal.targets || [],
+        resultNumber: resultNumber,
+        attempts: doubleAttemptResultsRef.current.map((num) => ({
+          resultNumber: Number(num),
+          hit: targets.includes(Number(num)),
+        })),
+        attemptResults: [...doubleAttemptResultsRef.current],
+      };
 
-        // Guardar resultado (erro) para mostrar no card APENAS se foi exibido
-        setLastDoubleSignalOutcome({
-          hit: false,
-          hitOnAttempt: null,
-          description: bestDoubleSignal.description,
-          confidence: bestDoubleSignal.confidence,
-          timestamp: Date.now(),
-        });
+      // Adicionar ao histórico
+      setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
 
-        // Salvar no banco de dados
-        saveSignal(signalRecord, "double").catch((err) => {
-          console.error("Erro ao salvar sinal do Double no banco:", err);
-        });
-      } else {
-        // Sinal errou mas não foi exibido - não mostrar resultado no card
-        console.log("🔕 Sinal errou mas não foi exibido no card");
-      }
+      // Mostrar banner de ERRO no card
+      setLastDoubleSignalOutcome({
+        hit: false,
+        hitOnAttempt: null,
+        description: bestDoubleSignal.description,
+        confidence: bestDoubleSignal.confidence,
+        timestamp: Date.now(),
+      });
 
-      // Remover sinal ativo do banco (loss)
+      // Salvar no banco de dados
+      saveSignal(signalRecord, "double").catch((err) => {
+        console.error("Erro ao salvar sinal do Double:", err);
+      });
+
+      // Remover sinal ativo do banco
       saveActiveSignal(null, "double").catch((err) => {
         console.error("Erro ao remover sinal ativo do Double:", err);
       });
 
+      console.log("🧹 Limpando sinal após LOSS...");
+      console.log("🔓 Sistema liberado para buscar novo padrão\n");
+
+      // Limpar sinal e resetar estado - LIBERA para buscar novo padrão
       setBestDoubleSignal(null);
       setDoubleResultsCountSinceSignal(0);
       doubleAttemptResultsRef.current = [];
       lastDoubleValidatedResultRef.current = null;
+    } else {
+      // Aguardando próximas tentativas
+      console.log(
+        `⏳ Aguardando próxima tentativa (${newCount}/${maxAttempts})\n`
+      );
     }
   }, [results, bestDoubleSignal, route, doubleResultsCountSinceSignal]);
 
