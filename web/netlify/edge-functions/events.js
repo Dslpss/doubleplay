@@ -37,7 +37,8 @@ export default async (request, context) => {
         out.timestamp = Date.now();
       }
       return out;
-    } catch {
+    } catch (e) {
+      void e;
       return obj;
     }
   }
@@ -47,6 +48,7 @@ export default async (request, context) => {
   let lastKey = null;
   let stopped = false;
   const encoder = new TextEncoder();
+  let rouletteTimer = null;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -91,12 +93,13 @@ export default async (request, context) => {
           try {
             if (typeof ev.data === 'string') text = ev.data;
             else if (ev.data) text = String(ev.data);
-          } catch {}
+          } catch (e) { void e; }
           const jsonStr = extractJsonStr(text) || text;
           let payload = null;
-          try { payload = JSON.parse(jsonStr); } catch {
+          try { payload = JSON.parse(jsonStr); } catch (e) {
+            void e;
             const nested = extractJsonStr(jsonStr);
-            if (nested) { try { payload = JSON.parse(nested); } catch {} }
+            if (nested) { try { payload = JSON.parse(nested); } catch (e2) { void e2; } }
           }
           if (payload) {
             const normalized = normalizeResult(payload);
@@ -135,7 +138,6 @@ export default async (request, context) => {
       const email = context?.env?.PLAYNABETS_USER || context?.env?.PLAYNABETS_EMAIL || '';
       const password = context?.env?.PLAYNABETS_PASS || context?.env?.PLAYNABETS_PASSWORD || '';
       let jsessionid = null;
-      let rouletteTimer = null;
       let lastRouletteKey = null;
       let lastStatusKey = '';
 
@@ -148,9 +150,9 @@ export default async (request, context) => {
       async function performLoginViaFunction() {
         try {
           let fnUrl = null;
-          try { fnUrl = new URL('/.netlify/functions/login', request.url).toString(); } catch {}
+          try { fnUrl = new URL('/.netlify/functions/login', request.url).toString(); } catch (e) { void e; }
           if (!fnUrl && context?.site?.url) {
-            try { fnUrl = new URL('/.netlify/functions/login', context.site.url).toString(); } catch {}
+            try { fnUrl = new URL('/.netlify/functions/login', context.site.url).toString(); } catch (e) { void e; }
           }
           if (!fnUrl) throw new Error('cannot_build_functions_url');
 
@@ -237,7 +239,7 @@ export default async (request, context) => {
               const u = new URL(location, PRAGMATIC_BASE);
               const qs = new URLSearchParams(u.search || '');
               sid = qs.get('JSESSIONID') || sid;
-            } catch {}
+            } catch (e) { void e; }
           }
 
           emitRouletteStatus({ stage: 'gamelaunch', ok: !!sid, httpStatus: res.status || 0, hasSetCookie: !!setCookie });
@@ -278,7 +280,7 @@ export default async (request, context) => {
           out.color = color || (num === 0 ? 'green' : out.color || 'black');
           out.timestamp = out.timestamp || out.ts || Date.now();
           return out;
-        } catch { return item; }
+        } catch (e) { void e; return item; }
       }
 
       async function fetchRouletteHistory(numberOfGames = 5) {
@@ -343,7 +345,7 @@ export default async (request, context) => {
     cancel() {
       stopped = true;
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
-      try { ws?.close(); } catch {}
+      try { ws?.close(); } catch (e) { void e; }
       // Encerrar polling de roleta
       if (rouletteTimer) { clearTimeout(rouletteTimer); rouletteTimer = null; }
     }
