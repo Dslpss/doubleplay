@@ -94,6 +94,22 @@ Abra o navegador em: http://localhost:5173
 - `PRAGMATIC_BASE`: Base URL da API Pragmatic
 - `PRAGMATIC_TABLE_ID` / `ROULETTE_TABLE_ID`: ID da mesa de roleta
 
+### Netlify Functions (Banco de Dados)
+
+- `MONGODB_URI`: string de conexão do MongoDB (obrigatória)
+- `DATA_TIMEZONE_OFFSET_MINUTES`: offset do fuso em minutos para ciclo diário
+  - Ex.: Brasília (UTC-3) = `-180`
+  - Se não definido, usa `0` (UTC)
+
+## Ciclo Diário de Dados
+
+- O histórico de resultados e sinais guarda apenas o dia corrente (janela de 1 dia).
+- À virada do dia (com base em `DATA_TIMEZONE_OFFSET_MINUTES`), um reset preguiçoso é acionado na primeira chamada às Functions:
+  - Remove dados de dias anteriores das coleções `signals`, `results` e `active_signals`.
+  - Atualiza o estado de ciclo em `meta.daily_state`.
+- Consultas (`get-signals`, `get-results`) retornam apenas dados do dia atual.
+
+
 ## Scripts NPM
 
 - `npm run dev` - Inicia apenas o frontend (Vite)

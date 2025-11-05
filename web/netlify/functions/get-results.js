@@ -1,5 +1,6 @@
-// Buscar últimos resultados do banco de dados
+// Buscar últimos resultados do banco de dados (filtro diário)
 import { connectToDatabase, ensureIndexes } from "./db-utils.js";
+import { ensureDailyReset, getTodayStamp } from "./daily-utils.js";
 
 export const handler = async (event) => {
   // Apenas GET
@@ -13,6 +14,7 @@ export const handler = async (event) => {
   try {
     const { db } = await connectToDatabase();
     await ensureIndexes(db);
+    await ensureDailyReset(db);
 
     const params = event.queryStringParameters || {};
     const gameType = params.gameType || "double";
@@ -20,17 +22,17 @@ export const handler = async (event) => {
 
     const resultsCollection = db.collection("results");
 
-    // Buscar últimos resultados
+    // Buscar últimos resultados somente do dia atual
     const results = await resultsCollection
-      .find({ gameType })
+      .find({ gameType, dayStamp: getTodayStamp() })
       .sort({ timestamp: -1 })
       .limit(limit)
       .toArray();
 
-    // Remover _id e createdAt do MongoDB para facilitar serialização
-    const cleanResults = results.map((doc) => {
-      // eslint-disable-next-line no-unused-vars
-      const { _id, createdAt, ...rest } = doc;
+    // Remover _id e createdAt do MongoDB
+    const clean = results.map((doc) => {
+      const { _id, createdAt, dayStamp, ...rest } = doc;
+      _id; createdAt; dayStamp; // evitar warnings
       return rest;
     });
 
@@ -40,20 +42,13 @@ export const handler = async (event) => {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
       },
-      body: JSON.stringify({
-        results: cleanResults.reverse(), // Reverter para ordem cronológica
-        count: cleanResults.length,
-        gameType,
-      }),
+      body: JSON.stringify({ results: clean, count: clean.length, gameType }),
     };
   } catch (error) {
     console.error("Erro ao buscar resultados:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        error: "Erro ao buscar resultados",
-        details: error.message,
-      }),
+      body: JSON.stringify({ error: "Erro ao buscar resultados", details: error.message }),
     };
   }
 };

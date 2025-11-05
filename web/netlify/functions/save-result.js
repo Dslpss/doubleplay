@@ -1,5 +1,6 @@
 // Salvar resultados no banco de dados
 import { connectToDatabase, ensureIndexes } from "./db-utils.js";
+import { ensureDailyReset, getDayStampFromEpoch } from "./daily-utils.js";
 
 export const handler = async (event) => {
   // Apenas POST
@@ -13,6 +14,7 @@ export const handler = async (event) => {
   try {
     const { db } = await connectToDatabase();
     await ensureIndexes(db);
+    await ensureDailyReset(db);
 
     const body = JSON.parse(event.body);
     const { result, gameType = "double" } = body;
@@ -55,6 +57,7 @@ export const handler = async (event) => {
       ...result,
       gameType,
       createdAt: new Date(),
+      dayStamp: getDayStampFromEpoch(result.timestamp),
     };
 
     const insertResult = await resultsCollection.insertOne(doc);

@@ -1,5 +1,6 @@
 // Salvar sinais no banco de dados
 import { connectToDatabase, ensureIndexes } from "./db-utils.js";
+import { ensureDailyReset, getTodayStamp } from "./daily-utils.js";
 
 export const handler = async (event) => {
   // Apenas POST
@@ -13,6 +14,7 @@ export const handler = async (event) => {
   try {
     const { db } = await connectToDatabase();
     await ensureIndexes(db);
+    await ensureDailyReset(db);
 
     const body = JSON.parse(event.body);
     const { signal, gameType = "double" } = body;
@@ -46,6 +48,7 @@ export const handler = async (event) => {
       ...signal,
       gameType,
       createdAt: new Date(),
+      dayStamp: getTodayStamp(),
     };
 
     const insertResult = await signalsCollection.insertOne(doc);

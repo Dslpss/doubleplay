@@ -33,9 +33,14 @@ export async function ensureIndexes(db) {
   // Índices para performance
   const resultsCollection = db.collection("results");
   const signalsCollection = db.collection("signals");
+  const activeSignalsCollection = db.collection("active_signals");
 
   await resultsCollection.createIndex({ timestamp: -1 });
   await resultsCollection.createIndex({ gameType: 1, timestamp: -1 });
+  await resultsCollection.createIndex({ dayStamp: 1, gameType: 1, timestamp: -1 });
   await signalsCollection.createIndex({ timestamp: -1 });
   await signalsCollection.createIndex({ gameType: 1, timestamp: -1 });
+  await signalsCollection.createIndex({ dayStamp: 1, gameType: 1, timestamp: -1 });
+  await activeSignalsCollection.createIndex({ gameType: 1, updatedAt: -1 });
+  await activeSignalsCollection.createIndex({ dayStamp: 1, gameType: 1 });
 }

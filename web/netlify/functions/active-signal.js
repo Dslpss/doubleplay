@@ -1,9 +1,11 @@
 // Gerenciar sinal ativo no banco de dados
 import { connectToDatabase, ensureIndexes } from "./db-utils.js";
+import { ensureDailyReset, getTodayStamp } from "./daily-utils.js";
 
 export const handler = async (event) => {
   const { db } = await connectToDatabase();
   await ensureIndexes(db);
+  await ensureDailyReset(db);
 
   const activeSignalsCollection = db.collection("active_signals");
   const params = event.queryStringParameters || {};
@@ -15,6 +17,17 @@ export const handler = async (event) => {
       const activeSignal = await activeSignalsCollection.findOne({ gameType });
 
       if (!activeSignal || !activeSignal.signal) {
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signal: null, gameType }),
+        };
+      }
+
+      // Se mudou o dia, invalidar sinal ativo
+      const today = getTodayStamp();
+      if (activeSignal.dayStamp && activeSignal.dayStamp !== today) {
+        await activeSignalsCollection.deleteOne({ gameType });
         return {
           statusCode: 200,
           headers: { "Content-Type": "application/json" },
@@ -77,6 +90,7 @@ export const handler = async (event) => {
             signal,
             gameType,
             updatedAt: new Date(),
+            dayStamp: getTodayStamp(),
           },
         },
         { upsert: true }

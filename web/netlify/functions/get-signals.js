@@ -1,5 +1,6 @@
 // Buscar histórico de sinais do banco de dados
 import { connectToDatabase, ensureIndexes } from "./db-utils.js";
+import { ensureDailyReset, getTodayStamp } from "./daily-utils.js";
 
 export const handler = async (event) => {
   // Apenas GET
@@ -13,6 +14,7 @@ export const handler = async (event) => {
   try {
     const { db } = await connectToDatabase();
     await ensureIndexes(db);
+    await ensureDailyReset(db);
 
     const params = event.queryStringParameters || {};
     const gameType = params.gameType || "double";
@@ -22,7 +24,7 @@ export const handler = async (event) => {
 
     // Buscar últimos sinais
     const signals = await signalsCollection
-      .find({ gameType })
+      .find({ gameType, dayStamp: getTodayStamp() })
       .sort({ timestamp: -1 })
       .limit(limit)
       .toArray();
