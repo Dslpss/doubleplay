@@ -70,6 +70,8 @@ function App() {
   const doubleAttemptResultsRef = useRef([]); // armazena resultados por giro para o sinal atual (Double)
   const [noDoubleSignalMessage, setNoDoubleSignalMessage] = useState(null);
   const [doubleSignalsHistory, setDoubleSignalsHistory] = useState([]); // Histórico de sinais do Double
+  const [lastDoubleSignalOutcome, setLastDoubleSignalOutcome] = useState(null); // Último resultado do sinal (Double)
+  const lastOutcomeTimerRef = useRef(null);
 
   const [aggressiveMode, setAggressiveMode] = useState(true);
 
@@ -603,6 +605,8 @@ function App() {
       // Marcar que o sinal foi exibido no card
       signal.wasDisplayed = true;
       setBestDoubleSignal(signal);
+      // Limpar último resultado mostrado no card ao iniciar um novo sinal
+      setLastDoubleSignalOutcome(null);
       doubleAttemptResultsRef.current = [];
       setDoubleResultsCountSinceSignal(0);
       setNoDoubleSignalMessage(null);
@@ -621,6 +625,24 @@ function App() {
       }
     }
   }, [results, bestDoubleSignal, route]);
+
+  // Limpar automaticamente o banner de resultado após alguns segundos
+  useEffect(() => {
+    if (lastDoubleSignalOutcome) {
+      if (lastOutcomeTimerRef.current)
+        clearTimeout(lastOutcomeTimerRef.current);
+      lastOutcomeTimerRef.current = setTimeout(() => {
+        setLastDoubleSignalOutcome(null);
+        lastOutcomeTimerRef.current = null;
+      }, 5000);
+    }
+    return () => {
+      if (lastOutcomeTimerRef.current) {
+        clearTimeout(lastOutcomeTimerRef.current);
+        lastOutcomeTimerRef.current = null;
+      }
+    };
+  }, [lastDoubleSignalOutcome]);
 
   // Validação de sinais do Double
   useEffect(() => {
@@ -668,10 +690,22 @@ function App() {
 
         setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
 
+        // Guardar resultado para mostrar no card de sinais inteligentes APENAS se foi exibido
+        setLastDoubleSignalOutcome({
+          hit: true,
+          hitOnAttempt: newCount,
+          description: bestDoubleSignal.description,
+          confidence: bestDoubleSignal.confidence,
+          timestamp: Date.now(),
+        });
+
         // Salvar no banco de dados
         saveSignal(signalRecord, "double").catch((err) => {
           console.error("Erro ao salvar sinal do Double no banco:", err);
         });
+      } else {
+        // Sinal acertou mas não foi exibido - não mostrar resultado no card
+        console.log("🔕 Sinal acertou mas não foi exibido no card");
       }
 
       // Remover sinal ativo do banco (acertou)
@@ -704,10 +738,22 @@ function App() {
 
         setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
 
+        // Guardar resultado (erro) para mostrar no card APENAS se foi exibido
+        setLastDoubleSignalOutcome({
+          hit: false,
+          hitOnAttempt: null,
+          description: bestDoubleSignal.description,
+          confidence: bestDoubleSignal.confidence,
+          timestamp: Date.now(),
+        });
+
         // Salvar no banco de dados
         saveSignal(signalRecord, "double").catch((err) => {
           console.error("Erro ao salvar sinal do Double no banco:", err);
         });
+      } else {
+        // Sinal errou mas não foi exibido - não mostrar resultado no card
+        console.log("🔕 Sinal errou mas não foi exibido no card");
       }
 
       // Remover sinal ativo do banco (loss)
@@ -1049,33 +1095,24 @@ function App() {
                   }}>
                   Sinais do Double
                 </h3>
-                {bestDoubleSignal ? (
-                  <DoublePatternsPanel
-                    signal={bestDoubleSignal}
-                    nextSignalIn={null}
-                    noSignalMessage={noDoubleSignalMessage}
-                    lastNumber={
-                      results.length > 0
-                        ? results[results.length - 1].number
-                        : null
-                    }
-                  />
-                ) : (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "20px 0",
-                      color: "rgb(192, 192, 192)",
-                    }}>
-                    <p style={{ fontSize: 16, marginBottom: 8 }}>
-                      🔍 Analisando padrões...
-                    </p>
-                    <p style={{ fontSize: 14, color: "rgb(153, 153, 153)" }}>
-                      Próximo sinal em {3 - (results.length % 3)} resultado
-                      {3 - (results.length % 3) !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                )}
+                {(() => {
+                  const nextSignalIn = bestDoubleSignal
+                    ? null
+                    : 3 - (results.length % 3);
+                  return (
+                    <DoublePatternsPanel
+                      signal={bestDoubleSignal}
+                      nextSignalIn={nextSignalIn}
+                      noSignalMessage={noDoubleSignalMessage}
+                      lastOutcome={lastDoubleSignalOutcome}
+                      lastNumber={
+                        results.length > 0
+                          ? results[results.length - 1].number
+                          : null
+                      }
+                    />
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -1458,295 +1495,7 @@ function App() {
                   );
                 })()}
 
-                {/* Lista de Sinais com Scroll */}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 16,
-                    maxHeight: "600px",
-                    overflowY: "auto",
-                    overflowX: "hidden",
-                    paddingRight: 8,
-                    scrollbarWidth: "thin",
-                    scrollbarColor: "#3498db #2a2a2a",
-                  }}
-                  className="custom-scrollbar">
-                  {doubleSignalsHistory.slice(0, 20).map((h) => (
-                    <div
-                      key={h.id}
-                      style={{
-                        padding: 16,
-                        borderRadius: 10,
-                        backgroundColor: "#2a2a2a",
-                        border: `2px solid ${h.hit ? "#2ecc71" : "#e74c3c"}`,
-                        boxShadow: h.hit
-                          ? "0 0 10px rgba(46, 204, 113, 0.2)"
-                          : "0 0 10px rgba(231, 76, 60, 0.2)",
-                        transition: "all 0.2s ease",
-                      }}>
-                      {/* Header */}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          marginBottom: 12,
-                          flexWrap: "wrap",
-                        }}>
-                        <span style={{ fontSize: 24 }}>
-                          {h.hit ? "✅" : "❌"}
-                        </span>
-                        <span
-                          style={{
-                            fontWeight: 600,
-                            fontSize: 15,
-                            color: "#ecf0f1",
-                            flex: 1,
-                          }}>
-                          {h.description}
-                        </span>
-                        <span
-                          style={{
-                            padding: "4px 10px",
-                            borderRadius: 16,
-                            backgroundColor: h.hit ? "#2ecc71" : "#e74c3c",
-                            color: "#fff",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            letterSpacing: 0.5,
-                          }}>
-                          {h.hit ? "ACERTO" : "ERRO"}
-                        </span>
-                        <span
-                          style={{
-                            padding: "4px 10px",
-                            borderRadius: 16,
-                            backgroundColor: "#3498db",
-                            color: "#fff",
-                            fontSize: 11,
-                            fontWeight: 600,
-                          }}>
-                          {h.confidence}/10
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            opacity: 0.6,
-                            color: "#c0c0c0",
-                          }}>
-                          {new Date(h.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-
-                      {/* Título Martingale e informação de acerto */}
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: "#ffd700",
-                          marginBottom: 8,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}>
-                        <span>🎰 Sistema Martingale (3 Giros)</span>
-                        {h.hit && h.hitOnAttempt && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: "#2ecc71",
-                              backgroundColor: "rgba(46, 204, 113, 0.2)",
-                              padding: "2px 8px",
-                              borderRadius: 12,
-                            }}>
-                            Acertou no Giro {h.hitOnAttempt}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Tentativas (3 giros) em estilo Roleta, com fallback antigo */}
-                      {h.attempts && h.attempts.length > 0 ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 10,
-                          }}>
-                          {h.attempts.map((attempt, idx) => {
-                            const resColor =
-                              attempt.resultNumber === 0
-                                ? "white"
-                                : attempt.resultNumber <= 7
-                                ? "red"
-                                : "black";
-                            return (
-                              <div
-                                key={idx}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 10,
-                                  padding: 10,
-                                  backgroundColor: attempt.hit
-                                    ? "rgba(46, 204, 113, 0.15)"
-                                    : "rgba(231, 76, 60, 0.1)",
-                                  borderRadius: 8,
-                                  border: `2px solid ${
-                                    attempt.hit ? "#2ecc71" : "#e74c3c"
-                                  }`,
-                                }}>
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    color: attempt.hit ? "#2ecc71" : "#e74c3c",
-                                    minWidth: 140,
-                                  }}>
-                                  {idx === 0
-                                    ? "🎯 Aposta Principal"
-                                    : idx === 1
-                                    ? "🔄 Gale 1"
-                                    : "🔄🔄 Gale 2"}
-                                </span>
-                                <ResultChip
-                                  number={attempt.resultNumber}
-                                  color={resColor}
-                                  compact
-                                />
-                                <span
-                                  style={{
-                                    fontSize: 14,
-                                    fontWeight: 700,
-                                    marginLeft: "auto",
-                                  }}>
-                                  {attempt.hit ? "✅" : "❌"}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : h.attemptResults && h.attemptResults.length > 0 ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 8,
-                          }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: "#ffd700",
-                            }}>
-                            🎯 Resultados por Giro:
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 10,
-                              flexWrap: "wrap",
-                            }}>
-                            {h.attemptResults.slice(0, 3).map((num, idx) => {
-                              const color =
-                                num === 0
-                                  ? "white"
-                                  : num <= 7
-                                  ? "red"
-                                  : "black";
-                              const isHitAttempt =
-                                h.hit && h.hitOnAttempt === idx + 1;
-                              return (
-                                <div
-                                  key={`${h.id}-att-${idx}`}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                  }}>
-                                  <span
-                                    style={{
-                                      fontSize: 11,
-                                      color: "#c0c0c0",
-                                      minWidth: 46,
-                                    }}>
-                                    Giro {idx + 1}:
-                                  </span>
-                                  <div
-                                    style={{
-                                      padding: isHitAttempt ? 4 : 0,
-                                      backgroundColor: isHitAttempt
-                                        ? "rgba(46, 204, 113, 0.2)"
-                                        : "transparent",
-                                      borderRadius: 8,
-                                      border: isHitAttempt
-                                        ? "2px solid #2ecc71"
-                                        : "none",
-                                    }}>
-                                    <ResultChip
-                                      number={num}
-                                      color={color}
-                                      compact
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : (
-                        h.resultNumber !== undefined && (
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                            }}>
-                            <span
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#ffd700",
-                                minWidth: 70,
-                              }}>
-                              🎯 Resultado:
-                            </span>
-                            {(() => {
-                              const color =
-                                h.resultNumber === 0
-                                  ? "white"
-                                  : h.resultNumber <= 7
-                                  ? "red"
-                                  : "black";
-                              return (
-                                <div
-                                  style={{
-                                    padding: 4,
-                                    backgroundColor: h.hit
-                                      ? "rgba(46, 204, 113, 0.2)"
-                                      : "transparent",
-                                    borderRadius: 8,
-                                    border: h.hit
-                                      ? "2px solid #2ecc71"
-                                      : "none",
-                                  }}>
-                                  <ResultChip
-                                    number={h.resultNumber}
-                                    color={color}
-                                    compact
-                                  />
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )
-                      )}
-
-                      {/* Targets removidos conforme solicitado */}
-                    </div>
-                  ))}
-                </div>
+                {/* Lista de confirmações de acerto/loss removida conforme solicitado */}
               </div>
             )}
           </div>

@@ -6,6 +6,7 @@ export default function DoublePatternsPanel({
   nextSignalIn = null,
   noSignalMessage = null,
   lastNumber = null,
+  lastOutcome = null,
 }) {
   const box = {
     border: "1px solid #3a3a3a",
@@ -20,6 +21,36 @@ export default function DoublePatternsPanel({
         <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
           Sinais do Double
         </h3>
+
+        {/* Indicador do último resultado, mesmo no modo "analisando" */}
+        {lastOutcome && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: 10,
+              borderRadius: 8,
+              backgroundColor: lastOutcome.hit
+                ? "rgba(46, 204, 113, 0.1)"
+                : "rgba(231, 76, 60, 0.08)",
+              border: `1px solid ${lastOutcome.hit ? "#2ecc71" : "#e74c3c"}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              color: "#ecf0f1",
+              fontSize: 13,
+            }}>
+            <span style={{ fontSize: 18 }}>
+              {lastOutcome.hit ? "✅" : "❌"}
+            </span>
+            <span style={{ fontWeight: 600 }}>
+              Último sinal: {lastOutcome.hit ? "ACERTO" : "ERRO"}
+            </span>
+            <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.7 }}>
+              {new Date(lastOutcome.timestamp).toLocaleTimeString()}
+            </span>
+          </div>
+        )}
+
         {noSignalMessage ? (
           <div
             style={{
@@ -34,11 +65,18 @@ export default function DoublePatternsPanel({
           </div>
         ) : (
           <div
-            style={{ textAlign: "center", padding: "20px 0", color: "#c0c0c0" }}>
-            <p style={{ fontSize: 16, marginBottom: 8 }}>🔍 Analisando padrões...</p>
+            style={{
+              textAlign: "center",
+              padding: "20px 0",
+              color: "#c0c0c0",
+            }}>
+            <p style={{ fontSize: 16, marginBottom: 8 }}>
+              🔍 Analisando padrões...
+            </p>
             {nextSignalIn !== null && (
               <p style={{ fontSize: 14, color: "#999" }}>
-                Próximo sinal em {nextSignalIn} resultado{nextSignalIn !== 1 ? "s" : ""}
+                Próximo sinal em {nextSignalIn} resultado
+                {nextSignalIn !== 1 ? "s" : ""}
               </p>
             )}
           </div>
@@ -105,7 +143,51 @@ export default function DoublePatternsPanel({
 
   return (
     <div style={box}>
-      <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>Sinais do Double</h3>
+      <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
+        Sinais do Double
+      </h3>
+
+      {/* Indicador do resultado do último sinal (ACERTO/ERRO) */}
+      {lastOutcome && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 10,
+            borderRadius: 8,
+            backgroundColor: lastOutcome.hit
+              ? "rgba(46, 204, 113, 0.1)"
+              : "rgba(231, 76, 60, 0.08)",
+            border: `1px solid ${lastOutcome.hit ? "#2ecc71" : "#e74c3c"}`,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            color: "#ecf0f1",
+            fontSize: 13,
+          }}>
+          <span style={{ fontSize: 18 }}>{lastOutcome.hit ? "✅" : "❌"}</span>
+          <span style={{ fontWeight: 600 }}>
+            Último sinal: {lastOutcome.hit ? "ACERTO" : "ERRO"}
+          </span>
+          {typeof lastOutcome.hitOnAttempt === "number" &&
+            lastOutcome.hitOnAttempt > 0 &&
+            lastOutcome.hit && (
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  backgroundColor: "rgba(46, 204, 113, 0.15)",
+                  color: "#2ecc71",
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}>
+                Acertou no Giro {lastOutcome.hitOnAttempt}
+              </span>
+            )}
+          <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.7 }}>
+            {new Date(lastOutcome.timestamp).toLocaleTimeString()}
+          </span>
+        </div>
+      )}
 
       <div style={getSignalStyles()}>
         <div style={{ marginBottom: 12 }}>
@@ -125,7 +207,9 @@ export default function DoublePatternsPanel({
           )}
         </div>
 
-        <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>{signal.description}</h4>
+        <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>
+          {signal.description}
+        </h4>
 
         {lastNumber !== null && (
           <div
@@ -139,12 +223,17 @@ export default function DoublePatternsPanel({
               alignItems: "center",
               gap: 10,
             }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "#ffd700" }}>🎯 Aposte após o número:</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#ffd700" }}>
+              🎯 Aposte após o número:
+            </span>
             {(() => {
-              const color = lastNumber === 0 ? "white" : lastNumber <= 7 ? "red" : "black";
+              const color =
+                lastNumber === 0 ? "white" : lastNumber <= 7 ? "red" : "black";
               return <ResultChip number={lastNumber} color={color} />;
             })()}
-            <span style={{ fontSize: 13, color: "#c0c0c0" }}>(faça sua aposta agora!)</span>
+            <span style={{ fontSize: 13, color: "#c0c0c0" }}>
+              (faça sua aposta agora!)
+            </span>
           </div>
         )}
 
@@ -195,9 +284,11 @@ export default function DoublePatternsPanel({
               border: "1px solid #3a3a3a",
               color: "#c0c0c0",
               fontSize: 12,
-            }}
-          >
-            <span style={{ color: "#ffd700", fontWeight: 600 }}>Baseado em:</span> {signal.reasons.join("; ")}
+            }}>
+            <span style={{ color: "#ffd700", fontWeight: 600 }}>
+              Baseado em:
+            </span>{" "}
+            {signal.reasons.join("; ")}
           </div>
         )}
 
@@ -212,7 +303,14 @@ export default function DoublePatternsPanel({
 
         {/* Progress bar - giros restantes */}
         <div style={{ marginTop: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#c0c0c0", marginBottom: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 12,
+              color: "#c0c0c0",
+              marginBottom: 4,
+            }}>
             <span>Válido por:</span>
             <span>{signal.validFor} giros</span>
           </div>
