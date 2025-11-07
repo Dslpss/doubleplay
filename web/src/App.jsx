@@ -1120,19 +1120,7 @@ function App() {
             Roleta
           </button>
         </a>
-        <a href="#/admin" style={{ textDecoration: "none" }}>
-          <button
-            style={{
-              padding: "4px 8px",
-              borderRadius: 4,
-              background: route === "#/admin" ? "#2c3e50" : "#1f2937",
-              color: "#fff",
-              border: "1px solid #374151",
-              fontSize: "14px",
-            }}>
-            Admin
-          </button>
-        </a>
+        {/* Admin menu oculto: acesso apenas via rota direta */}
       </div>
 
       {route === "#/admin" && (
