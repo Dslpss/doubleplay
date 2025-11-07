@@ -14,10 +14,13 @@ import ResultChip from "./components/ResultChip";
 import StatsPanel from "./components/StatsPanel";
 import RouletteStatsPanel from "./components/RouletteStatsPanel";
 import RoulettePatternsPanel from "./components/RoulettePatternsPanel";
+import LastOutcomeCard from "./components/LastOutcomeCard";
+import SpinHitStatsCard from "./components/SpinHitStatsCard";
 import {
   detectBestRouletteSignal,
   validateSignalOutcome,
   ADAPTIVE_RESET_STRATEGIES,
+  setSignalCooldown,
 } from "./services/roulette";
 import DoubleEmbedPanel from "./components/DoubleEmbedPanel";
 import RouletteEmbedPanel from "./components/RouletteEmbedPanel";
@@ -245,6 +248,51 @@ function App() {
         }
 
         console.log("🔄 Dados sincronizados com o banco");
+        
+        // Sincronizar sinal ativo da Roleta
+        const activeRouletteSignal = await getActiveSignal("roulette");
+        const currentRouletteId =
+          bestRouletteSignal?.id || bestRouletteSignal?.timestamp || 0;
+        const remoteRouletteId =
+          activeRouletteSignal?.id || activeRouletteSignal?.timestamp || 0;
+
+        if (activeRouletteSignal && !bestRouletteSignal) {
+          console.log(
+            "🔔 Sinal de Roleta encontrado no banco, aplicando localmente!",
+            activeRouletteSignal.description
+          );
+          setBestRouletteSignal(activeRouletteSignal);
+          setCurrentSignalAttempts(
+            (activeRouletteSignal.attemptResults || []).map((num, idx) => ({
+              attemptNumber: idx + 1,
+              resultNumber: Number(num),
+              hit: Array.isArray(activeRouletteSignal.targets)
+                ? activeRouletteSignal.targets.includes(Number(num))
+                : false,
+              timestamp: Date.now(),
+            }))
+          );
+          setResultsCountSinceSignal(activeRouletteSignal.resultsCount || 0);
+        } else if (activeRouletteSignal && bestRouletteSignal && currentRouletteId !== remoteRouletteId) {
+          console.log("🔔 Sinal de Roleta atualizado do banco!");
+          setBestRouletteSignal(activeRouletteSignal);
+          setCurrentSignalAttempts(
+            (activeRouletteSignal.attemptResults || []).map((num, idx) => ({
+              attemptNumber: idx + 1,
+              resultNumber: Number(num),
+              hit: Array.isArray(activeRouletteSignal.targets)
+                ? activeRouletteSignal.targets.includes(Number(num))
+                : false,
+              timestamp: Date.now(),
+            }))
+          );
+          setResultsCountSinceSignal(activeRouletteSignal.resultsCount || 0);
+        } else if (!activeRouletteSignal && bestRouletteSignal) {
+          console.log("🔕 Sinal de Roleta removido do banco");
+          setBestRouletteSignal(null);
+          setCurrentSignalAttempts([]);
+          setResultsCountSinceSignal(0);
+        }
       } catch (error) {
         console.error("⚠️ Erro ao sincronizar dados:", error);
       }
@@ -558,6 +606,15 @@ function App() {
         signal.confidence
       );
       setBestRouletteSignal(signal);
+      // Ativar cooldown de emissão para impedir novos sinais até validação
+      setSignalCooldown(Date.now());
+      // Persistir sinal ativo da Roleta para recuperação em reloads
+      saveActiveSignal(
+        { ...signal, resultsCount: 0, attemptResults: [] },
+        "roulette"
+      ).catch((err) => {
+        console.error("Erro ao salvar sinal ativo da Roleta:", err);
+      });
       setSignalValidFor(signal.validFor);
       setResultsCountSinceSignal(0);
       setNoSignalMessage(null); // Limpar mensagem de "sem sinal"
@@ -713,6 +770,18 @@ function App() {
 
     // Registrar número desta tentativa
     doubleAttemptResultsRef.current.push(Number(latest.number));
+
+    // Atualizar persistência do sinal ativo do Double com progresso
+    saveActiveSignal(
+      {
+        ...bestDoubleSignal,
+        resultsCount: newCount,
+        attemptResults: [...doubleAttemptResultsRef.current],
+      },
+      "double"
+    ).catch((err) => {
+      console.error("Erro ao atualizar sinal ativo do Double:", err);
+    });
 
     // Verificar se acertou
     const resultNumber = Number(latest.number);
@@ -878,6 +947,18 @@ function App() {
 
     setCurrentSignalAttempts((prev) => [...prev, attempt]);
 
+    // Atualizar persistência do sinal ativo com progresso
+    saveActiveSignal(
+      {
+        ...bestRouletteSignal,
+        resultsCount: newCount,
+        attemptResults: [...currentSignalAttempts, attempt],
+      },
+      "roulette"
+    ).catch((err) => {
+      console.error("Erro ao atualizar sinal ativo da Roleta:", err);
+    });
+
     // Limpar sinal IMEDIATAMENTE quando acerta OU quando expira
     if (hit) {
       console.log("[Signal] ✅ ACERTOU! Limpando sinal imediatamente.");
@@ -908,6 +989,11 @@ function App() {
       // Salvar no banco de dados
       saveSignal(rouletteSignalRecord, "roulette").catch((err) => {
         console.error("Erro ao salvar sinal da Roleta no banco:", err);
+      });
+
+      // Remover sinal ativo persistido
+      saveActiveSignal(null, "roulette").catch((err) => {
+        console.error("Erro ao remover sinal ativo da Roleta:", err);
       });
 
       setBestRouletteSignal(null);
@@ -949,6 +1035,11 @@ function App() {
       // Salvar no banco de dados
       saveSignal(rouletteSignalRecord, "roulette").catch((err) => {
         console.error("Erro ao salvar sinal da Roleta no banco:", err);
+      });
+
+      // Remover sinal ativo persistido
+      saveActiveSignal(null, "roulette").catch((err) => {
+        console.error("Erro ao remover sinal ativo da Roleta:", err);
       });
 
       setBestRouletteSignal(null);
@@ -1131,6 +1222,22 @@ function App() {
           )}
         </div>
       </div>
+
+      {/* Card: Último Loss e Último Acerto (Double) */}
+      {route !== "#/roulette" && (
+        <div style={{ marginTop: 24 }}>
+          <LastOutcomeCard
+            title="Último Loss e Último Acerto"
+            history={doubleSignalsHistory}
+          />
+          <div style={{ marginTop: 12 }}>
+            <SpinHitStatsCard
+              title="Estatísticas por Giro (Double)"
+              history={doubleSignalsHistory}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Card de Sinais Inteligentes do Double - abaixo dos últimos resultados */}
       {route !== "#/roulette" && (
@@ -1852,6 +1959,20 @@ function App() {
                 noSignalMessage={noSignalMessage}
                 lastNumber={roulette.length > 0 ? roulette[0].number : null}
               />
+            </div>
+
+            {/* Card: Último Loss e Último Acerto (Roleta) */}
+            <div style={{ marginTop: 16 }}>
+              <LastOutcomeCard
+                title="Último Loss e Último Acerto"
+                history={rouletteSignalsHistory}
+              />
+              <div style={{ marginTop: 12 }}>
+                <SpinHitStatsCard
+                  title="Estatísticas por Giro (Roleta)"
+                  history={rouletteSignalsHistory}
+                />
+              </div>
             </div>
           </div>
         </div>

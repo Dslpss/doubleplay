@@ -45,6 +45,19 @@ export default function DoublePatternsPanel({
             <span style={{ fontWeight: 600 }}>
               Último sinal: {lastOutcome.hit ? "ACERTO" : "ERRO"}
             </span>
+            {lastOutcome?.description && (
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  backgroundColor: "rgba(52, 152, 219, 0.15)",
+                  color: "#3498db",
+                  fontSize: 11,
+                  border: "1px solid #3498db",
+                }}>
+                Padrão: {lastOutcome.description}
+              </span>
+            )}
             <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.7 }}>
               {new Date(lastOutcome.timestamp).toLocaleTimeString()}
             </span>
@@ -183,6 +196,19 @@ export default function DoublePatternsPanel({
                 Acertou no Giro {lastOutcome.hitOnAttempt}
               </span>
             )}
+          {lastOutcome?.description && (
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: 12,
+                backgroundColor: "rgba(52, 152, 219, 0.15)",
+                color: "#3498db",
+                fontSize: 11,
+                border: "1px solid #3498db",
+              }}>
+              Padrão: {lastOutcome.description}
+            </span>
+          )}
           <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.7 }}>
             {new Date(lastOutcome.timestamp).toLocaleTimeString()}
           </span>
@@ -205,6 +231,20 @@ export default function DoublePatternsPanel({
               🧪 Aprendendo
             </span>
           )}
+          {/* Badge: detecção pausada enquanto valida o sinal ativo */}
+          <span
+            style={{
+              marginLeft: 8,
+              fontSize: 11,
+              color: "#c0c0c0",
+              backgroundColor: "#2a2a2a",
+              padding: "2px 8px",
+              borderRadius: 10,
+              border: "1px solid #3a3a3a",
+            }}
+            title="Novos padrões suspensos até validar ACERTO/ERRO">
+            ⏸️ Detecção pausada
+          </span>
         </div>
 
         <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>

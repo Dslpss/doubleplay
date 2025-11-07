@@ -171,6 +171,20 @@ export default function RoulettePatternsPanel({
               🧪 Aprendendo
             </span>
           )}
+          {/* Badge: detecção pausada enquanto valida o sinal ativo */}
+          <span
+            style={{
+              marginLeft: 8,
+              fontSize: 11,
+              color: "#c0c0c0",
+              backgroundColor: "#2a2a2a",
+              padding: "2px 8px",
+              borderRadius: 10,
+              border: "1px solid #3a3a3a",
+            }}
+            title="Novos padrões suspensos até validar ACERTO/ERRO">
+            ⏸️ Detecção pausada
+          </span>
         </div>
 
         <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>
