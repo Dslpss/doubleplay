@@ -70,3 +70,24 @@ export async function autoBet(color, amount = 1) {
     return { ok: false, error: e.message || "Auto-aposta indisponível" };
   }
 }
+
+export async function manualReset(user, pass) {
+  try {
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${btoa(`${user}:${pass}`)}`,
+    };
+    const res = await fetchWithFallback("daily-reset", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ user, pass, manual: true }),
+    });
+    const data = await res.json().catch(() => ({ ok: false }));
+    if (!res.ok || !data?.ok) {
+      throw new Error(data?.error || "Falha ao executar reset");
+    }
+    return data;
+  } catch (e) {
+    return { ok: false, error: e.message || "Reset indisponível" };
+  }
+}

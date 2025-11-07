@@ -1,3 +1,4 @@
+/* eslint-env node */
 // Utility para conexão com MongoDB
 import { MongoClient } from "mongodb";
 

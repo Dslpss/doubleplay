@@ -7,6 +7,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
+// Parse JSON bodies to forward to function handlers
+app.use(express.json());
 const PORT = process.env.DEV_SERVER_PORT || 3001;
 
 // Configurações do WebSocket e API
@@ -27,12 +29,45 @@ const password =
   process.env.PLAYNABETS_PASS || process.env.PLAYNABETS_PASSWORD || "";
 const MOCK_ROULETTE = String(process.env.MOCK_ROULETTE || "").trim() === "1";
 
-// CORS para permitir conexão do frontend local
+// CORS para permitir conexão do frontend local (inclui Authorization)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  // Trata preflight OPTIONS genericamente
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
   next();
+});
+
+// Importa handler da função Netlify para uso local
+import { handler as dailyResetHandler } from "./netlify/functions/daily-reset.js";
+
+// Rota local para manual reset delegando à função Netlify
+app.post("/api/daily-reset", async (req, res) => {
+  try {
+    const event = {
+      httpMethod: "POST",
+      headers: req.headers || {},
+      body: JSON.stringify(req.body || {}),
+    };
+    const result = await dailyResetHandler(event);
+    const status = result?.statusCode ?? (result?.ok ? 200 : 500);
+    const headers = result?.headers || {};
+    for (const [k, v] of Object.entries(headers)) {
+      if (typeof v !== "undefined") res.setHeader(k, v);
+    }
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.status(status).send(result?.body ?? JSON.stringify(result ?? {}));
+  } catch (e) {
+    res
+      .status(500)
+      .json({ ok: false, error: e?.message || String(e || "Erro desconhecido") });
+  }
 });
 
 function extractJsonStr(s) {

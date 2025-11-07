@@ -24,6 +24,7 @@ import {
 } from "./services/roulette";
 import DoubleEmbedPanel from "./components/DoubleEmbedPanel";
 import RouletteEmbedPanel from "./components/RouletteEmbedPanel";
+import AdminResetPanel from "./components/AdminResetPanel.jsx";
 import DoublePatternsPanel from "./components/DoublePatternsPanel.jsx";
 import { detectBestDoubleSignal } from "./services/double.js";
 import {
@@ -1078,7 +1079,11 @@ function App() {
   return (
     <div className="App" style={{ padding: 24 }}>
       <h1 style={{ fontSize: isNarrow ? 24 : undefined, textAlign: "center" }}>
-        {route === "#/roulette" ? "Análise da Roleta" : "Análise do Double"}
+        {route === "#/roulette"
+          ? "Análise da Roleta"
+          : route === "#/admin"
+          ? "Área Admin"
+          : "Análise do Double"}
       </h1>
 
       <div
@@ -1115,9 +1120,28 @@ function App() {
             Roleta
           </button>
         </a>
+        <a href="#/admin" style={{ textDecoration: "none" }}>
+          <button
+            style={{
+              padding: "4px 8px",
+              borderRadius: 4,
+              background: route === "#/admin" ? "#2c3e50" : "#1f2937",
+              color: "#fff",
+              border: "1px solid #374151",
+              fontSize: "14px",
+            }}>
+            Admin
+          </button>
+        </a>
       </div>
 
-      {route !== "#/roulette" && (
+      {route === "#/admin" && (
+        <div style={{ marginTop: 8 }}>
+          <AdminResetPanel />
+        </div>
+      )}
+
+      {route !== "#/roulette" && route !== "#/admin" && (
         <div
           className="panels"
           style={{
