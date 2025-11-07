@@ -72,6 +72,8 @@ function App() {
     useState(0);
   const lastDoubleValidatedResultRef = useRef(null);
   const doubleAttemptResultsRef = useRef([]); // armazena resultados por giro para o sinal atual (Double)
+  const doubleCooldownSpinsRemainingRef = useRef(0); // cooldown em giros após LOSS
+  const lastDoubleResultTsRef = useRef(0); // rastrear último timestamp de resultado para decrementar cooldown
   const [noDoubleSignalMessage, setNoDoubleSignalMessage] = useState(null);
   const [doubleSignalsHistory, setDoubleSignalsHistory] = useState([]); // Histórico de sinais do Double
   const [lastDoubleSignalOutcome, setLastDoubleSignalOutcome] = useState(null); // Último resultado do sinal (Double)
@@ -415,9 +417,7 @@ function App() {
     };
   }, []);
 
-  const handleConnectWs = async () => {
-    await connectWsBridge();
-  };
+  // removed unused handleConnectWs
 
   const connected = Boolean(serverStatus?.wsConnected);
   const stats = summarizeResults(results);
@@ -666,6 +666,14 @@ function App() {
       return;
     }
 
+    // Cooldown por giros após LOSS: evita emitir novo padrão imediatamente
+    if (doubleCooldownSpinsRemainingRef.current > 0) {
+      console.log(
+        `⏳ [COOLDOWN] Aguardando ${doubleCooldownSpinsRemainingRef.current} giros...`
+      );
+      return;
+    }
+
     console.log("🔍 [BUSCANDO PADRÃO] Analisando resultados...");
     const analysisResults = [...results]; // cronológico: mais recente no fim
     const signal = detectBestDoubleSignal(analysisResults, {});
@@ -711,6 +719,23 @@ function App() {
       }
     }
   }, [results, bestDoubleSignal, route]);
+
+  // Decrementar cooldown por giros quando novos resultados do Double chegam
+  useEffect(() => {
+    if (!results || results.length === 0) return;
+    const last = results[results.length - 1];
+    const ts = Number(last?.timestamp || 0);
+    if (!ts) return;
+    if (lastDoubleResultTsRef.current !== ts) {
+      lastDoubleResultTsRef.current = ts;
+      if (doubleCooldownSpinsRemainingRef.current > 0) {
+        doubleCooldownSpinsRemainingRef.current -= 1;
+        console.log(
+          `↘️ [COOLDOWN] Giro processado, faltam ${doubleCooldownSpinsRemainingRef.current}`
+        );
+      }
+    }
+  }, [results]);
 
   // Limpar automaticamente o banner de resultado após alguns segundos
   useEffect(() => {
@@ -847,6 +872,8 @@ function App() {
       setDoubleResultsCountSinceSignal(0);
       doubleAttemptResultsRef.current = [];
       lastDoubleValidatedResultRef.current = null;
+      // Ativar cooldown de 3 giros após ACERTO
+      doubleCooldownSpinsRemainingRef.current = 3;
     } else if (newCount >= maxAttempts) {
       // ❌ LOSS - todas as tentativas falharam
       console.log(`💔 LOSS após ${newCount} tentativas\n`);
@@ -897,6 +924,8 @@ function App() {
       setDoubleResultsCountSinceSignal(0);
       doubleAttemptResultsRef.current = [];
       lastDoubleValidatedResultRef.current = null;
+      // Ativar cooldown de 3 giros após LOSS
+      doubleCooldownSpinsRemainingRef.current = 3;
     } else {
       // Aguardando próximas tentativas
       console.log(
@@ -1078,7 +1107,7 @@ function App() {
 
   return (
     <div className="App" style={{ padding: 24 }}>
-      <h1 style={{ fontSize: isNarrow ? 24 : undefined, textAlign: "center" }}>
+      <h1 style={{ fontSize: isNarrow ? 20 : 24, textAlign: "center" }}>
         {route === "#/roulette"
           ? "Análise da Roleta"
           : route === "#/admin"
@@ -1155,11 +1184,7 @@ function App() {
                 }}
               />
             </p>
-            <button
-              onClick={handleConnectWs}
-              style={{ width: isNarrow ? "100%" : undefined }}>
-              Reconectar WS
-            </button>
+
             <div
               style={{
                 marginTop: 8,

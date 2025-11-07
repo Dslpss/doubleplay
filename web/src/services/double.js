@@ -22,6 +22,16 @@ function isSignalCooldownActive() {
   return CONFIG.cooldownMs > 0;
 }
 
+// Helpers de cooldown exportados para UI/diagnóstico
+export function getCooldownRemainingMs() {
+  if (!signalCooldownActive) return 0;
+  const elapsed = Date.now() - lastSignalTimestamp;
+  const remaining = (CONFIG.cooldownMs || 0) - elapsed;
+  return remaining > 0 ? remaining : 0;
+}
+
+export { isSignalCooldownActive };
+
 function buildDoubleStats(results = []) {
   const stats = {
     total: 0,

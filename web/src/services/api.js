@@ -40,7 +40,8 @@ export async function status() {
     const res = await fetchWithFallback("status");
     return res.json();
   } catch {
-    return { ok: true, wsConnected: true, hasToken: false };
+    // Fallback: indicar desconexão para que a UI mostre diagnóstico
+    return { ok: false, wsConnected: false, hasToken: false };
   }
 }
 
