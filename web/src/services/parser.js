@@ -64,11 +64,6 @@ export function detectSimplePatterns(results) {
   if (c3.every(c => c === c3[0])) {
     patterns.push({ key: 'triple_repeat', description: `Trinca de ${c3[0]} detectada`, risk: 'medium' });
   }
-  // White proximity: branco apareceu nos últimos 10
-  const recent = results.slice(-10);
-  if (recent.some(r => r.color === 'white')) {
-    patterns.push({ key: 'white_proximity', description: 'Branco recente detectado (últimos 10)', risk: 'high' });
-  }
   // Red/Black balance: diferença > 4 nos últimos 20
   const last20 = results.slice(-20);
   const rr = last20.filter(r => r.color === 'red').length;

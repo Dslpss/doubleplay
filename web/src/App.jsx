@@ -419,7 +419,7 @@ function App() {
 
   function chooseBetSignal(patterns, streaks, results) {
     if (!patterns || patterns.length === 0) return null;
-    // Priorizar trinca e desequilíbrio antes do branco
+    // Priorizar trinca e desequilíbrio; não sugerir branco
     const triple = patterns.find((p) => p.key === "triple_repeat");
     if (triple && streaks?.current?.color) {
       return {
@@ -435,8 +435,6 @@ function App() {
       if ((stats20.black || 0) > (stats20.red || 0))
         return { color: "black", key: "red_black_balance" };
     }
-    const white = patterns.find((p) => p.key === "white_proximity");
-    if (white) return { color: "white", key: "white_proximity" };
     return null;
   }
 
@@ -455,13 +453,12 @@ function App() {
     function computeSignalChance(signal, results) {
       const sample = results.slice(-50);
       const stats = summarizeResults(sample);
-      const baseFallback = { red: 46, black: 46, white: 8 };
+      const baseFallback = { red: 46, black: 46 };
       const base =
         stats.total >= 10
           ? {
               red: Math.round(((stats.red || 0) / stats.total) * 100),
               black: Math.round(((stats.black || 0) / stats.total) * 100),
-              white: Math.round(((stats.white || 0) / stats.total) * 100),
             }
           : baseFallback;
 
@@ -471,12 +468,7 @@ function App() {
       const key = signal?.key;
 
       // Ajustes por padrão
-      if (key === "white_proximity") {
-        const recent10 = sample.slice(-10);
-        const w10 = recent10.filter((r) => r.color === "white").length;
-        chance += w10 >= 2 ? 5 : w10 === 1 ? 3 : 0;
-        if (stats.total >= 20 && (stats.white || 0) === 0) chance -= 2;
-      } else if (key === "triple_repeat") {
+      if (key === "triple_repeat") {
         const s = computeStreaks(results);
         chance += s.current?.length >= 3 ? 10 : 6;
       } else if (key === "red_black_balance") {
@@ -498,8 +490,6 @@ function App() {
     }
     if (lastPatternKey === signal.key) return; // mesmo padrão ainda ativo, não repetir
     const chance = computeSignalChance(signal, results);
-    // Limiar mínimo para branco para reduzir viés
-    if (signal.key === "white_proximity" && chance < 12) return;
     setLastPatternKey(signal.key);
     setLastAutoBetRound(lastRes.round_id);
     setActiveSignal({
@@ -509,12 +499,7 @@ function App() {
       number: lastRes.number,
       chance,
     });
-    const colorPt =
-      signal.color === "red"
-        ? "vermelho"
-        : signal.color === "black"
-        ? "preto"
-        : "branco";
+    const colorPt = signal.color === "red" ? "vermelho" : "preto";
     setLastAutoBetStatus(
       `Após número ${lastRes.number} aposte ${colorPt} (${chance}% de chance)`
     );
