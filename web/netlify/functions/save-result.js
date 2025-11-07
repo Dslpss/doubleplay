@@ -59,20 +59,6 @@ export const handler = async (event) => {
 
     const insertResult = await resultsCollection.insertOne(doc);
 
-    // Manter apenas últimos 100 resultados por tipo de jogo
-    const count = await resultsCollection.countDocuments({ gameType });
-    if (count > 100) {
-      const toDelete = count - 100;
-      const oldestResults = await resultsCollection
-        .find({ gameType })
-        .sort({ timestamp: 1 })
-        .limit(toDelete)
-        .toArray();
-
-      const idsToDelete = oldestResults.map((r) => r._id);
-      await resultsCollection.deleteMany({ _id: { $in: idsToDelete } });
-    }
-
     return {
       statusCode: 201,
       body: JSON.stringify({

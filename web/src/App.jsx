@@ -1241,40 +1241,24 @@ function App() {
             }}>
             <h2>Sinais Inteligentes (Double)</h2>
             <div style={{ marginTop: 8 }}>
-              <div
-                style={{
-                  border: "1px solid rgb(58, 58, 58)",
-                  borderRadius: 8,
-                  padding: 16,
-                  backgroundColor: "rgb(31, 31, 31)",
-                }}>
-                <h3
-                  style={{
-                    marginTop: 0,
-                    marginBottom: 16,
-                    color: "rgb(236, 240, 241)",
-                  }}>
-                  Sinais do Double
-                </h3>
-                {(() => {
-                  const nextSignalIn = bestDoubleSignal
-                    ? null
-                    : 3 - (results.length % 3);
-                  return (
-                    <DoublePatternsPanel
-                      signal={bestDoubleSignal}
-                      nextSignalIn={nextSignalIn}
-                      noSignalMessage={noDoubleSignalMessage}
-                      lastOutcome={lastDoubleSignalOutcome}
-                      lastNumber={
-                        results.length > 0
-                          ? results[results.length - 1].number
-                          : null
-                      }
-                    />
-                  );
-                })()}
-              </div>
+              {(() => {
+                const nextSignalIn = bestDoubleSignal
+                  ? null
+                  : 3 - (results.length % 3);
+                return (
+                  <DoublePatternsPanel
+                    signal={bestDoubleSignal}
+                    nextSignalIn={nextSignalIn}
+                    noSignalMessage={noDoubleSignalMessage}
+                    lastOutcome={lastDoubleSignalOutcome}
+                    lastNumber={
+                      results.length > 0
+                        ? results[results.length - 1].number
+                        : null
+                    }
+                  />
+                );
+              })()}
             </div>
           </div>
         </div>

@@ -50,20 +50,6 @@ export const handler = async (event) => {
 
     const insertResult = await signalsCollection.insertOne(doc);
 
-    // Manter apenas últimos 100 sinais por tipo de jogo
-    const count = await signalsCollection.countDocuments({ gameType });
-    if (count > 100) {
-      const toDelete = count - 100;
-      const oldestSignals = await signalsCollection
-        .find({ gameType })
-        .sort({ timestamp: 1 })
-        .limit(toDelete)
-        .toArray();
-
-      const idsToDelete = oldestSignals.map((s) => s._id);
-      await signalsCollection.deleteMany({ _id: { $in: idsToDelete } });
-    }
-
     return {
       statusCode: 201,
       body: JSON.stringify({
