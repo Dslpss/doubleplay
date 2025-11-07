@@ -207,6 +207,13 @@ function App() {
 
         // Sincronizar sinal ativo do Double - SEMPRE atualiza se diferente
         const activeDoubleSignal = await getActiveSignal("double");
+        const isValidDoubleSignal = (sig) => {
+          const color = sig?.suggestedBet?.color;
+          return (
+            sig?.suggestedBet?.type === "color" &&
+            (color === "red" || color === "black")
+          );
+        };
 
         // Compara IDs ou timestamps para ver se mudou
         const currentId =
@@ -216,29 +223,41 @@ function App() {
 
         if (activeDoubleSignal && !bestDoubleSignal) {
           // Não tem sinal local mas tem no banco - PEGAR IMEDIATAMENTE
-          console.log(
-            "🔔 Sinal encontrado no banco, aplicando localmente!",
-            activeDoubleSignal.description
-          );
-          setBestDoubleSignal(activeDoubleSignal);
-          doubleAttemptResultsRef.current =
-            activeDoubleSignal.attemptResults || [];
-          setDoubleResultsCountSinceSignal(
-            activeDoubleSignal.resultsCount || 0
-          );
+          if (isValidDoubleSignal(activeDoubleSignal)) {
+            console.log(
+              "🔔 Sinal encontrado no banco, aplicando localmente!",
+              activeDoubleSignal.description
+            );
+            setBestDoubleSignal(activeDoubleSignal);
+            doubleAttemptResultsRef.current =
+              activeDoubleSignal.attemptResults || [];
+            setDoubleResultsCountSinceSignal(
+              activeDoubleSignal.resultsCount || 0
+            );
+          } else {
+            console.warn(
+              "⚠️ Sinal inválido recebido para Double (sem cor red/black). Ignorando."
+            );
+          }
         } else if (
           activeDoubleSignal &&
           bestDoubleSignal &&
           currentId !== remoteId
         ) {
           // Sinal diferente no banco - ATUALIZAR
-          console.log("🔔 Sinal atualizado do banco!");
-          setBestDoubleSignal(activeDoubleSignal);
-          doubleAttemptResultsRef.current =
-            activeDoubleSignal.attemptResults || [];
-          setDoubleResultsCountSinceSignal(
-            activeDoubleSignal.resultsCount || 0
-          );
+          if (isValidDoubleSignal(activeDoubleSignal)) {
+            console.log("🔔 Sinal atualizado do banco!");
+            setBestDoubleSignal(activeDoubleSignal);
+            doubleAttemptResultsRef.current =
+              activeDoubleSignal.attemptResults || [];
+            setDoubleResultsCountSinceSignal(
+              activeDoubleSignal.resultsCount || 0
+            );
+          } else {
+            console.warn(
+              "⚠️ Sinal remoto inválido para Double. Mantendo sinal local."
+            );
+          }
         } else if (!activeDoubleSignal && bestDoubleSignal) {
           // Sinal foi removido remotamente
           console.log("🔕 Sinal removido do banco");

@@ -152,7 +152,11 @@ export default function DoublePatternsPanel({
     transition: "width 0.3s ease",
   };
 
-  const betLabel = `Aposte: ${labelPtForColor(signal.suggestedBet.color)}`;
+  const betColor = signal?.suggestedBet?.color;
+  const hasValidBetColor = betColor === "red" || betColor === "black";
+  const betLabel = hasValidBetColor
+    ? `Aposte: ${labelPtForColor(betColor)}`
+    : null;
 
   return (
     <div style={box}>
@@ -277,39 +281,37 @@ export default function DoublePatternsPanel({
           </div>
         )}
 
-        <div style={{ marginBottom: 8 }}>
-          <span
-            style={{
-              display: "inline-block",
-              padding: "4px 12px",
-              backgroundColor: "#2a2a2a",
-              borderRadius: 16,
-              fontSize: 12,
-              color: "#ffd700",
-              border: "1px solid #3a3a3a",
-              fontWeight: "500",
-            }}>
-            📍 {betLabel}
+        {hasValidBetColor && (
+          <div style={{ marginBottom: 8 }}>
             <span
               style={{
                 display: "inline-block",
-                width: 12,
-                height: 12,
-                marginLeft: 8,
-                borderRadius: 3,
+                padding: "4px 12px",
+                backgroundColor: "#2a2a2a",
+                borderRadius: 16,
+                fontSize: 12,
+                color: "#ffd700",
                 border: "1px solid #3a3a3a",
-                verticalAlign: "middle",
-                backgroundColor:
-                  signal.suggestedBet?.color === "red"
-                    ? "#e74c3c"
-                    : signal.suggestedBet?.color === "black"
-                    ? "#000"
-                    : "#ecf0f1",
-              }}
-              title={`Cor: ${labelPtForColor(signal.suggestedBet.color)}`}
-            />
-          </span>
-        </div>
+                fontWeight: "500",
+              }}>
+              📍 {betLabel}
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 12,
+                  height: 12,
+                  marginLeft: 8,
+                  borderRadius: 3,
+                  border: "1px solid #3a3a3a",
+                  verticalAlign: "middle",
+                  backgroundColor:
+                    betColor === "red" ? "#e74c3c" : "#000",
+                }}
+                title={`Cor: ${labelPtForColor(betColor)}`}
+              />
+            </span>
+          </div>
+        )}
 
         {/* Targets removidos do card de sinais do Double conforme solicitado */}
 
