@@ -1227,21 +1227,8 @@ function App() {
         </div>
       </div>
 
-      {/* Card: Último Loss e Último Acerto (Double) */}
-      {route !== "#/roulette" && (
-        <div style={{ marginTop: 24 }}>
-          <LastOutcomeCard
-            title="Último Loss e Último Acerto"
-            history={doubleSignalsHistory}
-          />
-          <div style={{ marginTop: 12 }}>
-            <SpinHitStatsCard
-              title="Estatísticas por Giro (Double)"
-              history={doubleSignalsHistory}
-            />
-          </div>
-        </div>
-      )}
+      {/* Card: Último Loss e Último Acerto (Double) — movido para o final da página */}
+      {/* (Removido desta posição; inserido mais abaixo antes de iniciar a seção da Roleta) */}
 
       {/* Card de Sinais Inteligentes do Double - abaixo dos últimos resultados */}
       {route !== "#/roulette" && (
@@ -1690,6 +1677,22 @@ function App() {
               background: #5dade2;
             }
           `}</style>
+        </div>
+      )}
+
+      {/* Card: Último Loss e Último Acerto (Double) — agora no final da página Double */}
+      {route !== "#/roulette" && (
+        <div style={{ marginTop: 24 }}>
+          <LastOutcomeCard
+            title="Último Loss e Último Acerto"
+            history={doubleSignalsHistory}
+          />
+          <div style={{ marginTop: 12 }}>
+            <SpinHitStatsCard
+              title="Estatísticas por Giro (Double)"
+              history={doubleSignalsHistory}
+            />
+          </div>
         </div>
       )}
 
