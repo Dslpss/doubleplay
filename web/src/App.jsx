@@ -111,25 +111,25 @@ function App() {
     const loadInitialData = async () => {
       try {
         // Carregar resultados do Double
-        const doubleResults = await getResults("double", 100);
+        const doubleResults = await getResults("double", 5000);
         if (doubleResults && doubleResults.length > 0) {
           setResults(doubleResults);
         }
 
         // Carregar resultados da Roleta
-        const rouletteResults = await getResults("roulette", 100);
+        const rouletteResults = await getResults("roulette", 5000);
         if (rouletteResults && rouletteResults.length > 0) {
           setRoulette(rouletteResults);
         }
 
         // Carregar histórico de sinais do Double
-        const doubleSignals = await getSignals("double", 100);
+        const doubleSignals = await getSignals("double", 2000);
         if (doubleSignals && doubleSignals.length > 0) {
           setDoubleSignalsHistory(doubleSignals);
         }
 
         // Carregar histórico de sinais da Roleta
-        const rouletteSignals = await getSignals("roulette", 100);
+        const rouletteSignals = await getSignals("roulette", 2000);
         if (rouletteSignals && rouletteSignals.length > 0) {
           setRouletteSignalsHistory(rouletteSignals);
         }
@@ -149,7 +149,7 @@ function App() {
     const syncInterval = setInterval(async () => {
       try {
         // Sincronizar resultados do Double
-        const doubleResults = await getResults("double", 100);
+        const doubleResults = await getResults("double", 5000);
         if (doubleResults && doubleResults.length > 0) {
           setResults((prev) => {
             // Só atualiza se houver diferença (para evitar re-renders desnecessários)
@@ -167,7 +167,7 @@ function App() {
         }
 
         // Sincronizar resultados da Roleta
-        const rouletteResults = await getResults("roulette", 100);
+        const rouletteResults = await getResults("roulette", 5000);
         if (rouletteResults && rouletteResults.length > 0) {
           setRoulette((prev) => {
             const lastLocal = prev[0];
@@ -184,7 +184,7 @@ function App() {
         }
 
         // Sincronizar histórico de sinais do Double
-        const doubleSignals = await getSignals("double", 100);
+        const doubleSignals = await getSignals("double", 2000);
         if (doubleSignals && doubleSignals.length > 0) {
           setDoubleSignalsHistory((prev) => {
             if (prev.length !== doubleSignals.length) {
@@ -195,7 +195,7 @@ function App() {
         }
 
         // Sincronizar histórico de sinais da Roleta
-        const rouletteSignals = await getSignals("roulette", 100);
+        const rouletteSignals = await getSignals("roulette", 2000);
         if (rouletteSignals && rouletteSignals.length > 0) {
           setRouletteSignalsHistory((prev) => {
             if (prev.length !== rouletteSignals.length) {

@@ -16,7 +16,9 @@ export const handler = async (event) => {
 
     const params = event.queryStringParameters || {};
     const gameType = params.gameType || "double";
-    const limit = Math.min(parseInt(params.limit || "100", 10), 100);
+    // Sinais por dia são bem menos, mas aumentamos o limite para cobrir o dia inteiro
+    const cap = 10000; // limite de segurança
+    const limit = Math.min(parseInt(params.limit || "2000", 10), cap);
 
     const signalsCollection = db.collection("signals");
 

@@ -28,7 +28,7 @@ export async function saveResult(result, gameType = "double") {
 /**
  * Busca os últimos resultados do banco de dados
  */
-export async function getResults(gameType = "double", limit = 100) {
+export async function getResults(gameType = "double", limit = 5000) {
   try {
     const response = await fetch(
       `${API_BASE}/get-results?gameType=${gameType}&limit=${limit}`
@@ -73,7 +73,7 @@ export async function saveSignal(signal, gameType = "double") {
 /**
  * Busca o histórico de sinais do banco de dados
  */
-export async function getSignals(gameType = "double", limit = 100) {
+export async function getSignals(gameType = "double", limit = 2000) {
   try {
     const response = await fetch(
       `${API_BASE}/get-signals?gameType=${gameType}&limit=${limit}`

@@ -16,7 +16,9 @@ export const handler = async (event) => {
 
     const params = event.queryStringParameters || {};
     const gameType = params.gameType || "double";
-    const limit = Math.min(parseInt(params.limit || "100", 10), 100);
+    // Permitir buscar grandes quantidades para cobrir um dia inteiro
+    const cap = 20000; // limite de segurança
+    const limit = Math.min(parseInt(params.limit || "5000", 10), cap);
 
     const resultsCollection = db.collection("results");
 
