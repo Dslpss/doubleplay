@@ -1702,13 +1702,32 @@ export function detectBestRouletteSignal(results = [], options = {}) {
 
   console.log(`[PatternSelection] Targets extraídos:`, targets);
 
-  if (targets.length === 0) {
+  // ✅ VALIDAÇÃO: Garantir que targets é array de números válidos
+  if (!Array.isArray(targets) || targets.length === 0) {
     console.log(
       `[PatternSelection] BLOQUEADO: Nenhum número alvo extraído para ${bestPattern.key}`
     );
     console.log(`[PatternSelection] bestPattern.targets:`, bestPattern.targets);
     return null;
   }
+
+  // ✅ VALIDAÇÃO: Garantir que todos os targets são números válidos (0-36)
+  const invalidTargets = targets.filter(
+    (n) => !Number.isFinite(n) || n < 0 || n > 36
+  );
+  if (invalidTargets.length > 0) {
+    console.error(
+      `❌ [PatternSelection] Targets inválidos encontrados:`,
+      invalidTargets
+    );
+    return null;
+  }
+
+  console.log(
+    `✅ [PatternSelection] ${targets.length} targets válidos: [${targets
+      .slice(0, 5)
+      .join(", ")}${targets.length > 5 ? "..." : ""}]`
+  );
 
   // Calcular cobertura da mesa
   const coverage = `${targets.length}/37`;
@@ -1750,15 +1769,25 @@ export function detectBestRouletteSignal(results = [], options = {}) {
 
 /**
  * Extrai números específicos dos targets do padrão
+ * ✅ VALIDAÇÃO: Sempre retorna array de números (Number) entre 0-36
  */
 function extractTargetNumbers(targets) {
-  if (!targets) return [];
+  if (!targets) {
+    console.warn("⚠️ [extractTargetNumbers] targets é null/undefined");
+    return [];
+  }
 
   const numbers = [];
 
   switch (targets.type) {
     case "numbers":
-      return targets.numbers || [];
+      if (!Array.isArray(targets.numbers)) {
+        console.warn("⚠️ [extractTargetNumbers] targets.numbers não é array");
+        return [];
+      }
+      return targets.numbers.filter(
+        (n) => Number.isFinite(n) && n >= 0 && n <= 36
+      );
 
     case "color": {
       // Retornar números da cor (red: ímpares de 1-36 exceto verdes, black: pares, green: 0)
@@ -1816,20 +1845,47 @@ function extractTargetNumbers(targets) {
 
     case "highlow":
       if (targets.value === "low") {
+        // Números baixos: 1-18
         return Array.from({ length: 18 }, (_, i) => i + 1);
       } else {
+        // Números altos: 19-36
         return Array.from({ length: 18 }, (_, i) => i + 19);
       }
 
     case "parity":
       if (targets.value === "even") {
-        return Array.from({ length: 18 }, (_, i) => (i + 1) * 2);
+        // Números pares: 2,4,6,...,36
+        return Array.from({ length: 18 }, (_, i) => (i + 1) * 2).filter(
+          (n) => n <= 36
+        );
       } else {
-        return Array.from({ length: 18 }, (_, i) => i * 2 + 1);
+        // Números ímpares: 1,3,5,...,35
+        return Array.from({ length: 18 }, (_, i) => i * 2 + 1).filter(
+          (n) => n <= 36
+        );
       }
+
+    default:
+      console.warn(
+        `⚠️ [extractTargetNumbers] Tipo de target desconhecido: ${targets.type}`
+      );
+      break;
   }
 
-  return numbers.filter((n) => n >= 0 && n <= 36);
+  // ✅ VALIDAÇÃO FINAL: Garantir que sempre retorna array de números válidos (0-36)
+  const validNumbers = numbers.filter(
+    (n) => Number.isFinite(n) && n >= 0 && n <= 36
+  );
+
+  if (validNumbers.length !== numbers.length) {
+    console.warn(
+      `⚠️ [extractTargetNumbers] Filtrados ${
+        numbers.length - validNumbers.length
+      } números inválidos`
+    );
+  }
+
+  return validNumbers;
 }
 
 /**

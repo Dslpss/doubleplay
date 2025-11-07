@@ -92,6 +92,9 @@ function App() {
   const [maxRecent, setMaxRecent] = useState(15);
   const [maxHistorical, setMaxHistorical] = useState(35);
 
+  // Estado do popup de aviso
+  const [showWarningPopup, setShowWarningPopup] = useState(false);
+
   // Janela para contagem de Finales
   /* removed unused finalesWindow and rouletteFinalCounts memo */
 
@@ -102,6 +105,19 @@ function App() {
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+
+  // Verificar se deve mostrar o popup de aviso
+  useEffect(() => {
+    const hasSeenWarning = localStorage.getItem("hasSeenWarning");
+    if (!hasSeenWarning) {
+      setShowWarningPopup(true);
+    }
+  }, []);
+
+  const handleCloseWarning = () => {
+    localStorage.setItem("hasSeenWarning", "true");
+    setShowWarningPopup(false);
+  };
 
   useEffect(() => {
     const updateRoute = () => setRoute(window.location.hash || "#/");
@@ -270,7 +286,7 @@ function App() {
         }
 
         console.log("🔄 Dados sincronizados com o banco");
-        
+
         // Sincronizar sinal ativo da Roleta
         const activeRouletteSignal = await getActiveSignal("roulette");
         const currentRouletteId =
@@ -295,7 +311,11 @@ function App() {
             }))
           );
           setResultsCountSinceSignal(activeRouletteSignal.resultsCount || 0);
-        } else if (activeRouletteSignal && bestRouletteSignal && currentRouletteId !== remoteRouletteId) {
+        } else if (
+          activeRouletteSignal &&
+          bestRouletteSignal &&
+          currentRouletteId !== remoteRouletteId
+        ) {
           console.log("🔔 Sinal de Roleta atualizado do banco!");
           setBestRouletteSignal(activeRouletteSignal);
           setCurrentSignalAttempts(
@@ -567,10 +587,18 @@ function App() {
     if (!roulette || roulette.length < 3) return;
 
     // ⚠️ IMPORTANTE: Só detectar novo sinal se NÃO houver um ativo
+    // Aguardar validação completa (acerto ou loss nas 3 tentativas)
     if (bestRouletteSignal) {
+      console.log(
+        "⏸️ [DETECÇÃO PAUSADA - ROLETA] Aguardando validação do sinal ativo:",
+        bestRouletteSignal.description,
+        `| Tentativas: ${resultsCountSinceSignal}/${signalValidFor}`
+      );
       // Já existe um sinal ativo, aguardar validação
       return;
     }
+
+    console.log("🔍 [BUSCANDO PADRÃO - ROLETA] Analisando resultados...");
 
     const analysisResults = [...roulette].reverse();
 
@@ -622,6 +650,7 @@ function App() {
       });
       setSignalValidFor(signal.validFor);
       setResultsCountSinceSignal(0);
+      setCurrentSignalAttempts([]); // Resetar tentativas
       setNoSignalMessage(null); // Limpar mensagem de "sem sinal"
     } else {
       // Nenhum padrão forte o suficiente foi detectado
@@ -636,9 +665,11 @@ function App() {
         }, 5000);
       }
     }
+    // ⚠️ bestRouletteSignal INTENCIONALMENTE omitido das dependências
+    // para evitar re-execução quando o sinal é definido
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     roulette,
-    bestRouletteSignal, // Adicionado para verificar se já existe sinal
     aggressiveMode,
     resetStrategy,
     windowSize,
@@ -660,8 +691,11 @@ function App() {
     // Aguardar a validação completa (3 tentativas ou acerto)
     if (bestDoubleSignal) {
       console.log(
-        "⏸️ [DETECÇÃO PAUSADA] Aguardando validação do sinal ativo:",
-        bestDoubleSignal.description
+        "⏸️ [DETECÇÃO PAUSADA - DOUBLE] Aguardando validação do sinal ativo:",
+        bestDoubleSignal.description,
+        `| Tentativas: ${doubleResultsCountSinceSignal}/${
+          bestDoubleSignal.validFor || 3
+        }`
       );
       return;
     }
@@ -669,12 +703,12 @@ function App() {
     // Cooldown por giros após LOSS: evita emitir novo padrão imediatamente
     if (doubleCooldownSpinsRemainingRef.current > 0) {
       console.log(
-        `⏳ [COOLDOWN] Aguardando ${doubleCooldownSpinsRemainingRef.current} giros...`
+        `⏳ [COOLDOWN - DOUBLE] Aguardando ${doubleCooldownSpinsRemainingRef.current} giros antes de buscar novo padrão...`
       );
       return;
     }
 
-    console.log("🔍 [BUSCANDO PADRÃO] Analisando resultados...");
+    console.log("🔍 [BUSCANDO PADRÃO - DOUBLE] Analisando resultados...");
     const analysisResults = [...results]; // cronológico: mais recente no fim
     const signal = detectBestDoubleSignal(analysisResults, {});
 
@@ -718,7 +752,10 @@ function App() {
         setTimeout(() => setNoDoubleSignalMessage(null), 5000);
       }
     }
-  }, [results, bestDoubleSignal, route]);
+    // ⚠️ bestDoubleSignal INTENCIONALMENTE omitido das dependências
+    // para evitar re-execução quando o sinal é definido
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, route]);
 
   // Decrementar cooldown por giros quando novos resultados do Double chegam
   useEffect(() => {
@@ -816,11 +853,35 @@ function App() {
     // Verificar se acertou
     const resultNumber = Number(latest.number);
     const targets = bestDoubleSignal.targets || [];
+
+    // ✅ VALIDAÇÃO DEFENSIVA: Garantir que resultNumber é um número válido
+    if (!Number.isFinite(resultNumber)) {
+      console.error(
+        "❌ [VALIDATION ERROR] resultNumber não é um número válido:",
+        latest.number
+      );
+      return;
+    }
+
+    // ✅ VALIDAÇÃO DEFENSIVA: Garantir que targets é um array de números
+    if (!Array.isArray(targets) || targets.length === 0) {
+      console.error(
+        "❌ [VALIDATION ERROR] targets não é um array válido:",
+        targets
+      );
+      return;
+    }
+
     const hit = targets.includes(resultNumber);
 
-    console.log(`\n🎯 [TENTATIVA ${newCount}/${maxAttempts}]`);
-    console.log(`   Número saiu: ${resultNumber}`);
-    console.log(`   Targets: [${targets.join(", ")}]`);
+    console.log(`\n🎯 [TENTATIVA ${newCount}/${maxAttempts}] - Double`);
+    console.log(
+      `   Número saiu: ${resultNumber} (tipo: ${typeof latest.number})`
+    );
+    console.log(
+      `   Targets: [${targets.join(", ")}] (tipo: ${typeof targets[0]})`
+    );
+    console.log(`   Comparação: ${resultNumber} in [${targets.join(", ")}]`);
     console.log(`   ${hit ? "✅ ACERTOU!" : "❌ ERROU"}`);
     console.log(`   wasDisplayed: ${bestDoubleSignal.wasDisplayed}\n`);
 
@@ -957,16 +1018,42 @@ function App() {
     const newCount = resultsCountSinceSignal + 1;
     setResultsCountSinceSignal(newCount);
 
+    // ✅ VALIDAÇÃO DEFENSIVA: Garantir que resultNum é um número válido
+    if (!Number.isFinite(resultNum)) {
+      console.error(
+        "❌ [VALIDATION ERROR] resultNum não é um número válido:",
+        latestResult.number
+      );
+      return;
+    }
+
+    // ✅ VALIDAÇÃO DEFENSIVA: Garantir que targets existe e é um array
+    if (
+      !Array.isArray(bestRouletteSignal.targets) ||
+      bestRouletteSignal.targets.length === 0
+    ) {
+      console.error(
+        "❌ [VALIDATION ERROR] targets não é um array válido:",
+        bestRouletteSignal.targets
+      );
+      return;
+    }
+
     // Validar resultado (SEM registrar aprendizado ainda)
     const hit = bestRouletteSignal.targets.includes(resultNum);
 
     console.log(
-      `[Validation] Resultado #${newCount}: ${resultNum} - ${
+      `[Validation] Resultado #${newCount}: ${resultNum} (tipo: ${typeof latestResult.number}) - ${
         hit ? "HIT ✅" : "MISS ❌"
       }`
     );
     console.log(
       `[Validation] Targets: [${bestRouletteSignal.targets
+        .slice(0, 5)
+        .join(", ")}...] (tipo: ${typeof bestRouletteSignal.targets[0]})`
+    );
+    console.log(
+      `[Validation] Comparação: ${resultNum} in [${bestRouletteSignal.targets
         .slice(0, 5)
         .join(", ")}...]`
     );
@@ -1107,6 +1194,155 @@ function App() {
 
   return (
     <div className="App" style={{ padding: 24 }}>
+      {/* Popup de Aviso */}
+      {showWarningPopup && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: 20,
+          }}
+          onClick={handleCloseWarning}
+        >
+          <div
+            style={{
+              backgroundColor: "#1f1f1f",
+              borderRadius: 16,
+              padding: isNarrow ? 24 : 32,
+              maxWidth: 600,
+              width: "100%",
+              border: "2px solid #e74c3c",
+              boxShadow: "0 8px 32px rgba(231, 76, 60, 0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Ícone de Aviso */}
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <span style={{ fontSize: 64 }}>⚠️</span>
+            </div>
+
+            {/* Título */}
+            <h2
+              style={{
+                color: "#e74c3c",
+                textAlign: "center",
+                marginTop: 0,
+                marginBottom: 16,
+                fontSize: isNarrow ? 20 : 24,
+              }}
+            >
+              AVISO IMPORTANTE
+            </h2>
+
+            {/* Conteúdo */}
+            <div
+              style={{
+                color: "#ecf0f1",
+                lineHeight: 1.6,
+                fontSize: isNarrow ? 14 : 16,
+              }}
+            >
+              <p style={{ marginBottom: 16 }}>
+                <strong>⚙️ Sistema em Desenvolvimento</strong>
+              </p>
+              <p style={{ marginBottom: 16 }}>
+                Este sistema de análise de padrões está em{" "}
+                <strong style={{ color: "#f39c12" }}>
+                  fase de desenvolvimento e testes
+                </strong>
+                . Os sinais gerados são baseados em algoritmos de aprendizado de
+                máquina e análise estatística.
+              </p>
+
+              <p style={{ marginBottom: 16 }}>
+                <strong style={{ color: "#e74c3c" }}>⚠️ Riscos e Limitações:</strong>
+              </p>
+              <ul style={{ marginBottom: 16, paddingLeft: 20 }}>
+                <li style={{ marginBottom: 8 }}>
+                  Os sinais podem <strong>apresentar erros</strong> e não
+                  garantem acertos
+                </li>
+                <li style={{ marginBottom: 8 }}>
+                  Jogos de azar são <strong>imprevisíveis por natureza</strong>
+                </li>
+                <li style={{ marginBottom: 8 }}>
+                  Use os sinais apenas como{" "}
+                  <strong>referência educacional</strong>
+                </li>
+                <li style={{ marginBottom: 8 }}>
+                  <strong>Nunca aposte mais do que pode perder</strong>
+                </li>
+              </ul>
+
+              <p
+                style={{
+                  backgroundColor: "rgba(241, 196, 15, 0.1)",
+                  border: "1px solid #f1c40f",
+                  borderRadius: 8,
+                  padding: 12,
+                  marginBottom: 16,
+                  fontSize: isNarrow ? 13 : 14,
+                }}
+              >
+                <strong style={{ color: "#f1c40f" }}>📊 Uso Responsável:</strong>
+                <br />
+                Este sistema foi criado para fins de{" "}
+                <strong>estudo e análise de padrões</strong>. Ao continuar, você
+                reconhece os riscos envolvidos e assume total responsabilidade
+                por suas decisões.
+              </p>
+            </div>
+
+            {/* Botão */}
+            <button
+              onClick={handleCloseWarning}
+              style={{
+                width: "100%",
+                padding: 16,
+                backgroundColor: "#e74c3c",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                fontSize: isNarrow ? 16 : 18,
+                fontWeight: "bold",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = "#c0392b";
+                e.target.style.transform = "scale(1.02)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = "#e74c3c";
+                e.target.style.transform = "scale(1)";
+              }}
+            >
+              Li e Compreendi os Riscos
+            </button>
+
+            <p
+              style={{
+                textAlign: "center",
+                fontSize: 12,
+                color: "#95a5a6",
+                marginTop: 12,
+                marginBottom: 0,
+              }}
+            >
+              Esta mensagem aparece apenas uma vez
+            </p>
+          </div>
+        </div>
+      )}
+
       <h1 style={{ fontSize: isNarrow ? 20 : 24, textAlign: "center" }}>
         {route === "#/roulette"
           ? "Análise da Roleta"

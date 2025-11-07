@@ -270,9 +270,14 @@ export function labelPtForColor(color) {
 }
 
 export function numbersForColor(color) {
+  // ✅ VALIDAÇÃO: Garantir que sempre retorna array de números (Number)
   if (color === "white") return [0];
   if (color === "red") return [1, 2, 3, 4, 5, 6, 7];
-  return [8, 9, 10, 11, 12, 13, 14];
+  if (color === "black") return [8, 9, 10, 11, 12, 13, 14];
+
+  // Fallback: se cor inválida, retornar array vazio
+  console.warn(`⚠️ [numbersForColor] Cor inválida recebida: ${color}`);
+  return [];
 }
 
 export function detectBestDoubleSignal(results = [], options = {}) {
@@ -308,6 +313,22 @@ export function detectBestDoubleSignal(results = [], options = {}) {
 
   const confidence = signalAdvice.confidence;
   const targets = numbersForColor(signalAdvice.color);
+
+  // ✅ VALIDAÇÃO: Garantir que targets não está vazio
+  if (!Array.isArray(targets) || targets.length === 0) {
+    console.error(
+      `❌ [detectBestDoubleSignal] Targets inválido para cor ${signalAdvice.color}`
+    );
+    return null;
+  }
+
+  // ✅ LOG DE DEBUG: Mostrar targets gerados
+  console.log(
+    `✅ [detectBestDoubleSignal] Sinal gerado - Cor: ${
+      signalAdvice.color
+    }, Targets: [${targets.join(", ")}]`
+  );
+
   const descriptionMap = {
     color_streak: "🔴⚫ Sequência de cor ativa!",
     triple_repeat: "🔁 Trinca detectada! Aposte na cor oposta.",
