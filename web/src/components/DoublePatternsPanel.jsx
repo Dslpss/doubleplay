@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import ResultChip from "./ResultChip";
 import { labelPtForColor } from "../services/double.js";
 
@@ -8,6 +9,14 @@ export default function DoublePatternsPanel({
   lastNumber = null,
   lastOutcome = null,
 }) {
+  // Marcar sinal como exibido quando ele for renderizado
+  useEffect(() => {
+    if (signal && !signal.wasDisplayed) {
+      signal.wasDisplayed = true;
+      console.log("✅ [DoublePatternsPanel] Sinal marcado como exibido:", signal.description);
+    }
+  }, [signal]);
+
   const box = {
     border: "1px solid #3a3a3a",
     borderRadius: 8,

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import ResultChip from "./ResultChip";
 
 // Função auxiliar para converter tipo de aposta em texto amigável
@@ -29,6 +30,14 @@ export default function RoulettePatternsPanel({
   noSignalMessage = null,
   lastNumber = null, // Último número que saiu
 }) {
+  // Marcar sinal como exibido quando ele for renderizado
+  useEffect(() => {
+    if (signal && !signal.wasDisplayed) {
+      signal.wasDisplayed = true;
+      console.log("✅ [RoulettePatternsPanel] Sinal marcado como exibido:", signal.patternKey);
+    }
+  }, [signal]);
+
   const box = {
     border: "1px solid #3a3a3a",
     borderRadius: 8,

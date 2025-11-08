@@ -27,12 +27,12 @@ import RouletteEmbedPanel from "./components/RouletteEmbedPanel";
 import AdminResetPanel from "./components/AdminResetPanel.jsx";
 import DoublePatternsPanel from "./components/DoublePatternsPanel.jsx";
 import { detectBestDoubleSignal } from "./services/double.js";
-// 🆕 USANDO INDEXEDDB LOCAL (sem MongoDB/Netlify Functions)
-import {
-  saveSignal,
-  getSignals,
-  saveActiveSignal,
-} from "./services/localDatabase.js";
+// ❌ Persistência desabilitada - dados resetam ao atualizar a página
+// import {
+//   saveSignal,
+//   getSignals,
+//   saveActiveSignal,
+// } from "./services/localDatabase.js";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
@@ -123,31 +123,24 @@ function App() {
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
 
-  // Carregar dados iniciais do IndexedDB
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        // Carregar histórico de sinais do Double
-        const doubleSignals = await getSignals("double", 2000);
-        if (doubleSignals && doubleSignals.length > 0) {
-          setDoubleSignalsHistory(doubleSignals);
-        }
-
-        // Carregar histórico de sinais da Roleta
-        const rouletteSignals = await getSignals("roulette", 2000);
-        if (rouletteSignals && rouletteSignals.length > 0) {
-          setRouletteSignalsHistory(rouletteSignals);
-        }
-
-        console.log("✅ Dados carregados do banco de dados");
-      } catch (error) {
-        console.error("❌ Erro ao carregar dados iniciais:", error);
-        // Continuar normalmente mesmo se falhar - vai usar dados locais
-      }
-    };
-
-    loadInitialData();
-  }, []); // Executa apenas uma vez na montagem
+  // ❌ Persistência desabilitada - dados resetam ao atualizar a página
+  // useEffect(() => {
+  //   const loadInitialData = async () => {
+  //     try {
+  //       const doubleSignals = await getSignals("double", 2000);
+  //       if (doubleSignals && doubleSignals.length > 0) {
+  //         setDoubleSignalsHistory(doubleSignals);
+  //       }
+  //       const rouletteSignals = await getSignals("roulette", 2000);
+  //       if (rouletteSignals && rouletteSignals.length > 0) {
+  //         setRouletteSignalsHistory(rouletteSignals);
+  //       }
+  //     } catch (error) {
+  //       console.error("❌ Erro ao carregar dados iniciais:", error);
+  //     }
+  //   };
+  //   loadInitialData();
+  // }, []);
 
   // ❌ REMOVIDO: Sincronização periódica com banco remoto
   // IndexedDB é local, não precisa de polling
@@ -440,16 +433,20 @@ function App() {
         "Confiança:",
         signal.confidence
       );
+      
+      // Configurar flag de exibição
+      signal.wasDisplayed = false; // ⚠️ Será marcado como true quando o componente renderizar
+      
       setBestRouletteSignal(signal);
       // Ativar cooldown de emissão para impedir novos sinais até validação
       setSignalCooldown(Date.now());
-      // Persistir sinal ativo da Roleta para recuperação em reloads
-      saveActiveSignal(
-        { ...signal, resultsCount: 0, attemptResults: [] },
-        "roulette"
-      ).catch((err) => {
-        console.error("Erro ao salvar sinal ativo da Roleta:", err);
-      });
+      // ❌ Persistência desabilitada
+      // saveActiveSignal(
+      //   { ...signal, resultsCount: 0, attemptResults: [] },
+      //   "roulette"
+      // ).catch((err) => {
+      //   console.error("Erro ao salvar sinal ativo da Roleta:", err);
+      // });
       setSignalValidFor(signal.validFor);
       setResultsCountSinceSignal(0);
       setCurrentSignalAttempts([]); // Resetar tentativas
@@ -523,7 +520,7 @@ function App() {
       );
 
       // Configurar sinal com todas as propriedades necessárias
-      signal.wasDisplayed = true;
+      signal.wasDisplayed = false; // ⚠️ Será marcado como true quando o componente renderizar
       signal.timestamp = Date.now(); // timestamp de quando foi detectado
 
       // Resetar estado de validação ANTES de definir o novo sinal
@@ -540,10 +537,10 @@ function App() {
         "✅ [SINAL DEFINIDO] Sinal configurado e pronto para validação"
       );
 
-      // Salvar sinal ativo no banco para sincronização
-      saveActiveSignal(signal, "double").catch((err) => {
-        console.error("Erro ao salvar sinal ativo do Double:", err);
-      });
+      // ❌ Persistência desabilitada
+      // saveActiveSignal(signal, "double").catch((err) => {
+      //   console.error("Erro ao salvar sinal ativo do Double:", err);
+      // });
     } else {
       if (results.length % 3 === 0) {
         setNoDoubleSignalMessage(
@@ -640,17 +637,17 @@ function App() {
     // Registrar número desta tentativa
     doubleAttemptResultsRef.current.push(Number(latest.number));
 
-    // Atualizar persistência do sinal ativo do Double com progresso
-    saveActiveSignal(
-      {
-        ...bestDoubleSignal,
-        resultsCount: newCount,
-        attemptResults: [...doubleAttemptResultsRef.current],
-      },
-      "double"
-    ).catch((err) => {
-      console.error("Erro ao atualizar sinal ativo do Double:", err);
-    });
+    // ❌ Persistência desabilitada
+    // saveActiveSignal(
+    //   {
+    //     ...bestDoubleSignal,
+    //     resultsCount: newCount,
+    //     attemptResults: [...doubleAttemptResultsRef.current],
+    //   },
+    //   "double"
+    // ).catch((err) => {
+    //   console.error("Erro ao atualizar sinal ativo do Double:", err);
+    // });
 
     // Verificar se acertou
     const resultNumber = Number(latest.number);
@@ -689,46 +686,51 @@ function App() {
 
     if (hit) {
       // ✅ ACERTOU!
-      const signalRecord = {
-        id: resultId,
-        hit: true,
-        hitOnAttempt: newCount,
-        description: bestDoubleSignal.description,
-        confidence: bestDoubleSignal.confidence,
-        timestamp: Date.now(),
-        targets: bestDoubleSignal.targets || [],
-        resultNumber: resultNumber,
-        attempts: doubleAttemptResultsRef.current.map((num) => ({
-          resultNumber: Number(num),
-          hit: targets.includes(Number(num)),
-        })),
-        attemptResults: [...doubleAttemptResultsRef.current],
-      };
-
-      // Adicionar ao histórico
-      setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
-
-      // Mostrar banner de ACERTO no card
-      setLastDoubleSignalOutcome({
-        hit: true,
-        hitOnAttempt: newCount,
-        description: bestDoubleSignal.description,
-        confidence: bestDoubleSignal.confidence,
-        timestamp: Date.now(),
-      });
-
-      // Salvar no banco de dados
-      saveSignal(signalRecord, "double").catch((err) => {
-        console.error("Erro ao salvar sinal do Double:", err);
-      });
-
-      // Remover sinal ativo do banco
-      saveActiveSignal(null, "double").catch((err) => {
-        console.error("Erro ao remover sinal ativo do Double:", err);
-      });
-
       console.log("🧹 Limpando sinal após ACERTO...");
       console.log("🔓 Sistema liberado para buscar novo padrão\n");
+
+      // ⚠️ IMPORTANTE: Só salvar se o sinal foi EXIBIDO ao usuário
+      if (bestDoubleSignal.wasDisplayed) {
+        const signalRecord = {
+          id: resultId,
+          hit: true,
+          hitOnAttempt: newCount,
+          description: bestDoubleSignal.description,
+          confidence: bestDoubleSignal.confidence,
+          timestamp: Date.now(),
+          targets: bestDoubleSignal.targets || [],
+          resultNumber: resultNumber,
+          attempts: doubleAttemptResultsRef.current.map((num) => ({
+            resultNumber: Number(num),
+            hit: targets.includes(Number(num)),
+          })),
+          attemptResults: [...doubleAttemptResultsRef.current],
+        };
+
+        // Adicionar ao histórico
+        setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
+
+        // Mostrar banner de ACERTO no card
+        setLastDoubleSignalOutcome({
+          hit: true,
+          hitOnAttempt: newCount,
+          description: bestDoubleSignal.description,
+          confidence: bestDoubleSignal.confidence,
+          timestamp: Date.now(),
+        });
+
+        // ❌ Persistência desabilitada
+        // saveSignal(signalRecord, "double").catch((err) => {
+        //   console.error("Erro ao salvar sinal do Double:", err);
+        // });
+      } else {
+        console.log("⚠️ Sinal NÃO foi exibido - não será salvo no histórico");
+      }
+
+      // ❌ Persistência desabilitada
+      // saveActiveSignal(null, "double").catch((err) => {
+      //   console.error("Erro ao remover sinal ativo do Double:", err);
+      // });
 
       // Limpar sinal e resetar estado - LIBERA para buscar novo padrão
       setBestDoubleSignal(null);
@@ -741,43 +743,48 @@ function App() {
       // ❌ LOSS - todas as tentativas falharam
       console.log(`💔 LOSS após ${newCount} tentativas\n`);
 
-      const signalRecord = {
-        id: resultId,
-        hit: false,
-        hitOnAttempt: null,
-        description: bestDoubleSignal.description,
-        confidence: bestDoubleSignal.confidence,
-        timestamp: Date.now(),
-        targets: bestDoubleSignal.targets || [],
-        resultNumber: resultNumber,
-        attempts: doubleAttemptResultsRef.current.map((num) => ({
-          resultNumber: Number(num),
-          hit: targets.includes(Number(num)),
-        })),
-        attemptResults: [...doubleAttemptResultsRef.current],
-      };
+      // ⚠️ IMPORTANTE: Só salvar se o sinal foi EXIBIDO ao usuário
+      if (bestDoubleSignal.wasDisplayed) {
+        const signalRecord = {
+          id: resultId,
+          hit: false,
+          hitOnAttempt: null,
+          description: bestDoubleSignal.description,
+          confidence: bestDoubleSignal.confidence,
+          timestamp: Date.now(),
+          targets: bestDoubleSignal.targets || [],
+          resultNumber: resultNumber,
+          attempts: doubleAttemptResultsRef.current.map((num) => ({
+            resultNumber: Number(num),
+            hit: targets.includes(Number(num)),
+          })),
+          attemptResults: [...doubleAttemptResultsRef.current],
+        };
 
-      // Adicionar ao histórico
-      setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
+        // Adicionar ao histórico
+        setDoubleSignalsHistory((hist) => [signalRecord, ...hist]);
 
-      // Mostrar banner de ERRO no card
-      setLastDoubleSignalOutcome({
-        hit: false,
-        hitOnAttempt: null,
-        description: bestDoubleSignal.description,
-        confidence: bestDoubleSignal.confidence,
-        timestamp: Date.now(),
-      });
+        // Mostrar banner de ERRO no card
+        setLastDoubleSignalOutcome({
+          hit: false,
+          hitOnAttempt: null,
+          description: bestDoubleSignal.description,
+          confidence: bestDoubleSignal.confidence,
+          timestamp: Date.now(),
+        });
 
-      // Salvar no banco de dados
-      saveSignal(signalRecord, "double").catch((err) => {
-        console.error("Erro ao salvar sinal do Double:", err);
-      });
+        // ❌ Persistência desabilitada
+        // saveSignal(signalRecord, "double").catch((err) => {
+        //   console.error("Erro ao salvar sinal do Double:", err);
+        // });
+      } else {
+        console.log("⚠️ Sinal NÃO foi exibido - não será salvo no histórico");
+      }
 
-      // Remover sinal ativo do banco
-      saveActiveSignal(null, "double").catch((err) => {
-        console.error("Erro ao remover sinal ativo do Double:", err);
-      });
+      // ❌ Persistência desabilitada
+      // saveActiveSignal(null, "double").catch((err) => {
+      //   console.error("Erro ao remover sinal ativo do Double:", err);
+      // });
 
       console.log("🧹 Limpando sinal após LOSS...");
       console.log("🔓 Sistema liberado para buscar novo padrão\n");
@@ -870,54 +877,59 @@ function App() {
 
     setCurrentSignalAttempts((prev) => [...prev, attempt]);
 
-    // Atualizar persistência do sinal ativo com progresso
-    saveActiveSignal(
-      {
-        ...bestRouletteSignal,
-        resultsCount: newCount,
-        attemptResults: [...currentSignalAttempts, attempt],
-      },
-      "roulette"
-    ).catch((err) => {
-      console.error("Erro ao atualizar sinal ativo da Roleta:", err);
-    });
+    // ❌ Persistência desabilitada
+    // saveActiveSignal(
+    //   {
+    //     ...bestRouletteSignal,
+    //     resultsCount: newCount,
+    //     attemptResults: [...currentSignalAttempts, attempt],
+    //   },
+    //   "roulette"
+    // ).catch((err) => {
+    //   console.error("Erro ao atualizar sinal ativo da Roleta:", err);
+    // });
 
     // Limpar sinal IMEDIATAMENTE quando acerta OU quando expira
     if (hit) {
       console.log("[Signal] ✅ ACERTOU! Limpando sinal imediatamente.");
-      console.log(
-        `[Learning] Registrando ACERTO para padrão ${bestRouletteSignal.patternKey} no giro ${newCount}`
-      );
+      
+      if (bestRouletteSignal.wasDisplayed) {
+        console.log(
+          `[Learning] Registrando ACERTO para padrão ${bestRouletteSignal.patternKey} no giro ${newCount}`
+        );
 
-      // ✅ REGISTRAR APRENDIZADO: Acertou em algum dos 3 giros
-      validateSignalOutcome(bestRouletteSignal, resultNum);
+        // ✅ REGISTRAR APRENDIZADO: Acertou em algum dos 3 giros
+        validateSignalOutcome(bestRouletteSignal, resultNum);
 
-      // Adicionar ao histórico com TODAS as tentativas
-      const rouletteSignalRecord = {
-        id: resultId,
-        patternKey: bestRouletteSignal.patternKey,
-        description: bestRouletteSignal.description,
-        confidence: bestRouletteSignal.confidence,
-        targets: bestRouletteSignal.targets,
-        attempts: [...currentSignalAttempts, attempt], // Todas as tentativas (Martingale)
-        hit: true,
-        hitOnAttempt: newCount, // Em qual giro acertou
-        timestamp: Date.now(),
-      };
+        // Adicionar ao histórico com TODAS as tentativas
+        const rouletteSignalRecord = {
+          id: resultId,
+          patternKey: bestRouletteSignal.patternKey,
+          description: bestRouletteSignal.description,
+          confidence: bestRouletteSignal.confidence,
+          targets: bestRouletteSignal.targets,
+          attempts: [...currentSignalAttempts, attempt], // Todas as tentativas (Martingale)
+          hit: true,
+          hitOnAttempt: newCount, // Em qual giro acertou
+          timestamp: Date.now(),
+        };
 
-      setRouletteSignalsHistory((prev) =>
-        [rouletteSignalRecord, ...prev].slice(0, 50)
-      ); // Manter últimos 50
+        setRouletteSignalsHistory((prev) =>
+          [rouletteSignalRecord, ...prev].slice(0, 50)
+        ); // Manter últimos 50
 
-      // Salvar no banco de dados
-      saveSignal(rouletteSignalRecord, "roulette").catch((err) => {
-        console.error("Erro ao salvar sinal da Roleta no banco:", err);
-      });
+        // ❌ Persistência desabilitada
+        // saveSignal(rouletteSignalRecord, "roulette").catch((err) => {
+        //   console.error("Erro ao salvar sinal da Roleta no banco:", err);
+        // });
+      } else {
+        console.log("⚠️ Sinal da Roleta NÃO foi exibido - não será salvo no histórico");
+      }
 
-      // Remover sinal ativo persistido
-      saveActiveSignal(null, "roulette").catch((err) => {
-        console.error("Erro ao remover sinal ativo da Roleta:", err);
-      });
+      // ❌ Persistência desabilitada
+      // saveActiveSignal(null, "roulette").catch((err) => {
+      //   console.error("Erro ao remover sinal ativo da Roleta:", err);
+      // });
 
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
@@ -930,40 +942,45 @@ function App() {
         newCount,
         "tentativas sem acerto"
       );
-      console.log(
-        `[Learning] Registrando ERRO para padrão ${bestRouletteSignal.patternKey} - perdeu todas as 3 tentativas`
-      );
+      
+      if (bestRouletteSignal.wasDisplayed) {
+        console.log(
+          `[Learning] Registrando ERRO para padrão ${bestRouletteSignal.patternKey} - perdeu todas as 3 tentativas`
+        );
 
-      // ❌ REGISTRAR APRENDIZADO: Perdeu todas as 3 tentativas
-      // Usar o resultado do último giro para registrar o erro
-      validateSignalOutcome(bestRouletteSignal, resultNum);
+        // ❌ REGISTRAR APRENDIZADO: Perdeu todas as 3 tentativas
+        // Usar o resultado do último giro para registrar o erro
+        validateSignalOutcome(bestRouletteSignal, resultNum);
 
-      // Adicionar ao histórico com TODAS as tentativas (perdeu todas)
-      const rouletteSignalRecord = {
-        id: resultId,
-        patternKey: bestRouletteSignal.patternKey,
-        description: bestRouletteSignal.description,
-        confidence: bestRouletteSignal.confidence,
-        targets: bestRouletteSignal.targets,
-        attempts: [...currentSignalAttempts, attempt], // Todas as 3 tentativas
-        hit: false,
-        hitOnAttempt: null, // Não acertou em nenhum giro
-        timestamp: Date.now(),
-      };
+        // Adicionar ao histórico com TODAS as tentativas (perdeu todas)
+        const rouletteSignalRecord = {
+          id: resultId,
+          patternKey: bestRouletteSignal.patternKey,
+          description: bestRouletteSignal.description,
+          confidence: bestRouletteSignal.confidence,
+          targets: bestRouletteSignal.targets,
+          attempts: [...currentSignalAttempts, attempt], // Todas as 3 tentativas
+          hit: false,
+          hitOnAttempt: null, // Não acertou em nenhum giro
+          timestamp: Date.now(),
+        };
 
-      setRouletteSignalsHistory((prev) =>
-        [rouletteSignalRecord, ...prev].slice(0, 50)
-      ); // Manter últimos 50
+        setRouletteSignalsHistory((prev) =>
+          [rouletteSignalRecord, ...prev].slice(0, 50)
+        ); // Manter últimos 50
 
-      // Salvar no banco de dados
-      saveSignal(rouletteSignalRecord, "roulette").catch((err) => {
-        console.error("Erro ao salvar sinal da Roleta no banco:", err);
-      });
+        // ❌ Persistência desabilitada
+        // saveSignal(rouletteSignalRecord, "roulette").catch((err) => {
+        //   console.error("Erro ao salvar sinal da Roleta no banco:", err);
+        // });
+      } else {
+        console.log("⚠️ Sinal da Roleta NÃO foi exibido - não será salvo no histórico");
+      }
 
-      // Remover sinal ativo persistido
-      saveActiveSignal(null, "roulette").catch((err) => {
-        console.error("Erro ao remover sinal ativo da Roleta:", err);
-      });
+      // ❌ Persistência desabilitada
+      // saveActiveSignal(null, "roulette").catch((err) => {
+      //   console.error("Erro ao remover sinal ativo da Roleta:", err);
+      // });
 
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
@@ -1012,8 +1029,7 @@ function App() {
             zIndex: 9999,
             padding: 20,
           }}
-          onClick={handleCloseWarning}
-        >
+          onClick={handleCloseWarning}>
           <div
             style={{
               backgroundColor: "#1f1f1f",
@@ -1024,8 +1040,7 @@ function App() {
               border: "2px solid #e74c3c",
               boxShadow: "0 8px 32px rgba(231, 76, 60, 0.3)",
             }}
-            onClick={(e) => e.stopPropagation()}
-          >
+            onClick={(e) => e.stopPropagation()}>
             {/* Ícone de Aviso */}
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <span style={{ fontSize: 64 }}>⚠️</span>
@@ -1039,8 +1054,7 @@ function App() {
                 marginTop: 0,
                 marginBottom: 16,
                 fontSize: isNarrow ? 20 : 24,
-              }}
-            >
+              }}>
               AVISO IMPORTANTE
             </h2>
 
@@ -1050,8 +1064,7 @@ function App() {
                 color: "#ecf0f1",
                 lineHeight: 1.6,
                 fontSize: isNarrow ? 14 : 16,
-              }}
-            >
+              }}>
               <p style={{ marginBottom: 16 }}>
                 <strong>⚙️ Sistema em Desenvolvimento</strong>
               </p>
@@ -1065,7 +1078,9 @@ function App() {
               </p>
 
               <p style={{ marginBottom: 16 }}>
-                <strong style={{ color: "#e74c3c" }}>⚠️ Riscos e Limitações:</strong>
+                <strong style={{ color: "#e74c3c" }}>
+                  ⚠️ Riscos e Limitações:
+                </strong>
               </p>
               <ul style={{ marginBottom: 16, paddingLeft: 20 }}>
                 <li style={{ marginBottom: 8 }}>
@@ -1092,9 +1107,10 @@ function App() {
                   padding: 12,
                   marginBottom: 16,
                   fontSize: isNarrow ? 13 : 14,
-                }}
-              >
-                <strong style={{ color: "#f1c40f" }}>📊 Uso Responsável:</strong>
+                }}>
+                <strong style={{ color: "#f1c40f" }}>
+                  📊 Uso Responsável:
+                </strong>
                 <br />
                 Este sistema foi criado para fins de{" "}
                 <strong>estudo e análise de padrões</strong>. Ao continuar, você
@@ -1125,8 +1141,7 @@ function App() {
               onMouseLeave={(e) => {
                 e.target.style.backgroundColor = "#e74c3c";
                 e.target.style.transform = "scale(1)";
-              }}
-            >
+              }}>
               Li e Compreendi os Riscos
             </button>
 
@@ -1137,8 +1152,7 @@ function App() {
                 color: "#95a5a6",
                 marginTop: 12,
                 marginBottom: 0,
-              }}
-            >
+              }}>
               Esta mensagem aparece apenas uma vez
             </p>
           </div>

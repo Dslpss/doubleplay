@@ -57,9 +57,7 @@ export async function saveSignal(signal, gameType = "double") {
   try {
     const db = await initDB();
     const storeName =
-      gameType === "double"
-        ? STORES.DOUBLE_SIGNALS
-        : STORES.ROULETTE_SIGNALS;
+      gameType === "double" ? STORES.DOUBLE_SIGNALS : STORES.ROULETTE_SIGNALS;
 
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([storeName], "readwrite");
@@ -97,9 +95,7 @@ export async function getSignals(gameType = "double", limit = 2000) {
   try {
     const db = await initDB();
     const storeName =
-      gameType === "double"
-        ? STORES.DOUBLE_SIGNALS
-        : STORES.ROULETTE_SIGNALS;
+      gameType === "double" ? STORES.DOUBLE_SIGNALS : STORES.ROULETTE_SIGNALS;
 
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([storeName], "readonly");
