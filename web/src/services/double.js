@@ -66,7 +66,15 @@ export function computeDoubleSignalChance(advice, results) {
   if (advice?.type === "color") {
     const color = advice.color || "white";
     const baseFallback = color === "white" ? 7 : 47; // White ~6.7%, Red/Black ~46.7%
-    base = pct(s.color[color], baseFallback);
+    // Probabilidade base: para Red/Black, excluir brancos do denominador
+    if (color === "white") {
+      base = pct(s.color[color], baseFallback);
+    } else {
+      const nonWhiteTotal = (s.color.red || 0) + (s.color.black || 0);
+      base = nonWhiteTotal >= 8
+        ? Math.round(((s.color[color] || 0) / nonWhiteTotal) * 100)
+        : baseFallback;
+    }
 
     // Contextos auxiliares
     const last5 = results.slice(-5);
@@ -84,6 +92,19 @@ export function computeDoubleSignalChance(advice, results) {
           if (c === color) len++; else break;
         }
         bonus += Math.min(10, 2 + Math.round(len * 1.2));
+        break;
+      }
+      case "streak_break_opposite": {
+        // bônus proporcional ao comprimento da sequência atual da cor oposta
+        // ex.: sequência longa de vermelho -> conselho preto
+        let oppLen = 0;
+        const opp = advice.color === "red" ? "black" : "red";
+        for (let i = results.length - 1; i >= 0; i--) {
+          const c = results[i]?.color;
+          if (!c || c === "white") break;
+          if (c === opp) oppLen++; else break;
+        }
+        bonus += Math.min(9, 2 + Math.round(oppLen * 1.1));
         break;
       }
       case "triple_repeat": {
@@ -121,6 +142,27 @@ export function computeDoubleSignalChance(advice, results) {
         bonus += Math.min(8, 3 + support); // forte se 4/5 favorecem a cor
         break;
       }
+      case "after_white_previous_color": {
+        // último foi branco e retomada da cor anterior
+        const last = results.slice(-3).map(r => r.color);
+        if (last[last.length - 1] === "white") {
+          // cor imediatamente anterior
+          const prev = last[last.length - 2];
+          if (prev && prev === advice.color) bonus += 5;
+        }
+        break;
+      }
+      case "hot_zone_last10": {
+        const last10 = results
+          .slice(-10)
+          .map(r => r.color)
+          .filter(c => c !== "white");
+        const tally = last10.reduce((acc, c) => ((acc[c] = (acc[c]||0)+1), acc), {});
+        const cnt = tally[advice.color] || 0;
+        // Intensidade cresce com 7/10, 8/10, 9/10...
+        bonus += Math.min(8, Math.max(0, cnt - 5));
+        break;
+      }
       default: {
         bonus += 2;
       }
@@ -129,6 +171,21 @@ export function computeDoubleSignalChance(advice, results) {
     // Penalização leve por brancos recentes (ruído)
     if (whitesRecent >= 1) penalty += 2;
     if (last5Colors.slice(-2).includes("white")) penalty += 1;
+
+    // Bônus por proporção na janela 12 (exclui brancos): aumenta confiança sem reduzir alertas
+    const last12NonWhite = results
+      .slice(-12)
+      .map((r) => r.color)
+      .filter((c) => c !== "white");
+    if (last12NonWhite.length >= 8) {
+      const tally12 = last12NonWhite.reduce(
+        (acc, c) => ((acc[c] = (acc[c] || 0) + 1), acc),
+        {}
+      );
+      const cnt12 = tally12[color] || 0;
+      const pct12 = Math.round((cnt12 / last12NonWhite.length) * 100);
+      if (pct12 >= 55) bonus += Math.min(5, Math.floor((pct12 - 50) / 5));
+    }
   } else {
     base = 10;
   }
@@ -155,6 +212,30 @@ export function detectDoublePatterns(results = []) {
         description: `Sequência de ${tail[0]} detectada: ${tail.join(", ")}`,
         risk: "medium",
         targets: { type: "color", color: tail[0] },
+      });
+    }
+  }
+
+  // 1b) Contra-sequência após streak longo (6+) — padrão popular
+  // Se houver uma sequência longa, sugerir quebra apostando na cor oposta
+  const lastNonWhite = results
+    .slice()
+    .reverse()
+    .map((r) => r.color)
+    .filter((c) => c && c !== "white");
+  if (lastNonWhite.length >= 6) {
+    let len = 1;
+    for (let i = 1; i < lastNonWhite.length; i++) {
+      if (lastNonWhite[i] === lastNonWhite[0]) len++; else break;
+    }
+    if (len >= 6) {
+      const streakColor = lastNonWhite[0];
+      const opp = streakColor === "red" ? "black" : "red";
+      patterns.push({
+        key: "streak_break_opposite",
+        description: `Sequência longa de ${streakColor} (${len}). Quebra provável: ${opp}.`,
+        risk: "medium",
+        targets: { type: "color", color: opp },
       });
     }
   }
@@ -190,6 +271,28 @@ export function detectDoublePatterns(results = []) {
       risk: "low",
       targets: { type: "color", color: dom },
     });
+  }
+
+  // 3b) Hot zone: 7+ de 10 últimos (excluindo brancos) favorecem uma cor
+  const last10NonWhite = results
+    .slice(-10)
+    .map((r) => r.color)
+    .filter((c) => c !== "white");
+  if (last10NonWhite.length >= 7) {
+    const tally10 = last10NonWhite.reduce(
+      (acc, c) => ((acc[c] = (acc[c] || 0) + 1), acc),
+      {}
+    );
+    const entries10 = Object.entries(tally10).sort((a, b) => b[1] - a[1]);
+    if (entries10[0] && entries10[0][1] >= 7) {
+      const hot = entries10[0][0];
+      patterns.push({
+        key: "hot_zone_last10",
+        description: `Zona quente: ${entries10[0][1]}/10 favorecem ${hot}`,
+        risk: "low",
+        targets: { type: "color", color: hot },
+      });
+    }
   }
 
   // 4) Alternância de cores prolongada: sugerir quebra (aposte a mesma cor do último)
@@ -262,6 +365,20 @@ export function detectDoublePatterns(results = []) {
     }
   }
 
+  // 7) Após Branco: retomar a cor anterior (padrão popular)
+  const last4 = results.slice(-4).map((r) => r.color);
+  if (last4.length >= 2 && last4[last4.length - 1] === "white") {
+    const prevColor = last4[last4.length - 2];
+    if (prevColor && prevColor !== "white") {
+      patterns.push({
+        key: "after_white_previous_color",
+        description: `Após branco, retomar ${prevColor}`,
+        risk: "low",
+        targets: { type: "color", color: prevColor },
+      });
+    }
+  }
+
   return patterns;
 }
 
@@ -293,13 +410,24 @@ export function chooseDoubleBetSignal(patterns, results, options = {}) {
     : candidates;
   const baseList = filtered.length > 0 ? filtered : candidates;
 
+  // Consenso: quantos padrões favorecem cada cor
+  const colorTally = candidates.reduce(
+    (acc, c) => ((acc[c.color] = (acc[c.color] || 0) + 1), acc),
+    {}
+  );
+
   const scored = baseList
     .map((advice) => {
       const chance = computeDoubleSignalChance(advice, results);
       const penaltyKey = lastKey && advice.key === lastKey ? 4 : 0;
       const riskWeight =
         advice.risk === "low" ? 2 : advice.risk === "medium" ? 4 : 7;
-      const score = chance + riskWeight - penaltyKey;
+      // Bônus de consenso e pequena penalização por conflito
+      const thisCount = colorTally[advice.color] || 0;
+      const oppCount = advice.color === "red" ? (colorTally["black"] || 0) : (colorTally["red"] || 0);
+      const consensusBoost = Math.min(6, Math.max(0, (thisCount - 1)) * 2);
+      const conflictPenalty = Math.min(4, Math.max(0, oppCount - thisCount));
+      const score = chance + riskWeight - penaltyKey + consensusBoost - conflictPenalty;
       return { advice, chance, score };
     })
     .sort((a, b) => b.score - a.score);
@@ -396,12 +524,15 @@ export function detectBestDoubleSignal(results = [], options = {}) {
 
   const descriptionMap = {
     color_streak: "🔴⚫ Sequência de cor ativa!",
+    streak_break_opposite: "⛔ Contra-sequência após streak longo",
     triple_repeat: "🔁 Trinca detectada! Aposte na cor oposta.",
     red_black_balance: "📊 Tendência de cor! Uma cor dominando.",
+    hot_zone_last10: "🔥 Zona quente: 7/10 favorecem a cor",
     two_in_a_row_trend: "➡️ Continuidade provável após dupla.",
     alternation_break:
       "🔄 Alternância tende a quebrar; aposte na continuidade.",
     momentum_bias: "📈 Momentum recente favorece a cor",
+    after_white_previous_color: "⚪ Após branco, retoma cor anterior",
   };
 
   const description = descriptionMap[signalAdvice.key] || "Padrão detectado";
