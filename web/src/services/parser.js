@@ -122,67 +122,8 @@ export function analyzeUserBets(events = []) {
   return summary;
 }
 
-export function summarizeRoulette(results) {
-  const stats = { red: 0, black: 0, green: 0, odd: 0, even: 0, total: 0 };
-  for (const r of results) {
-    if (!r) continue;
-    stats.total++;
-    // normaliza cores possíveis: 'red' | 'black' | 'green'
-    const c = r.color === 'green' ? 'green' : (r.color === 'red' ? 'red' : 'black');
-    stats[c]++;
-    if (typeof r.number === 'number' && r.number !== 0) {
-      if (r.number % 2 === 0) stats.even++; else stats.odd++;
-    }
-  }
-  return stats;
-}
+// Removido: summarizeRoulette — escopo focado em Double
 
-export function computeRouletteStreaks(results) {
-  const out = { current: { color: null, length: 0 }, max: { red: 0, black: 0, green: 0 } };
-  let curColor = null;
-  let curLen = 0;
-  for (let i = results.length - 1; i >= 0; i--) {
-    const r = results[i];
-    if (!r) continue;
-    const c = r.color === 'green' ? 'green' : (r.color === 'red' ? 'red' : 'black');
-    if (curColor === null) { curColor = c; curLen = 1; }
-    else if (c === curColor) curLen++;
-    else break;
-  }
-  out.current.color = curColor;
-  out.current.length = curLen;
-  let tmp = 0; let last = null;
-  for (const r of results) {
-    const c = r.color === 'green' ? 'green' : (r.color === 'red' ? 'red' : 'black');
-    if (c === last) tmp++; else { tmp = 1; last = c; }
-    out.max[c] = Math.max(out.max[c] || 0, tmp);
-  }
-  return out;
-}
+// Removido: computeRouletteStreaks — escopo focado em Double
 
-export function detectRoulettePatterns(results) {
-  const patterns = [];
-  if (!Array.isArray(results) || results.length < 3) return patterns;
-  const last = results.slice(-5);
-  // Trinca por cor
-  const c3 = last.slice(-3).map(r => (r.color === 'green' ? 'green' : (r.color === 'red' ? 'red' : 'black')));
-  if (c3.length === 3 && c3.every(c => c === c3[0])) {
-    const label = c3[0] === 'green' ? 'verde (0)' : (c3[0] === 'red' ? 'vermelho' : 'preto');
-    patterns.push({ key: 'triple_repeat', description: `Trinca de ${label} detectada`, risk: 'medium' });
-  }
-  // Zero recente
-  const recent10 = results.slice(-10);
-  if (recent10.some(r => r.color === 'green' || r.number === 0)) {
-    patterns.push({ key: 'zero_proximity', description: 'Zero (verde) detectado nos últimos 10', risk: 'high' });
-  }
-  // Desequilíbrio vermelho/preto nos últimos 20
-  const last20 = results.slice(-20);
-  const rr = last20.filter(r => r.color === 'red').length;
-  const bb = last20.filter(r => r.color === 'black').length;
-  if (Math.abs(rr - bb) >= 5) {
-    const dominant = rr > bb ? 'red' : 'black';
-    const label = dominant === 'red' ? 'vermelho' : 'preto';
-    patterns.push({ key: 'red_black_balance', description: `Desequilíbrio recente favorece ${label}`, risk: 'low' });
-  }
-  return patterns;
-}
+// Removido: detectRoulettePatterns — escopo focado em Double

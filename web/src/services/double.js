@@ -52,6 +52,7 @@ function buildDoubleStats(results = []) {
 }
 
 export function computeDoubleSignalChance(advice, results) {
+  // Amostra principal para base de probabilidade
   const sample = results.slice(-50);
   const s = buildDoubleStats(sample);
   const total = s.total || 0;
@@ -60,38 +61,80 @@ export function computeDoubleSignalChance(advice, results) {
 
   let base = 0;
   let bonus = 0;
+  let penalty = 0;
 
   if (advice?.type === "color") {
     const color = advice.color || "white";
-    const baseFallback = color === "white" ? 7 : 47; // White: ~6.7%, Red/Black: ~46.7%
+    const baseFallback = color === "white" ? 7 : 47; // White ~6.7%, Red/Black ~46.7%
     base = pct(s.color[color], baseFallback);
 
-    // Bônus por padrões
+    // Contextos auxiliares
+    const last5 = results.slice(-5);
+    const last5Colors = last5.map((r) => r.color).filter(Boolean);
+    const whitesRecent = last5Colors.filter((c) => c === "white").length;
+
+    // Bônus por padrões com intensidade dinâmica
     switch (advice.key) {
-      case "color_streak":
-        bonus += 6; // continuidade do streak
+      case "color_streak": {
+        // comprimento da sequência recente da cor sugerida
+        let len = 0;
+        for (let i = results.length - 1; i >= 0; i--) {
+          const c = results[i]?.color;
+          if (!c || c === "white") break;
+          if (c === color) len++; else break;
+        }
+        bonus += Math.min(10, 2 + Math.round(len * 1.2));
         break;
-      case "triple_repeat":
-        bonus += 5; // quebra de sequência
+      }
+      case "triple_repeat": {
+        bonus += 4;
         break;
-      case "red_black_balance":
-        bonus += 4; // tendência recente
+      }
+      case "red_black_balance": {
+        const last20 = results.slice(-CONFIG.imbalanceWindow);
+        const s20 = buildDoubleStats(last20);
+        const diff = Math.abs((s20.color.red || 0) - (s20.color.black || 0));
+        bonus += Math.min(8, 2 + diff);
         break;
-      case "two_in_a_row_trend":
-        bonus += 4; // continuidade provável após dupla
+      }
+      case "two_in_a_row_trend": {
+        const last5NonWhite = results
+          .slice(-5)
+          .map((r) => r.color)
+          .filter((c) => c !== "white");
+        const support = last5NonWhite.filter((c) => c === color).length;
+        bonus += Math.min(7, 2 + support);
         break;
-      case "alternation_break":
-        bonus += 3; // alternância tende a quebrar
+      }
+      case "alternation_break": {
+        const altWindow = results
+          .slice(-Math.max(CONFIG.alternationWindow, 4))
+          .map((r) => r.color)
+          .filter((c) => c !== "white");
+        const altLen = altWindow.length;
+        bonus += Math.min(6, 2 + Math.floor(altLen / 2));
         break;
-      default:
+      }
+      case "momentum_bias": {
+        const last5NonWhite = last5Colors.filter((c) => c !== "white");
+        const support = last5NonWhite.filter((c) => c === color).length;
+        bonus += Math.min(8, 3 + support); // forte se 4/5 favorecem a cor
+        break;
+      }
+      default: {
         bonus += 2;
+      }
     }
+
+    // Penalização leve por brancos recentes (ruído)
+    if (whitesRecent >= 1) penalty += 2;
+    if (last5Colors.slice(-2).includes("white")) penalty += 1;
   } else {
     base = 10;
   }
 
-  let chance = Math.round(base + bonus);
-  chance = Math.max(4, Math.min(88, chance));
+  let chance = Math.round(base + bonus - penalty);
+  chance = Math.max(4, Math.min(89, chance));
   return chance;
 }
 
@@ -197,6 +240,28 @@ export function detectDoublePatterns(results = []) {
     });
   }
 
+  // 6) Momentum: 4 de 5 últimos (excluindo brancos) favorecem uma cor
+  const last5Colors = results
+    .slice(-5)
+    .map((r) => r.color)
+    .filter((c) => c !== "white");
+  if (last5Colors.length >= 4) {
+    const tally = last5Colors.reduce(
+      (acc, c) => ((acc[c] = (acc[c] || 0) + 1), acc),
+      {}
+    );
+    const entries = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+    if (entries[0] && entries[0][1] >= 4) {
+      const dom = entries[0][0];
+      patterns.push({
+        key: "momentum_bias",
+        description: `Momentum favorece ${dom} (4/5 recentes)`,
+        risk: "low",
+        targets: { type: "color", color: dom },
+      });
+    }
+  }
+
   return patterns;
 }
 
@@ -245,7 +310,7 @@ export function chooseDoubleBetSignal(patterns, results, options = {}) {
   const selectedSignal = { ...pick.advice };
 
   // Normalizar confiança 0-10 a partir de chance %
-  const confidence = Math.max(5.8, Math.min(9.8, (pick.chance / 100) * 10));
+  const confidence = Math.max(5.8, Math.min(9.6, (pick.chance / 100) * 10));
   selectedSignal.confidence = Math.round(confidence * 10) / 10;
   selectedSignal._score = pick.score;
   selectedSignal.chance = pick.chance;
@@ -336,6 +401,7 @@ export function detectBestDoubleSignal(results = [], options = {}) {
     two_in_a_row_trend: "➡️ Continuidade provável após dupla.",
     alternation_break:
       "🔄 Alternância tende a quebrar; aposte na continuidade.",
+    momentum_bias: "📈 Momentum recente favorece a cor",
   };
 
   const description = descriptionMap[signalAdvice.key] || "Padrão detectado";

@@ -36,14 +36,6 @@ export function createWsClient(onMessage) {
           onMessage?.(ev.data);
         }
       });
-      es.addEventListener("roulette_result", (ev) => {
-        try {
-          onMessage?.(JSON.parse(ev.data));
-        } catch (e) {
-          console.error(e);
-          onMessage?.(ev.data);
-        }
-      });
       es.addEventListener("bets_popularity", (ev) => {
         try {
           onMessage?.(JSON.parse(ev.data));
@@ -59,7 +51,6 @@ export function createWsClient(onMessage) {
           const known =
             data &&
             (data.type === "double_result" ||
-              data.type === "roulette_result" ||
               data.type === "bets_popularity" ||
               data.type === "status" ||
               data.type === "ping");

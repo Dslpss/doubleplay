@@ -15,17 +15,6 @@ export default function DoublePatternsPanel({
     if (!signal || signal.wasDisplayed) return;
 
     try {
-      // Garantir que estamos no modo Double (não na rota da Roleta)
-      const onDoubleRoute =
-        window.location && window.location.hash
-          ? window.location.hash !== "#/roulette"
-          : true;
-      if (!onDoubleRoute) {
-        console.log(
-          "⚠️ [DoublePatternsPanel] Sinal detectado mas não no route Double, não marcar como exibido"
-        );
-        return;
-      }
 
       const el = containerRef.current;
       if (el && typeof el.scrollIntoView === "function") {

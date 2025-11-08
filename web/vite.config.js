@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
+import process from 'node:process'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
@@ -39,7 +40,7 @@ export default defineConfig(({ mode }) => {
                     const bets = json?.betsPopularity;
                     if (bets) send('bets_popularity', { type: 'bets_popularity', data: bets });
                   }
-                } catch (err) {
+                } catch {
                   // silencioso
                 }
               } else {
