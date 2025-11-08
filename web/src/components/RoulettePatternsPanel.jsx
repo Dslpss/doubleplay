@@ -34,7 +34,10 @@ export default function RoulettePatternsPanel({
   useEffect(() => {
     if (signal && !signal.wasDisplayed) {
       signal.wasDisplayed = true;
-      console.log("✅ [RoulettePatternsPanel] Sinal marcado como exibido:", signal.patternKey);
+      console.log(
+        "✅ [RoulettePatternsPanel] Sinal marcado como exibido:",
+        signal.patternKey
+      );
     }
   }, [signal]);
 
@@ -262,19 +265,33 @@ export default function RoulettePatternsPanel({
                 }}>
                 📍 Tipo: {getBetTypeLabel(signal.suggestedBet.type)}
                 {/* Mostrar qual coluna específica */}
-                {signal.suggestedBet.type === "column" && signal.targets && signal.targets.length > 0 && (() => {
-                  const firstNum = signal.targets[0];
-                  const column = firstNum % 3 === 0 ? 3 : firstNum % 3;
-                  const columnNames = { 1: "1ª Coluna (1-34)", 2: "2ª Coluna (2-35)", 3: "3ª Coluna (3-36)" };
-                  return ` → ${columnNames[column] || `Coluna ${column}`}`;
-                })()}
+                {signal.suggestedBet.type === "column" &&
+                  signal.targets &&
+                  signal.targets.length > 0 &&
+                  (() => {
+                    const firstNum = signal.targets[0];
+                    const column = firstNum % 3 === 0 ? 3 : firstNum % 3;
+                    const columnNames = {
+                      1: "1ª Coluna (1-34)",
+                      2: "2ª Coluna (2-35)",
+                      3: "3ª Coluna (3-36)",
+                    };
+                    return ` → ${columnNames[column] || `Coluna ${column}`}`;
+                  })()}
                 {/* Mostrar qual dúzia específica */}
-                {signal.suggestedBet.type === "dozen" && signal.targets && signal.targets.length > 0 && (() => {
-                  const firstNum = signal.targets[0];
-                  const dozen = firstNum <= 12 ? 1 : firstNum <= 24 ? 2 : 3;
-                  const dozenNames = { 1: "1ª Dúzia (1-12)", 2: "2ª Dúzia (13-24)", 3: "3ª Dúzia (25-36)" };
-                  return ` → ${dozenNames[dozen] || `Dúzia ${dozen}`}`;
-                })()}
+                {signal.suggestedBet.type === "dozen" &&
+                  signal.targets &&
+                  signal.targets.length > 0 &&
+                  (() => {
+                    const firstNum = signal.targets[0];
+                    const dozen = firstNum <= 12 ? 1 : firstNum <= 24 ? 2 : 3;
+                    const dozenNames = {
+                      1: "1ª Dúzia (1-12)",
+                      2: "2ª Dúzia (13-24)",
+                      3: "3ª Dúzia (25-36)",
+                    };
+                    return ` → ${dozenNames[dozen] || `Dúzia ${dozen}`}`;
+                  })()}
               </span>
             </div>
           )}

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import ResultChip from "./ResultChip";
 import { labelPtForColor } from "../services/double.js";
 
@@ -9,11 +9,50 @@ export default function DoublePatternsPanel({
   lastNumber = null,
   lastOutcome = null,
 }) {
-  // Marcar sinal como exibido quando ele for renderizado
+  // Marcar sinal como exibido quando o painel estiver realmente visível
+  const containerRef = useRef(null);
   useEffect(() => {
-    if (signal && !signal.wasDisplayed) {
-      signal.wasDisplayed = true;
-      console.log("✅ [DoublePatternsPanel] Sinal marcado como exibido:", signal.description);
+    if (!signal || signal.wasDisplayed) return;
+
+    try {
+      // Garantir que estamos no modo Double (não na rota da Roleta)
+      const onDoubleRoute =
+        window.location && window.location.hash
+          ? window.location.hash !== "#/roulette"
+          : true;
+      if (!onDoubleRoute) {
+        console.log(
+          "⚠️ [DoublePatternsPanel] Sinal detectado mas não no route Double, não marcar como exibido"
+        );
+        return;
+      }
+
+      const el = containerRef.current;
+      if (el && typeof el.scrollIntoView === "function") {
+        // Trazer o painel à vista para garantir que o usuário veja o alerta
+        try {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch {
+          try {
+            el.scrollIntoView();
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      // Aguardar um pequeno delay para a rolagem/paint e então marcar como exibido
+      const t = setTimeout(() => {
+        signal.wasDisplayed = true;
+        console.log(
+          "✅ [DoublePatternsPanel] Sinal marcado como exibido (scrollIntoView):",
+          signal.description
+        );
+      }, 250);
+
+      return () => clearTimeout(t);
+    } catch (e) {
+      console.error(e);
     }
   }, [signal]);
 
@@ -26,7 +65,7 @@ export default function DoublePatternsPanel({
 
   if (!signal) {
     return (
-      <div style={box}>
+      <div ref={containerRef} style={box}>
         <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
           Sinais do Double
         </h3>
@@ -168,7 +207,7 @@ export default function DoublePatternsPanel({
     : null;
 
   return (
-    <div style={box}>
+    <div ref={containerRef} style={box}>
       <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
         Sinais do Double
       </h3>
@@ -313,8 +352,7 @@ export default function DoublePatternsPanel({
                   borderRadius: 3,
                   border: "1px solid #3a3a3a",
                   verticalAlign: "middle",
-                  backgroundColor:
-                    betColor === "red" ? "#e74c3c" : "#000",
+                  backgroundColor: betColor === "red" ? "#e74c3c" : "#000",
                 }}
                 title={`Cor: ${labelPtForColor(betColor)}`}
               />

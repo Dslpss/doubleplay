@@ -192,13 +192,32 @@ function App() {
             timestamp: item.timestamp || item.ts || Date.now(),
           };
           const key = `${normalized.number}-${normalized.color}`;
-          if (lastRouletteKeyRef.current === key) return; // dedup persistente até mudar o número
+
+          console.log(
+            "🎰 [ROLETA] Resultado recebido:",
+            normalized.number,
+            normalized.color
+          );
+
+          if (lastRouletteKeyRef.current === key) {
+            console.log("⚠️ [ROLETA] Resultado duplicado ignorado:", key);
+            return;
+          }
           lastRouletteKeyRef.current = key;
 
           // ❌ REMOVIDO: saveResult (dados ficam apenas em memória)
           // IndexedDB salva apenas sinais validados
 
-          setRoulette((prev) => [normalized, ...prev].slice(0, 100));
+          setRoulette((prev) => {
+            const newArray = [normalized, ...prev].slice(0, 100);
+            console.log(
+              "✅ [ROLETA] Array atualizado. Total de resultados:",
+              newArray.length
+            );
+            return newArray;
+          });
+        } else {
+          console.warn("⚠️ [ROLETA] Resultado sem número:", item);
         }
       }
     });
@@ -433,10 +452,10 @@ function App() {
         "Confiança:",
         signal.confidence
       );
-      
+
       // Configurar flag de exibição
       signal.wasDisplayed = false; // ⚠️ Será marcado como true quando o componente renderizar
-      
+
       setBestRouletteSignal(signal);
       // Ativar cooldown de emissão para impedir novos sinais até validação
       setSignalCooldown(Date.now());
@@ -892,7 +911,7 @@ function App() {
     // Limpar sinal IMEDIATAMENTE quando acerta OU quando expira
     if (hit) {
       console.log("[Signal] ✅ ACERTOU! Limpando sinal imediatamente.");
-      
+
       if (bestRouletteSignal.wasDisplayed) {
         console.log(
           `[Learning] Registrando ACERTO para padrão ${bestRouletteSignal.patternKey} no giro ${newCount}`
@@ -923,7 +942,9 @@ function App() {
         //   console.error("Erro ao salvar sinal da Roleta no banco:", err);
         // });
       } else {
-        console.log("⚠️ Sinal da Roleta NÃO foi exibido - não será salvo no histórico");
+        console.log(
+          "⚠️ Sinal da Roleta NÃO foi exibido - não será salvo no histórico"
+        );
       }
 
       // ❌ Persistência desabilitada
@@ -942,7 +963,7 @@ function App() {
         newCount,
         "tentativas sem acerto"
       );
-      
+
       if (bestRouletteSignal.wasDisplayed) {
         console.log(
           `[Learning] Registrando ERRO para padrão ${bestRouletteSignal.patternKey} - perdeu todas as 3 tentativas`
@@ -974,7 +995,9 @@ function App() {
         //   console.error("Erro ao salvar sinal da Roleta no banco:", err);
         // });
       } else {
-        console.log("⚠️ Sinal da Roleta NÃO foi exibido - não será salvo no histórico");
+        console.log(
+          "⚠️ Sinal da Roleta NÃO foi exibido - não será salvo no histórico"
+        );
       }
 
       // ❌ Persistência desabilitada
@@ -2040,20 +2063,6 @@ function App() {
                 lastNumber={roulette.length > 0 ? roulette[0].number : null}
               />
             </div>
-
-            {/* Card: Último Loss e Último Acerto (Roleta) */}
-            <div style={{ marginTop: 16 }}>
-              <LastOutcomeCard
-                title="Último Loss e Último Acerto"
-                history={rouletteSignalsHistory}
-              />
-              <div style={{ marginTop: 12 }}>
-                <SpinHitStatsCard
-                  title="Estatísticas por Giro (Roleta)"
-                  history={rouletteSignalsHistory}
-                />
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -2064,6 +2073,22 @@ function App() {
           display: route === "#/roulette" ? "block" : "none",
         }}>
         <h2>Roleta (Pragmatic) - Timeline</h2>
+
+        {/* Debug: Mostrar quantidade de resultados */}
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 8,
+            backgroundColor: roulette.length > 0 ? "#10b981" : "#ef4444",
+            color: "#fff",
+            borderRadius: 4,
+            fontSize: 12,
+          }}>
+          {roulette.length > 0
+            ? `✅ ${roulette.length} resultados carregados`
+            : "⚠️ Aguardando resultados da roleta..."}
+        </div>
+
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {roulette.slice(0, 20).map((r, idx) => (
             <div
@@ -2602,6 +2627,22 @@ function App() {
               background: #5dade2;
             }
           `}</style>
+        </div>
+      )}
+
+      {/* Card: Último Loss e Último Acerto (Roleta) - Movido para o final */}
+      {route === "#/roulette" && (
+        <div style={{ marginTop: 24 }}>
+          <LastOutcomeCard
+            title="Último Loss e Último Acerto"
+            history={rouletteSignalsHistory}
+          />
+          <div style={{ marginTop: 12 }}>
+            <SpinHitStatsCard
+              title="Estatísticas por Giro (Roleta)"
+              history={rouletteSignalsHistory}
+            />
+          </div>
         </div>
       )}
     </div>

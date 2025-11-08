@@ -44,10 +44,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// Importa handler da função Netlify para uso local
-import { handler as dailyResetHandler } from "./netlify/functions/daily-reset.js";
+// Handler padrão (no-op) para daily-reset — será substituído por import dinâmico se existir
+let dailyResetHandler = async () => ({
+  statusCode: 404,
+  body: JSON.stringify({ ok: false, error: "daily-reset not configured" }),
+});
 
-// Rota local para manual reset delegando à função Netlify
+// Tentar importar dinamicamente a função Netlify (se foi removida, não quebra o dev-server)
+(async () => {
+  try {
+    const mod = await import("./netlify/functions/daily-reset.js");
+    // suportar export named 'handler' ou default
+    dailyResetHandler = mod.handler || mod.default || dailyResetHandler;
+    console.log("[DEV] daily-reset handler loaded from netlify/functions");
+  } catch {
+    console.warn("[DEV] daily-reset function not found, continuing without it");
+  }
+})();
+
+// Rota local para manual reset delegando à função Netlify (se disponível)
 app.post("/api/daily-reset", async (req, res) => {
   try {
     const event = {
@@ -66,7 +81,10 @@ app.post("/api/daily-reset", async (req, res) => {
   } catch (e) {
     res
       .status(500)
-      .json({ ok: false, error: e?.message || String(e || "Erro desconhecido") });
+      .json({
+        ok: false,
+        error: e?.message || String(e || "Erro desconhecido"),
+      });
   }
 });
 
