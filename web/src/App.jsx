@@ -27,14 +27,12 @@ import RouletteEmbedPanel from "./components/RouletteEmbedPanel";
 import AdminResetPanel from "./components/AdminResetPanel.jsx";
 import DoublePatternsPanel from "./components/DoublePatternsPanel.jsx";
 import { detectBestDoubleSignal } from "./services/double.js";
+// 🆕 USANDO INDEXEDDB LOCAL (sem MongoDB/Netlify Functions)
 import {
-  saveResult,
-  getResults,
   saveSignal,
   getSignals,
   saveActiveSignal,
-  getActiveSignal,
-} from "./services/database.js";
+} from "./services/localDatabase.js";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || null;
 
@@ -125,22 +123,10 @@ function App() {
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
 
-  // Carregar dados iniciais do banco de dados
+  // Carregar dados iniciais do IndexedDB
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Carregar resultados do Double
-        const doubleResults = await getResults("double", 5000);
-        if (doubleResults && doubleResults.length > 0) {
-          setResults(doubleResults);
-        }
-
-        // Carregar resultados da Roleta
-        const rouletteResults = await getResults("roulette", 5000);
-        if (rouletteResults && rouletteResults.length > 0) {
-          setRoulette(rouletteResults);
-        }
-
         // Carregar histórico de sinais do Double
         const doubleSignals = await getSignals("double", 2000);
         if (doubleSignals && doubleSignals.length > 0) {
@@ -163,185 +149,8 @@ function App() {
     loadInitialData();
   }, []); // Executa apenas uma vez na montagem
 
-  // Sincronização periódica RÁPIDA - busca novos dados do banco a cada 3 segundos
-  useEffect(() => {
-    const syncInterval = setInterval(async () => {
-      try {
-        // Sincronizar resultados do Double
-        const doubleResults = await getResults("double", 5000);
-        if (doubleResults && doubleResults.length > 0) {
-          setResults((prev) => {
-            // Só atualiza se houver diferença (para evitar re-renders desnecessários)
-            const lastLocal = prev[prev.length - 1];
-            const lastRemote = doubleResults[doubleResults.length - 1];
-            if (
-              !lastLocal ||
-              !lastRemote ||
-              lastLocal.timestamp !== lastRemote.timestamp
-            ) {
-              return doubleResults;
-            }
-            return prev;
-          });
-        }
-
-        // Sincronizar resultados da Roleta
-        const rouletteResults = await getResults("roulette", 5000);
-        if (rouletteResults && rouletteResults.length > 0) {
-          setRoulette((prev) => {
-            const lastLocal = prev[0];
-            const lastRemote = rouletteResults[0];
-            if (
-              !lastLocal ||
-              !lastRemote ||
-              lastLocal.timestamp !== lastRemote.timestamp
-            ) {
-              return rouletteResults;
-            }
-            return prev;
-          });
-        }
-
-        // Sincronizar histórico de sinais do Double
-        const doubleSignals = await getSignals("double", 2000);
-        if (doubleSignals && doubleSignals.length > 0) {
-          setDoubleSignalsHistory((prev) => {
-            if (prev.length !== doubleSignals.length) {
-              return doubleSignals;
-            }
-            return prev;
-          });
-        }
-
-        // Sincronizar histórico de sinais da Roleta
-        const rouletteSignals = await getSignals("roulette", 2000);
-        if (rouletteSignals && rouletteSignals.length > 0) {
-          setRouletteSignalsHistory((prev) => {
-            if (prev.length !== rouletteSignals.length) {
-              return rouletteSignals;
-            }
-            return prev;
-          });
-        }
-
-        // Sincronizar sinal ativo do Double - SEMPRE atualiza se diferente
-        const activeDoubleSignal = await getActiveSignal("double");
-        const isValidDoubleSignal = (sig) => {
-          const color = sig?.suggestedBet?.color;
-          return (
-            sig?.suggestedBet?.type === "color" &&
-            (color === "red" || color === "black")
-          );
-        };
-
-        // Compara IDs ou timestamps para ver se mudou
-        const currentId =
-          bestDoubleSignal?.id || bestDoubleSignal?.timestamp || 0;
-        const remoteId =
-          activeDoubleSignal?.id || activeDoubleSignal?.timestamp || 0;
-
-        if (activeDoubleSignal && !bestDoubleSignal) {
-          // Não tem sinal local mas tem no banco - PEGAR IMEDIATAMENTE
-          if (isValidDoubleSignal(activeDoubleSignal)) {
-            console.log(
-              "🔔 Sinal encontrado no banco, aplicando localmente!",
-              activeDoubleSignal.description
-            );
-            setBestDoubleSignal(activeDoubleSignal);
-            doubleAttemptResultsRef.current =
-              activeDoubleSignal.attemptResults || [];
-            setDoubleResultsCountSinceSignal(
-              activeDoubleSignal.resultsCount || 0
-            );
-          } else {
-            console.warn(
-              "⚠️ Sinal inválido recebido para Double (sem cor red/black). Ignorando."
-            );
-          }
-        } else if (
-          activeDoubleSignal &&
-          bestDoubleSignal &&
-          currentId !== remoteId
-        ) {
-          // Sinal diferente no banco - ATUALIZAR
-          if (isValidDoubleSignal(activeDoubleSignal)) {
-            console.log("🔔 Sinal atualizado do banco!");
-            setBestDoubleSignal(activeDoubleSignal);
-            doubleAttemptResultsRef.current =
-              activeDoubleSignal.attemptResults || [];
-            setDoubleResultsCountSinceSignal(
-              activeDoubleSignal.resultsCount || 0
-            );
-          } else {
-            console.warn(
-              "⚠️ Sinal remoto inválido para Double. Mantendo sinal local."
-            );
-          }
-        } else if (!activeDoubleSignal && bestDoubleSignal) {
-          // Sinal foi removido remotamente
-          console.log("🔕 Sinal removido do banco");
-          setBestDoubleSignal(null);
-          doubleAttemptResultsRef.current = [];
-          setDoubleResultsCountSinceSignal(0);
-        }
-
-        console.log("🔄 Dados sincronizados com o banco");
-
-        // Sincronizar sinal ativo da Roleta
-        const activeRouletteSignal = await getActiveSignal("roulette");
-        const currentRouletteId =
-          bestRouletteSignal?.id || bestRouletteSignal?.timestamp || 0;
-        const remoteRouletteId =
-          activeRouletteSignal?.id || activeRouletteSignal?.timestamp || 0;
-
-        if (activeRouletteSignal && !bestRouletteSignal) {
-          console.log(
-            "🔔 Sinal de Roleta encontrado no banco, aplicando localmente!",
-            activeRouletteSignal.description
-          );
-          setBestRouletteSignal(activeRouletteSignal);
-          setCurrentSignalAttempts(
-            (activeRouletteSignal.attemptResults || []).map((num, idx) => ({
-              attemptNumber: idx + 1,
-              resultNumber: Number(num),
-              hit: Array.isArray(activeRouletteSignal.targets)
-                ? activeRouletteSignal.targets.includes(Number(num))
-                : false,
-              timestamp: Date.now(),
-            }))
-          );
-          setResultsCountSinceSignal(activeRouletteSignal.resultsCount || 0);
-        } else if (
-          activeRouletteSignal &&
-          bestRouletteSignal &&
-          currentRouletteId !== remoteRouletteId
-        ) {
-          console.log("🔔 Sinal de Roleta atualizado do banco!");
-          setBestRouletteSignal(activeRouletteSignal);
-          setCurrentSignalAttempts(
-            (activeRouletteSignal.attemptResults || []).map((num, idx) => ({
-              attemptNumber: idx + 1,
-              resultNumber: Number(num),
-              hit: Array.isArray(activeRouletteSignal.targets)
-                ? activeRouletteSignal.targets.includes(Number(num))
-                : false,
-              timestamp: Date.now(),
-            }))
-          );
-          setResultsCountSinceSignal(activeRouletteSignal.resultsCount || 0);
-        } else if (!activeRouletteSignal && bestRouletteSignal) {
-          console.log("🔕 Sinal de Roleta removido do banco");
-          setBestRouletteSignal(null);
-          setCurrentSignalAttempts([]);
-          setResultsCountSinceSignal(0);
-        }
-      } catch (error) {
-        console.error("⚠️ Erro ao sincronizar dados:", error);
-      }
-    }, 3000); // A cada 3 segundos - TEMPO REAL
-
-    return () => clearInterval(syncInterval);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // ❌ REMOVIDO: Sincronização periódica com banco remoto
+  // IndexedDB é local, não precisa de polling
 
   useEffect(() => {
     wsRef.current = createWsClient((data) => {
@@ -376,13 +185,8 @@ function App() {
             if (duplicateById || sameRound || sameRaw || sameNumTimeClose)
               return prev;
 
-            // Salvar novo resultado no banco de dados
-            saveResult(parsed, "double").catch((err) => {
-              console.error(
-                "Erro ao salvar resultado do Double no banco:",
-                err
-              );
-            });
+            // ❌ REMOVIDO: saveResult (dados ficam apenas em memória)
+            // IndexedDB salva apenas sinais validados
 
             return [...prev, parsed].slice(-MAX_RESULTS);
           });
@@ -398,10 +202,8 @@ function App() {
           if (lastRouletteKeyRef.current === key) return; // dedup persistente até mudar o número
           lastRouletteKeyRef.current = key;
 
-          // Salvar resultado da roleta no banco de dados
-          saveResult(normalized, "roulette").catch((err) => {
-            console.error("Erro ao salvar resultado da Roleta no banco:", err);
-          });
+          // ❌ REMOVIDO: saveResult (dados ficam apenas em memória)
+          // IndexedDB salva apenas sinais validados
 
           setRoulette((prev) => [normalized, ...prev].slice(0, 100));
         }
