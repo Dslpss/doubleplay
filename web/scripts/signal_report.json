@@ -1,0 +1,30 @@
+{
+  "summary": {
+    "totalSignals": 2,
+    "uniquePatterns": 2
+  },
+  "rows": [
+    {
+      "key": "triple_repeat",
+      "total": 1,
+      "hits": 1,
+      "hitRate": 100,
+      "precisionAt1": 100,
+      "precisionAt2": 0,
+      "precisionAt3": 0,
+      "avgConfidence": 80,
+      "avgTargets": 3
+    },
+    {
+      "key": "red_black_balance",
+      "total": 1,
+      "hits": 0,
+      "hitRate": 0,
+      "precisionAt1": 0,
+      "precisionAt2": 0,
+      "precisionAt3": 0,
+      "avgConfidence": 60,
+      "avgTargets": 3
+    }
+  ]
+}

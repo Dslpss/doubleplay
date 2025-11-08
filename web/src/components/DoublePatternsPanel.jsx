@@ -297,6 +297,28 @@ export default function DoublePatternsPanel({
             title="Novos padrões suspensos até validar ACERTO/ERRO">
             ⏸️ Detecção pausada
           </span>
+          {/* Aviso sobre probabilidade no 1º giro */}
+          {!signal.firstSpinRecommended && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 10,
+                borderRadius: 8,
+                backgroundColor: "rgba(255, 193, 7, 0.08)",
+                border: "1px solid rgba(255, 193, 7, 0.25)",
+                color: "#ffd166",
+                fontSize: 13,
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+              }}>
+              <strong style={{ color: "#ffd166" }}>⚠️ Atenção:</strong>
+              <span style={{ color: "#f4d35e" }}>
+                Probabilidade menor no 1º giro ({signal.firstSpinConfidence}).
+                Considere usar recuperação (Gale) ou aguardar confirmação.
+              </span>
+            </div>
+          )}
         </div>
 
         <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>

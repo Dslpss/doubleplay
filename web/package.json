@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "node dev-server.js",
+    "analyze": "node scripts/analyze_signals.js data/signals_history.json scripts/signal_report.json",
+    "analyze:watch": "node scripts/analyze_watch.js",
     "dev:all": "concurrently \"npm run dev:server\" \"npm run dev\"",
     "build": "vite build",
     "lint": "eslint .",

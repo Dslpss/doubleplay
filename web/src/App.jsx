@@ -27,6 +27,7 @@ import RouletteEmbedPanel from "./components/RouletteEmbedPanel";
 import AdminResetPanel from "./components/AdminResetPanel.jsx";
 import DoublePatternsPanel from "./components/DoublePatternsPanel.jsx";
 import { detectBestDoubleSignal } from "./services/double.js";
+import BankrollCalculator from "./components/BankrollCalculator";
 // ❌ Persistência desabilitada - dados resetam ao atualizar a página
 // import {
 //   saveSignal,
@@ -63,6 +64,7 @@ function App() {
   const [rouletteSignalsHistory, setRouletteSignalsHistory] = useState([]); // Histórico de sinais da roleta
   const [noSignalMessage, setNoSignalMessage] = useState(null); // Mensagem quando não há sinal
   const [currentSignalAttempts, setCurrentSignalAttempts] = useState([]); // Armazena as 3 tentativas do sinal atual (Martingale)
+  const currentSignalAttemptsRef = useRef([]); // ref sincronizado para evitar race conditions
 
   // Sinais inteligentes para Double
   const [bestDoubleSignal, setBestDoubleSignal] = useState(null);
@@ -78,6 +80,11 @@ function App() {
   const lastOutcomeTimerRef = useRef(null);
 
   const [aggressiveMode, setAggressiveMode] = useState(true);
+
+  // Threshold para priorizar acertos no 1º giro
+  // Sinais com confiança menor que esse valor serão ignorados para apostas no 1º giro
+  // Atualmente como constante — ajuste aqui enquanto fazemos experimentos.
+  const firstSpinConfidenceThreshold = 72; // ajuste inicial, experimente 65..80
 
   // Configurações de Reset Adaptativo
   const [resetStrategy, setResetStrategy] = useState(
@@ -453,8 +460,27 @@ function App() {
         signal.confidence
       );
 
-      // Configurar flag de exibição
+      // Marcar recomendação para o 1º giro com base na confiança
+      signal.firstSpinRecommended =
+        typeof signal.confidence === "number"
+          ? signal.confidence >= firstSpinConfidenceThreshold
+          : false;
+      signal.firstSpinConfidence = signal.confidence;
+
+      // Aviso curto ao usuário quando a confiança for baixa (não impede exibição)
+      if (!signal.firstSpinRecommended) {
+        console.log(
+          `[Signal] Sinal com baixa confiança para 1º giro (${signal.confidence} < ${firstSpinConfidenceThreshold}) — exibindo com aviso`
+        );
+        setNoSignalMessage(
+          `Sinal detectado (confiança ${signal.confidence}) — risco maior no 1º giro`
+        );
+        setTimeout(() => setNoSignalMessage(null), 4000);
+      }
+
+      // Configurar flag de exibição, timestamp e ativar o sinal (mesmo se não recomendado para 1º giro)
       signal.wasDisplayed = false; // ⚠️ Será marcado como true quando o componente renderizar
+      signal.timestamp = Date.now(); // timestamp de quando foi detectado (usado para validação)
 
       setBestRouletteSignal(signal);
       // Ativar cooldown de emissão para impedir novos sinais até validação
@@ -537,6 +563,23 @@ function App() {
         "Targets:",
         signal.targets
       );
+
+      // Marcar recomendação para o 1º giro com base na confiança (Double)
+      signal.firstSpinRecommended =
+        typeof signal.confidence === "number"
+          ? signal.confidence >= firstSpinConfidenceThreshold
+          : false;
+      signal.firstSpinConfidence = signal.confidence;
+
+      if (!signal.firstSpinRecommended) {
+        console.log(
+          `[Signal - Double] Sinal com baixa confiança para 1º giro (${signal.confidence} < ${firstSpinConfidenceThreshold}) — exibindo com aviso`
+        );
+        setNoDoubleSignalMessage(
+          `Sinal detectado (confiança ${signal.confidence}) — risco maior no 1º giro`
+        );
+        setTimeout(() => setNoDoubleSignalMessage(null), 4000);
+      }
 
       // Configurar sinal com todas as propriedades necessárias
       signal.wasDisplayed = false; // ⚠️ Será marcado como true quando o componente renderizar
@@ -827,6 +870,20 @@ function App() {
   useEffect(() => {
     if (!bestRouletteSignal || !roulette || roulette.length === 0) return;
 
+    // Se o sinal ainda não foi exibido ao usuário, esperar um pequeno período
+    // para evitar contar um resultado que aconteceu antes da exibição.
+    const DISPLAY_WAIT_MS = 2000;
+    if (!bestRouletteSignal.wasDisplayed) {
+      const age = Date.now() - (bestRouletteSignal.timestamp || 0);
+      if (age < DISPLAY_WAIT_MS) {
+        console.log(
+          `[Validation] Sinal não exibido ainda (age=${age}ms) — pulando validação até exibição ou ${DISPLAY_WAIT_MS}ms`
+        );
+        return; // aguardar até que o componente marque wasDisplayed ou até o timeout
+      }
+      // se passou DISPLAY_WAIT_MS, prosseguir mesmo sem exibição (fallback)
+    }
+
     const latestResult = roulette[0];
     const resultNum = Number(latestResult.number);
     const resultId = `${latestResult.timestamp}-${resultNum}`;
@@ -894,7 +951,12 @@ function App() {
       timestamp: Date.now(),
     };
 
-    setCurrentSignalAttempts((prev) => [...prev, attempt]);
+    // Atualizar ref (sincronamente) e depois o state para evitar races
+    currentSignalAttemptsRef.current = [
+      ...currentSignalAttemptsRef.current,
+      attempt,
+    ];
+    setCurrentSignalAttempts(currentSignalAttemptsRef.current);
 
     // ❌ Persistência desabilitada
     // saveActiveSignal(
@@ -927,7 +989,7 @@ function App() {
           description: bestRouletteSignal.description,
           confidence: bestRouletteSignal.confidence,
           targets: bestRouletteSignal.targets,
-          attempts: [...currentSignalAttempts, attempt], // Todas as tentativas (Martingale)
+          attempts: [...currentSignalAttemptsRef.current], // Todas as tentativas (Martingale)
           hit: true,
           hitOnAttempt: newCount, // Em qual giro acertou
           timestamp: Date.now(),
@@ -954,6 +1016,7 @@ function App() {
 
       setBestRouletteSignal(null);
       setResultsCountSinceSignal(0);
+      currentSignalAttemptsRef.current = [];
       setCurrentSignalAttempts([]); // Limpar tentativas
       lastValidatedResultRef.current = null; // Reset para próximo sinal
     } else if (newCount >= signalValidFor) {
@@ -980,7 +1043,7 @@ function App() {
           description: bestRouletteSignal.description,
           confidence: bestRouletteSignal.confidence,
           targets: bestRouletteSignal.targets,
-          attempts: [...currentSignalAttempts, attempt], // Todas as 3 tentativas
+          attempts: [...currentSignalAttemptsRef.current], // Todas as 3 tentativas
           hit: false,
           hitOnAttempt: null, // Não acertou em nenhum giro
           timestamp: Date.now(),
@@ -2645,6 +2708,14 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Card: Calculadora de Banca (final da página) */}
+      <div style={{ marginTop: 24 }}>
+        <BankrollCalculator
+          rouletteHistory={rouletteSignalsHistory}
+          doubleHistory={doubleSignalsHistory}
+        />
+      </div>
     </div>
   );
 }

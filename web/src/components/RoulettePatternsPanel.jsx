@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import ResultChip from "./ResultChip";
 
 // Função auxiliar para converter tipo de aposta em texto amigável
@@ -30,14 +30,49 @@ export default function RoulettePatternsPanel({
   noSignalMessage = null,
   lastNumber = null, // Último número que saiu
 }) {
-  // Marcar sinal como exibido quando ele for renderizado
+  // Marcar sinal como exibido somente quando o painel estiver realmente visível
+  const containerRef = useRef(null);
   useEffect(() => {
-    if (signal && !signal.wasDisplayed) {
-      signal.wasDisplayed = true;
-      console.log(
-        "✅ [RoulettePatternsPanel] Sinal marcado como exibido:",
-        signal.patternKey
-      );
+    if (!signal || signal.wasDisplayed) return;
+
+    try {
+      // Garantir que estamos na rota Roleta
+      const onRouletteRoute =
+        window.location && window.location.hash
+          ? window.location.hash === "#/roulette"
+          : true;
+      if (!onRouletteRoute) {
+        console.log(
+          "⚠️ [RoulettePatternsPanel] Sinal detectado mas não no route Roleta, não marcar como exibido"
+        );
+        return;
+      }
+
+      const el = containerRef.current;
+      if (el && typeof el.scrollIntoView === "function") {
+        try {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch {
+          try {
+            el.scrollIntoView();
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      // Aguardar um pequeno delay para a rolagem/paint e então marcar como exibido
+      const t = setTimeout(() => {
+        signal.wasDisplayed = true;
+        console.log(
+          "✅ [RoulettePatternsPanel] Sinal marcado como exibido (scrollIntoView):",
+          signal.description
+        );
+      }, 250);
+
+      return () => clearTimeout(t);
+    } catch (e) {
+      console.error(e);
     }
   }, [signal]);
 
@@ -50,7 +85,7 @@ export default function RoulettePatternsPanel({
 
   if (!signal) {
     return (
-      <div style={box}>
+      <div ref={containerRef} style={box}>
         <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
           Sinais de Roleta
         </h3>
@@ -161,7 +196,7 @@ export default function RoulettePatternsPanel({
   };
 
   return (
-    <div style={box}>
+    <div ref={containerRef} style={box}>
       <h3 style={{ marginTop: 0, marginBottom: 16, color: "#ecf0f1" }}>
         Sinais de Roleta
       </h3>
@@ -197,6 +232,28 @@ export default function RoulettePatternsPanel({
             title="Novos padrões suspensos até validar ACERTO/ERRO">
             ⏸️ Detecção pausada
           </span>
+          {/* Aviso sobre probabilidade no 1º giro */}
+          {!signal.firstSpinRecommended && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 10,
+                borderRadius: 8,
+                backgroundColor: "rgba(255, 193, 7, 0.08)",
+                border: "1px solid rgba(255, 193, 7, 0.25)",
+                color: "#ffd166",
+                fontSize: 13,
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+              }}>
+              <strong style={{ color: "#ffd166" }}>⚠️ Atenção:</strong>
+              <span style={{ color: "#f4d35e" }}>
+                Probabilidade menor no 1º giro ({signal.firstSpinConfidence}).
+                Considere usar recuperação (Gale) ou aguardar confirmação.
+              </span>
+            </div>
+          )}
         </div>
 
         <h4 style={{ margin: "0 0 12px 0", fontSize: 16, color: "#ecf0f1" }}>
