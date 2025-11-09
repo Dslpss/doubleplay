@@ -105,12 +105,16 @@ function analyze(signals) {
     const pct2 = g.total ? (g.hitOnAttemptCounts[2] / g.total) * 100 : 0;
     const pct3 = g.total ? (g.hitOnAttemptCounts[3] / g.total) * 100 : 0;
     const hitRate = g.total ? (g.hits / g.total) * 100 : 0;
+    // EV aproximado por aposta (payout 2x incluindo stake -> lucro unitário em acerto)
+    // EV_unit = p*1 + (1-p)*(-1) = 2p - 1, onde p = hitRate/100
+    const evPerBet = 2 * (hitRate / 100) - 1;
     const avgTargets = g.total ? g.targetsCountSum / g.total : 0;
     return {
       key: g.key,
       total: g.total,
       hits: g.hits,
       hitRate: Number(hitRate.toFixed(2)),
+      evPerBet: Number(evPerBet.toFixed(3)),
       precisionAt1: Number(pct1.toFixed(2)),
       precisionAt2: Number(pct2.toFixed(2)),
       precisionAt3: Number(pct3.toFixed(2)),

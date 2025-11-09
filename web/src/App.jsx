@@ -65,7 +65,7 @@ function App() {
   // Threshold para priorizar acertos no 1º giro
   // Sinais com confiança menor que esse valor serão ignorados para apostas no 1º giro
   // Atualmente como constante — ajuste aqui enquanto fazemos experimentos.
-  const firstSpinConfidenceThreshold = 72; // ajuste inicial, experimente 65..80
+const firstSpinConfidenceThreshold = 74; // perfil pessoal: abrir 1º giro só com confiança moderada-alta
 
   // Removido: Configurações de Reset Adaptativo (roleta)
 
