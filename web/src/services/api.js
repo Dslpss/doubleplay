@@ -55,6 +55,43 @@ export async function connectWsBridge() {
   }
 }
 
+// ===== Alertas compartilhados (MongoDB) =====
+export async function getCurrentAlert(kind = "double") {
+  try {
+    const res = await fetchWithFallback(`alerts?type=current&kind=${encodeURIComponent(kind)}`);
+    return res.json();
+  } catch (e) {
+    console.error("Erro em getCurrentAlert:", e);
+    return { ok: false, signal: null };
+  }
+}
+
+export async function setCurrentAlert(signal, kind = "double") {
+  try {
+    const res = await fetchWithFallback("alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set-current", signal, kind }),
+    });
+    return res.json();
+  } catch (e) {
+    console.error("Erro em setCurrentAlert:", e);
+    return { ok: false };
+  }
+}
+
+export async function getAlertsHistory(limit = 20, kind = "double") {
+  try {
+    const res = await fetchWithFallback(
+      `alerts?type=history&limit=${encodeURIComponent(limit)}&kind=${encodeURIComponent(kind)}`
+    );
+    return res.json();
+  } catch (e) {
+    console.error("Erro em getAlertsHistory:", e);
+    return { ok: false, items: [] };
+  }
+}
+
 export async function autoBet(color, amount = 1) {
   try {
     const res = await fetchWithFallback("auto-bet", {
@@ -90,5 +127,55 @@ export async function manualReset(user, pass) {
     return data;
   } catch (e) {
     return { ok: false, error: e.message || "Reset indisponível" };
+  }
+}
+
+// ===== Resultados do Double =====
+export async function getResults(limit = 100, kind = "double") {
+  try {
+    const res = await fetchWithFallback(`results?limit=${encodeURIComponent(limit)}&kind=${encodeURIComponent(kind)}`);
+    return res.json();
+  } catch (e) {
+    console.error("Erro em getResults:", e);
+    return { ok: false, items: [] };
+  }
+}
+
+export async function saveResult(result, kind = "double") {
+  try {
+    const res = await fetchWithFallback("results", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, result }),
+    });
+    return res.json();
+  } catch (e) {
+    console.error("Erro em saveResult:", e);
+    return { ok: false };
+  }
+}
+
+// ===== Outcomes de Sinais =====
+export async function getSignalOutcomes(limit = 50, kind = "double") {
+  try {
+    const res = await fetchWithFallback(`signals?limit=${encodeURIComponent(limit)}&kind=${encodeURIComponent(kind)}`);
+    return res.json();
+  } catch (e) {
+    console.error("Erro em getSignalOutcomes:", e);
+    return { ok: false, items: [] };
+  }
+}
+
+export async function saveSignalOutcome(record, kind = "double") {
+  try {
+    const res = await fetchWithFallback("signals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, record }),
+    });
+    return res.json();
+  } catch (e) {
+    console.error("Erro em saveSignalOutcome:", e);
+    return { ok: false };
   }
 }

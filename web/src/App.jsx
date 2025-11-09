@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import { status, connectWsBridge } from "./services/api";
+import { status, connectWsBridge, getCurrentAlert, setCurrentAlert, saveSignalOutcome } from "./services/api";
 import { createWsClient } from "./services/wsClient";
 import {
   parseDoublePayload,
@@ -390,6 +390,11 @@ function App() {
       // Agora definir o sinal (isso vai triggar a renderização)
       setBestDoubleSignal(signal);
 
+      // Persistir alertas compartilhados (MongoDB via função serverless)
+      setCurrentAlert(signal).catch((err) => {
+        console.error("[Alerts] Falha ao persistir alerta compartilhado:", err);
+      });
+
       console.log(
         "✅ [SINAL DEFINIDO] Sinal configurado e pronto para validação"
       );
@@ -412,6 +417,26 @@ function App() {
     // para evitar re-execução quando o sinal é definido
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results]);
+
+  // Carregar alerta compartilhado atual ao iniciar (para sincronizar entre usuários)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getCurrentAlert("double");
+        if (!cancelled && data?.ok && data?.signal && !bestDoubleSignal) {
+          const s = { ...data.signal, wasDisplayed: false };
+          setBestDoubleSignal(s);
+        }
+      } catch (e) {
+        console.warn("[Alerts] getCurrentAlert indisponível:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Decrementar cooldown por giros quando novos resultados do Double chegam
   useEffect(() => {
@@ -576,10 +601,10 @@ function App() {
           timestamp: Date.now(),
         });
 
-        // ❌ Persistência desabilitada
-        // saveSignal(signalRecord, "double").catch((err) => {
-        //   console.error("Erro ao salvar sinal do Double:", err);
-        // });
+        // Persistir outcome (ACERTO) no backend
+        saveSignalOutcome(signalRecord, "double").catch((err) => {
+          console.error("[Signals] Falha ao salvar outcome (hit):", err);
+        });
       } else {
         console.log("⚠️ Sinal NÃO foi exibido - não será salvo no histórico");
       }
@@ -630,10 +655,10 @@ function App() {
           timestamp: Date.now(),
         });
 
-        // ❌ Persistência desabilitada
-        // saveSignal(signalRecord, "double").catch((err) => {
-        //   console.error("Erro ao salvar sinal do Double:", err);
-        // });
+        // Persistir outcome (LOSS) no backend
+        saveSignalOutcome(signalRecord, "double").catch((err) => {
+          console.error("[Signals] Falha ao salvar outcome (loss):", err);
+        });
       } else {
         console.log("⚠️ Sinal NÃO foi exibido - não será salvo no histórico");
       }

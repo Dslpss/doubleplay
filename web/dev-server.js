@@ -49,6 +49,52 @@ let dailyResetHandler = async () => ({
   }
 })();
 
+// Handler para alerts (MongoDB) — carregado dinamicamente da função Netlify
+let alertsHandler = async () => ({
+  statusCode: 404,
+  body: JSON.stringify({ ok: false, error: "alerts not configured" }),
+});
+
+(async () => {
+  try {
+    const mod = await import("./netlify/functions/alerts.js");
+    alertsHandler = mod.handler || mod.default || alertsHandler;
+    console.log("[DEV] alerts handler loaded from netlify/functions");
+  } catch {
+    console.warn("[DEV] alerts function not found, continuing without it");
+  }
+})();
+
+// Handler para results (MongoDB) — persistir últimos resultados
+let resultsHandler = async () => ({
+  statusCode: 404,
+  body: JSON.stringify({ ok: false, error: "results not configured" }),
+});
+(async () => {
+  try {
+    const mod = await import("./netlify/functions/results.js");
+    resultsHandler = mod.handler || mod.default || resultsHandler;
+    console.log("[DEV] results handler loaded from netlify/functions");
+  } catch {
+    console.warn("[DEV] results function not found, continuing without it");
+  }
+})();
+
+// Handler para outcomes de sinais (MongoDB)
+let signalsHandler = async () => ({
+  statusCode: 404,
+  body: JSON.stringify({ ok: false, error: "signals not configured" }),
+});
+(async () => {
+  try {
+    const mod = await import("./netlify/functions/signals.js");
+    signalsHandler = mod.handler || mod.default || signalsHandler;
+    console.log("[DEV] signals handler loaded from netlify/functions");
+  } catch {
+    console.warn("[DEV] signals function not found, continuing without it");
+  }
+})();
+
 // Rota local para manual reset delegando à função Netlify (se disponível)
 app.post("/api/daily-reset", async (req, res) => {
   try {
@@ -72,6 +118,78 @@ app.post("/api/daily-reset", async (req, res) => {
         ok: false,
         error: e?.message || String(e || "Erro desconhecido"),
       });
+  }
+});
+
+// Rota para alerts (GET/POST) delegando à função Netlify
+app.all("/api/alerts", async (req, res) => {
+  try {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const event = {
+      httpMethod: req.method,
+      headers: req.headers || {},
+      queryStringParameters: Object.fromEntries(url.searchParams.entries()),
+      body: req.method === "GET" ? null : JSON.stringify(req.body || {}),
+      path: req.path,
+    };
+    const result = await alertsHandler(event);
+    const status = result?.statusCode ?? (result?.ok ? 200 : 500);
+    const headers = result?.headers || {};
+    for (const [k, v] of Object.entries(headers)) {
+      if (typeof v !== "undefined") res.setHeader(k, v);
+    }
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.status(status).send(result?.body ?? JSON.stringify(result ?? {}));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
+// Rota para results (GET/POST) delegando à função Netlify
+app.all("/api/results", async (req, res) => {
+  try {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const event = {
+      httpMethod: req.method,
+      headers: req.headers || {},
+      queryStringParameters: Object.fromEntries(url.searchParams.entries()),
+      body: req.method === "GET" ? null : JSON.stringify(req.body || {}),
+      path: req.path,
+    };
+    const result = await resultsHandler(event);
+    const status = result?.statusCode ?? (result?.ok ? 200 : 500);
+    const headers = result?.headers || {};
+    for (const [k, v] of Object.entries(headers)) {
+      if (typeof v !== "undefined") res.setHeader(k, v);
+    }
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.status(status).send(result?.body ?? JSON.stringify(result ?? {}));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
+// Rota para outcomes de sinais (GET/POST)
+app.all("/api/signals", async (req, res) => {
+  try {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const event = {
+      httpMethod: req.method,
+      headers: req.headers || {},
+      queryStringParameters: Object.fromEntries(url.searchParams.entries()),
+      body: req.method === "GET" ? null : JSON.stringify(req.body || {}),
+      path: req.path,
+    };
+    const result = await signalsHandler(event);
+    const status = result?.statusCode ?? (result?.ok ? 200 : 500);
+    const headers = result?.headers || {};
+    for (const [k, v] of Object.entries(headers)) {
+      if (typeof v !== "undefined") res.setHeader(k, v);
+    }
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.status(status).send(result?.body ?? JSON.stringify(result ?? {}));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
 });
 
@@ -221,6 +339,18 @@ app.get("/events", (req, res) => {
       }
       if (payload) {
         const normalized = normalizeResult(payload);
+        // Persistir resultado no MongoDB (best-effort; não bloqueia stream)
+        try {
+          const ev = {
+            httpMethod: "POST",
+            headers: {},
+            body: JSON.stringify({ kind: "double", result: normalized }),
+          };
+          void resultsHandler(ev);
+        } catch (e) {
+          // ignorar falhas de persistência
+          void e;
+        }
         const key = JSON.stringify(normalized).slice(0, 400);
         if (key !== lastKey) {
           lastKey = key;

@@ -103,6 +103,14 @@ export default async (request, context) => {
           }
           if (payload) {
             const normalized = normalizeResult(payload);
+            // Persistir resultado no MongoDB via função serverless (best-effort)
+            try {
+              fetch('/.netlify/functions/results', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ kind: 'double', result: normalized })
+              }).catch(() => {});
+            } catch (e) { void e; }
             const key = JSON.stringify(normalized).slice(0, 400);
             if (key !== lastKey) {
               lastKey = key;
