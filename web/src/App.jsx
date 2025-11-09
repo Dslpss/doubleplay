@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import { status, connectWsBridge, getCurrentAlert, setCurrentAlert, saveSignalOutcome } from "./services/api";
+import { status, connectWsBridge, getCurrentAlert, setCurrentAlert, saveSignalOutcome, getResults } from "./services/api";
 import { createWsClient } from "./services/wsClient";
 import {
   parseDoublePayload,
@@ -81,6 +81,33 @@ function App() {
     update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Carregar resultados iniciais do backend para alinhar histórico entre dispositivos
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await getResults(MAX_RESULTS);
+        if (resp?.ok && Array.isArray(resp.items)) {
+          // Os resultados vêm ordenados por timestamp desc; invertendo para ordem cronológica
+          const items = resp.items
+            .map((it) => ({
+              number: Number(it.number),
+              color: String(it.color),
+              round_id: it.round_id || null,
+              timestamp: Number(it.timestamp || Date.now()),
+            }))
+            .reverse();
+          setResults(items.slice(-MAX_RESULTS));
+        }
+      } catch (e) {
+        try {
+          console.warn("[App] Falha ao carregar resultados iniciais:", e?.message || e);
+        } catch {
+          // noop
+        }
+      }
+    })();
   }, []);
 
   // Verificar se deve mostrar o popup de aviso
@@ -437,6 +464,35 @@ function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Polling leve para manter alerta compartilhado sincronizado entre dispositivos
+  useEffect(() => {
+    const intervalMs = 10000; // 10s
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const data = await getCurrentAlert("double");
+        if (data?.ok) {
+          // Se há alerta no backend e não estamos validando localmente, adotar
+          if (data.signal && !bestDoubleSignal && !activeSignal) {
+            setBestDoubleSignal({ ...data.signal, wasDisplayed: false });
+          }
+          // Se backend indica nenhum alerta e local não está validando, limpar
+          if (!data.signal && bestDoubleSignal && !activeSignal) {
+            setBestDoubleSignal(null);
+          }
+        }
+      } catch {
+        // silencioso
+      }
+    };
+    const id = setInterval(tick, intervalMs);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+  }, [bestDoubleSignal, activeSignal]);
 
   // Decrementar cooldown por giros quando novos resultados do Double chegam
   useEffect(() => {
