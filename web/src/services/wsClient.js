@@ -4,7 +4,8 @@ export function createWsClient(onMessage) {
   let active = null;
   const connectSSE = () => {
     try {
-      const sseUrl = SERVER_URL ? `${SERVER_URL}/events` : "/events";
+      // Em Vercel, usamos diretamente `/api/events`; com SERVER_URL usamos `/events` do backend
+      const sseUrl = SERVER_URL ? `${SERVER_URL}/events` : "/api/events";
       try {
         console.log("[SSE] Connect to", sseUrl);
       } catch (e) {

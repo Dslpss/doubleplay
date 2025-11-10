@@ -3,12 +3,12 @@ const apiUrls = (endpoint) =>
   SERVER_URL
     ? [
         `${SERVER_URL}/api/${endpoint}`,
-        `/.netlify/functions/${endpoint}`,
         `/api/${endpoint}`,
+        `/.netlify/functions/${endpoint}`,
       ]
     : [
-        `/.netlify/functions/${endpoint}`,
         `/api/${endpoint}`,
+        `/.netlify/functions/${endpoint}`,
       ];
 
 async function fetchWithFallback(endpoint, init) {
