@@ -117,3 +117,26 @@ O código já está preparado! No Netlify:
 3. Usará a Edge Function do Netlify ao invés do servidor local
 
 **Não precisa mudar nada no código!** 🎉
+
+## Deploy para Produção (Vercel)
+
+Você pode publicar somente o frontend na Vercel. Para manter os dados em tempo real, use o SSE fornecido pelo seu backend (por exemplo, o Edge Function do Netlify) via `VITE_SERVER_URL`.
+
+1. No painel da Vercel, crie um novo projeto e importe este repositório.
+2. Em Project Settings, defina `Root Directory` como `web/` (ou use o `vercel.json` da raiz, que já aponta para `web/`).
+3. Configure:
+   - Install Command: `npm i`
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+4. Variáveis de ambiente (Production):
+   - Opção A (somente Vercel): deixe `VITE_SERVER_URL` vazio; o app usará `/api/events` interno (Edge Function, já configurado).
+   - Opção B (backend externo): `VITE_SERVER_URL` = URL base do backend que expõe `/events` (ex.: `https://seu-site-no-netlify.app`).
+   - Para funcionalidades de admin/reset: defina `MONGODB_URI`, `MONGODB_DB`, `ADMIN_USER`, `ADMIN_PASS`.
+   - Para stream do Double: `PLAYNABETS_WS_URL` se desejar sobrescrever o padrão.
+5. O arquivo `web/vercel.json` garante o fallback de SPA (todas as rotas caem em `index.html`).
+
+Observações importantes:
+- Sem `VITE_SERVER_URL`, na Vercel, o frontend usa `/api/events` (Edge Function) para o stream em tempo real, com conexão longa e estável.
+- Portamos `api/status`, `api/connect` e `api/daily-reset` para Vercel. Login e auto-bet estão como stubs e podem ser ativados depois.
+- As rotas `/events` são reescritas automaticamente para `/api/events` pelo `vercel.json`.
+- Para `daily-reset`, configure `MONGODB_URI`, `MONGODB_DB`, `ADMIN_USER`, `ADMIN_PASS`.

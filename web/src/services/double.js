@@ -416,21 +416,7 @@ export function chooseDoubleBetSignal(patterns, results, options = {}) {
     {}
   );
 
-  // Aplicar pré-filtro por consenso e chance mínima quando possível
-  const minConsensusAdv = Number(CONFIG.minConsensusAdvantage || 0);
-  const prefiltered = baseList.filter((advice) => {
-    const thisCount = colorTally[advice.color] || 0;
-    const oppCount = advice.color === "red" ? (colorTally["black"] || 0) : (colorTally["red"] || 0);
-    const consensusOk = thisCount - oppCount >= minConsensusAdv;
-    if (!consensusOk) return false;
-    // Checar chance mínima com base em cálculo atual
-    const chance = computeDoubleSignalChance(advice, results);
-    return chance >= (CONFIG.minChanceToEmit || 0);
-  });
-
-  const baseForScore = prefiltered.length > 0 ? prefiltered : baseList;
-
-  const scored = baseForScore
+  const scored = baseList
     .map((advice) => {
       const chance = computeDoubleSignalChance(advice, results);
       const penaltyKey = lastKey && advice.key === lastKey ? 4 : 0;
@@ -456,15 +442,6 @@ export function chooseDoubleBetSignal(patterns, results, options = {}) {
   selectedSignal.confidence = Math.round(confidence * 10) / 10;
   selectedSignal._score = pick.score;
   selectedSignal.chance = pick.chance;
-
-  // Definir número de tentativas com base na confiança
-  // Eu jogaria com 2 tentativas para confiança menor e 3 para muito alta
-  selectedSignal.validFor = selectedSignal.confidence >= 8.4 ? 3 : 2;
-
-  // Gate final: exigir confiança mínima
-  if (selectedSignal.confidence < (CONFIG.minConfidenceToEmit || 0)) {
-    return null;
-  }
   return selectedSignal;
 }
 

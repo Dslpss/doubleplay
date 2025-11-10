@@ -6,12 +6,6 @@
 [functions]
   directory = "netlify/functions"
 
-[functions."daily-reset"]
-  schedule = "0 0 * * *"
-
-[functions."signals-worker"]
-  schedule = "*/2 * * * *" # executa a cada 2 minutos
-
 [[edge_functions]]
   function = "events"
   path = "/events"
