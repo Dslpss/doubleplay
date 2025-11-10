@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/events", "destination": "/api/events" }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/.*", "dest": "/index.html" }
+  ]
+}

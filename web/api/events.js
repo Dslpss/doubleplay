@@ -1,5 +1,7 @@
-export default async (request, context) => {
-  const WS_URL = context?.env?.PLAYNABETS_WS_URL || 'wss://play.soline.bet:5903/Game';
+export const config = { runtime: 'edge' };
+
+export default async function handler() {
+  const WS_URL = process.env.PLAYNABETS_WS_URL || 'wss://play.soline.bet:5903/Game';
 
   function extractJsonStr(s) {
     if (!s || typeof s !== 'string') return null;
@@ -15,7 +17,6 @@ export default async (request, context) => {
     try {
       const raw = obj?.data ?? obj;
       const out = typeof raw === 'object' ? { ...raw } : { raw };
-      // Coletar número do resultado em diversos campos
       const candidates = [out.value, out.number, out.n, out.roll, out.result];
       for (const c of candidates) {
         if (c !== undefined && c !== null) {
@@ -23,14 +24,11 @@ export default async (request, context) => {
           if (Number.isFinite(num)) { out.value = num; break; }
         }
       }
-      // Normalizar round_id
       out.round_id = out.round_id ?? out.roundId ?? out.gameId;
-      // Timestamp: usar timestamp/dateutc quando possível
       const dt = out.timestamp ?? out.dateutc;
       if (dt !== undefined && dt !== null) {
         const n = Number(dt);
         if (Number.isFinite(n)) {
-          // Se parecer segundos, multiplicar para ms; se negativo, cair para Date.now()
           out.timestamp = n > 1e12 ? n : (n >= 0 ? n * 1000 : Date.now());
         }
       } else {
@@ -48,7 +46,6 @@ export default async (request, context) => {
   let lastKey = null;
   let stopped = false;
   const encoder = new TextEncoder();
-  // Removido: polling da roleta — projeto focado apenas em Double
 
   const stream = new ReadableStream({
     start(controller) {
@@ -63,8 +60,8 @@ export default async (request, context) => {
         controller.enqueue(encoder.encode(chunk));
       };
 
-      send('status', { type: 'status', connected: false, ts: Date.now(), source: 'edge-ws' });
-      sendDefault({ type: 'status', connected: false, ts: Date.now(), source: 'edge-ws' });
+      send('status', { type: 'status', connected: false, ts: Date.now(), source: 'vercel-edge' });
+      sendDefault({ type: 'status', connected: false, ts: Date.now(), source: 'vercel-edge' });
 
       const connect = () => {
         try {
@@ -108,7 +105,7 @@ export default async (request, context) => {
               lastKey = key;
               const resultPayload = { type: 'double_result', data: normalized };
               send('double_result', resultPayload);
-              sendDefault(resultPayload); // fallback compatível com clientes que usam onmessage
+              sendDefault(resultPayload);
             }
           }
         };
@@ -134,7 +131,6 @@ export default async (request, context) => {
       stopped = true;
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
       try { ws?.close(); } catch (e) { void e; }
-      // Removido: timers da roleta
     }
   });
 
@@ -142,7 +138,9 @@ export default async (request, context) => {
     headers: {
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache, no-transform',
-      // Removido 'connection': 'keep-alive' por incompatibilidade com HTTP/2
-    },
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+    }
   });
-};
+}

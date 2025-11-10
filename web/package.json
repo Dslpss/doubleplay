@@ -16,7 +16,8 @@
   "dependencies": {
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "mongodb": "^6.3.0"
+    "mongodb": "^6.3.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
@@ -31,7 +32,6 @@
     "express": "^5.1.0",
     "globals": "^16.4.0",
     "node-fetch": "^3.3.2",
-    "vite": "^7.1.7",
-    "ws": "^8.18.3"
+    "vite": "^7.1.7"
   }
 }

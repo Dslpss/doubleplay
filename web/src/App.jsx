@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import { status, connectWsBridge, getCurrentAlert, setCurrentAlert, saveSignalOutcome, getResults } from "./services/api";
+import { status, connectWsBridge } from "./services/api";
 import { createWsClient } from "./services/wsClient";
 import {
   parseDoublePayload,
@@ -65,7 +65,7 @@ function App() {
   // Threshold para priorizar acertos no 1º giro
   // Sinais com confiança menor que esse valor serão ignorados para apostas no 1º giro
   // Atualmente como constante — ajuste aqui enquanto fazemos experimentos.
-const firstSpinConfidenceThreshold = 74; // perfil pessoal: abrir 1º giro só com confiança moderada-alta
+  const firstSpinConfidenceThreshold = 72; // ajuste inicial, experimente 65..80
 
   // Removido: Configurações de Reset Adaptativo (roleta)
 
@@ -81,33 +81,6 @@ const firstSpinConfidenceThreshold = 74; // perfil pessoal: abrir 1º giro só c
     update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
-  }, []);
-
-  // Carregar resultados iniciais do backend para alinhar histórico entre dispositivos
-  useEffect(() => {
-    (async () => {
-      try {
-        const resp = await getResults(MAX_RESULTS);
-        if (resp?.ok && Array.isArray(resp.items)) {
-          // Os resultados vêm ordenados por timestamp desc; invertendo para ordem cronológica
-          const items = resp.items
-            .map((it) => ({
-              number: Number(it.number),
-              color: String(it.color),
-              round_id: it.round_id || null,
-              timestamp: Number(it.timestamp || Date.now()),
-            }))
-            .reverse();
-          setResults(items.slice(-MAX_RESULTS));
-        }
-      } catch (e) {
-        try {
-          console.warn("[App] Falha ao carregar resultados iniciais:", e?.message || e);
-        } catch {
-          // noop
-        }
-      }
-    })();
   }, []);
 
   // Verificar se deve mostrar o popup de aviso
@@ -417,11 +390,6 @@ const firstSpinConfidenceThreshold = 74; // perfil pessoal: abrir 1º giro só c
       // Agora definir o sinal (isso vai triggar a renderização)
       setBestDoubleSignal(signal);
 
-      // Persistir alertas compartilhados (MongoDB via função serverless)
-      setCurrentAlert(signal).catch((err) => {
-        console.error("[Alerts] Falha ao persistir alerta compartilhado:", err);
-      });
-
       console.log(
         "✅ [SINAL DEFINIDO] Sinal configurado e pronto para validação"
       );
@@ -444,55 +412,6 @@ const firstSpinConfidenceThreshold = 74; // perfil pessoal: abrir 1º giro só c
     // para evitar re-execução quando o sinal é definido
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results]);
-
-  // Carregar alerta compartilhado atual ao iniciar (para sincronizar entre usuários)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await getCurrentAlert("double");
-        if (!cancelled && data?.ok && data?.signal && !bestDoubleSignal) {
-          const s = { ...data.signal, wasDisplayed: false };
-          setBestDoubleSignal(s);
-        }
-      } catch (e) {
-        console.warn("[Alerts] getCurrentAlert indisponível:", e);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Polling leve para manter alerta compartilhado sincronizado entre dispositivos
-  useEffect(() => {
-    const intervalMs = 10000; // 10s
-    let stopped = false;
-    const tick = async () => {
-      if (stopped) return;
-      try {
-        const data = await getCurrentAlert("double");
-        if (data?.ok) {
-          // Se há alerta no backend e não estamos validando localmente, adotar
-          if (data.signal && !bestDoubleSignal && !activeSignal) {
-            setBestDoubleSignal({ ...data.signal, wasDisplayed: false });
-          }
-          // Se backend indica nenhum alerta e local não está validando, limpar
-          if (!data.signal && bestDoubleSignal && !activeSignal) {
-            setBestDoubleSignal(null);
-          }
-        }
-      } catch {
-        // silencioso
-      }
-    };
-    const id = setInterval(tick, intervalMs);
-    return () => {
-      stopped = true;
-      clearInterval(id);
-    };
-  }, [bestDoubleSignal, activeSignal]);
 
   // Decrementar cooldown por giros quando novos resultados do Double chegam
   useEffect(() => {
@@ -657,10 +576,10 @@ const firstSpinConfidenceThreshold = 74; // perfil pessoal: abrir 1º giro só c
           timestamp: Date.now(),
         });
 
-        // Persistir outcome (ACERTO) no backend
-        saveSignalOutcome(signalRecord, "double").catch((err) => {
-          console.error("[Signals] Falha ao salvar outcome (hit):", err);
-        });
+        // ❌ Persistência desabilitada
+        // saveSignal(signalRecord, "double").catch((err) => {
+        //   console.error("Erro ao salvar sinal do Double:", err);
+        // });
       } else {
         console.log("⚠️ Sinal NÃO foi exibido - não será salvo no histórico");
       }
@@ -711,10 +630,10 @@ const firstSpinConfidenceThreshold = 74; // perfil pessoal: abrir 1º giro só c
           timestamp: Date.now(),
         });
 
-        // Persistir outcome (LOSS) no backend
-        saveSignalOutcome(signalRecord, "double").catch((err) => {
-          console.error("[Signals] Falha ao salvar outcome (loss):", err);
-        });
+        // ❌ Persistência desabilitada
+        // saveSignal(signalRecord, "double").catch((err) => {
+        //   console.error("Erro ao salvar sinal do Double:", err);
+        // });
       } else {
         console.log("⚠️ Sinal NÃO foi exibido - não será salvo no histórico");
       }
